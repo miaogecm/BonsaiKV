@@ -1,3 +1,12 @@
+/*
+ * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ *
+ * Hohai University
+ *
+ * Author: Miao Cai: mcai@hhu.edu.cn
+ *	   	   Kangyue Gao: xxxx@163.com
+ */
+
 #include "bonsai.h"
 
 buffer_node_t* buffer_layer_init() {
