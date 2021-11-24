@@ -31,7 +31,6 @@ persist_layer_t* persist_layer_init() {
     p_layer->tail
     
     p_layer->head->bitmap = 1;
-
 }
 
 bonsai_t* bonsai_init() {
