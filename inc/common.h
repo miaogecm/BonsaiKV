@@ -1,5 +1,5 @@
-#ifndef _COMMEN_H
-#define _COMMEN_H
+#ifndef _COMMON_H
+#define _COMMON_H
 
 typedef uint64_t entry_key_t;
 typedef struct entry_s {
@@ -12,4 +12,4 @@ typedef struct entry_s {
 #define GET_VALUE(ptr) (GET_NODE(ptr)->value)
 
 #endif
-/*commen.h*/
+/*common.h*/
