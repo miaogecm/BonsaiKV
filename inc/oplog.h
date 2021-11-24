@@ -19,7 +19,7 @@ struct oplog {
 	index_func_t func;
 	pentry_t kv;	
 
-    struct pnode* node;
+    struct list_head list;
 	struct oplog* next;
 };
 

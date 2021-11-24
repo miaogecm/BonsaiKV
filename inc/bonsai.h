@@ -11,10 +11,8 @@
 
 typedef skiplist_t index_layer_t;
 
-typedef cuckoo_hash_t buffer_node_t;
-
 struct buffer_layer {
-    struct oplog *oplogs;
+	struct list_head oplogs;
 };
 
 struct data_layer {
@@ -29,10 +27,10 @@ struct bonsai {
 };
 
 bonsai_t* bonsai_init();
-int bonsai_lookup(bonsai_t* bonsai, entry_key_t key, char* result);
-int bonsai_insert(bonsai_t* bonsai, entry_kry_t key, char* value);
-int bonsai_remove(bonsai_t* bonsai, entry_key_t key);
-int bonsai_range(bonsai_t* bonsai, entry_key_t begin_key, entry_key_t end_t, cahr** res_arr);
+int bonsai_lookup(bonsai_t* bonsai, pkey_t key, char* result);
+int bonsai_insert(bonsai_t* bonsai, pkey_t key, char* value);
+int bonsai_remove(bonsai_t* bonsai, pkey_t key);
+int bonsai_range(bonsai_t* bonsai, pkey_t begin, pkey_t end, char** res_arr);
 
 #define index_layer_init()              sl_init()
 #define index_layer_insert(a, b, c)     sl_insert(a, b, c)
@@ -44,4 +42,3 @@ int bonsai_range(bonsai_t* bonsai, entry_key_t begin_key, entry_key_t end_t, cah
 #define PERSIST(bonsai)  (bonsai->persist_layer)
 
 #endif
-/*bonsai.h*/

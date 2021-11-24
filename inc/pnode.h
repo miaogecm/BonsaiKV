@@ -3,10 +3,10 @@
 
 #include "rwlock.h"
 
-typedef uint64_t pentry_key_t;
+typedef uint64_t pkey_t;
 
 typedef struct pentry {
-    pentry_key_t key;
+    pkey_t key;
     char* value;
 } pentry_t;
 
@@ -28,7 +28,6 @@ struct pnode {
 	uint64_t slot[PNODE_SIZE + 1];
     rwlock_t* slot_lock;
     rwlock_t* bucket_lock[BUCKET_NUM];
-    buffer_node_t* buffer_node;
 	struct list_head list;
 	char padding[8];
 
