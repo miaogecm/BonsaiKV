@@ -79,6 +79,39 @@ static void thread_work(struct workqueue_struct* wq) {
 	try_wakeup_master();
 }
 
+static void pflush_worker(struct thread_info* this) {
+	__this = this;
+
+	printf("gc thread[%d] start.\n", __this->thread_id);
+
+	bind_to_cpu(__this->thread_cpu);
+	
+	while (1) {
+		worker_sleep();
+		
+		thread_work(&__this->workqueue);
+	}
+}
+
+static void pflush_master(struct thread_info* this) {
+	__this = this;
+
+	printf("gc thread[%d] start.\n", __this->thread_id);
+
+	bind_to_cpu(__this->thread_cpu);
+
+	long int i = 0;
+	for (;;) {		
+		sleep(5);
+		if (i == 0)
+			gc_master_work(__this);
+
+		printf("master gc thread[%d] finish mark-and-compact gc\n", __this->thread_id);
+		i++;
+		sleep(100);
+	}
+}
+
 int thread_init() {
 	struct thread_info* thread;
 	int ret;
