@@ -42,3 +42,4 @@ int bonsai_range(bonsai_t* bonsai, pkey_t begin, pkey_t end, char** res_arr);
 #define PERSIST(bonsai)  (bonsai->persist_layer)
 
 #endif
+/*bonsai.h*/
