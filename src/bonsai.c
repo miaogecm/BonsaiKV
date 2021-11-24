@@ -45,3 +45,29 @@ bonsai_t* bonsai_init() {
     }
     return bonsai;
 }
+
+#define TOID_OFFSET(o) ((o).oid.off)
+
+static inline persist_node_t* alloc_presist_node() {
+    TOID(persist_node_t) toid;
+    int size = sizeof(persist_node_t);
+    POBJ_ZALLOC(pop, &toid, persist_node_t, size + CACHELINE_SIZE);
+    TOID_OFFSET(toid) = TOID_OFFSET(toid) + CACHELINE_SIZE - TOID_OFFSET(toid) % CACHELINE_SIZE;
+
+    D_RW(toid)->slot_lock = (rwlock_t*) malloc(sizeof(rwlock_t));
+    rwlock_init(D_RW(toid)->slot_lock);
+    int i;
+    for (i = 0; i < BUCKET_NUM; i++) {
+        D_RW(toid)->bucket_lock[i] = (rwlock_t*) malloc(sizeof(rwlock_t));
+        rwlock_init(D_RW(toid)->bucket_lock[i]);
+    }
+
+    pmemobj_persist(pop, D_RW(toid), size);
+    return pmemobj_direct(toid);
+}
+
+#define BUCKET_HASH(x) (hash(x) % BUCKET_NUM)
+
+int persist_node_insert(persist_node_t* p_node, entry_key_t key, char* value) {
+    
+}
