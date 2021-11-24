@@ -7,7 +7,7 @@
 #include <libpmemobj.h>
 
 #include "atomic.h"
-#include "commen.h"
+#include "common.h"
 #include "index_layer/skiplist.h"
 #include "cuckoo_hash.h"
 
@@ -15,15 +15,17 @@ typedef skiplist_t index_layer_t;
 
 #define NODE_SIZE       32
 #define BUFFER_SIZE_MUL 2
-#define NUMA_COPY_SIZE  8
+#define BUCKET_SIZE     8
+#define BUCKET_NUM      4
 
 typedef cuckoo_hash_t buffer_node_t;
 
 typedef struct persist_node_s {
     uint64_t bitmap;
-    uint64_t slot[NODE_SIZE+1];
-    entry_t entry[NODE_SIZE];
     rwlock_t* slot_lock;
+    rwlock_t* bucket_lock[BUCKET_NUM];
+    uint64_t slot[NODE_SIZE+1];
+    entry_t entry[NODE_SIZE] __attribute__((aligned(CACHELINE_SIZE)));
     struct persist_node_s* prev;
     struct persist_node_s* next;
     buffer_node_t* buffer_node;
