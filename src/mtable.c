@@ -2,6 +2,7 @@
 #include "oplog.h"
 #include "pnode.h"
 #include "cmp.h"
+#include "common.h"
 
 #define CUCKOO_RESIZE_THREASHOLD    	0.5
 #define CUCKOO_RESIZE_MULT      		2
@@ -59,7 +60,7 @@ void resize(struct mtable* table, int reseed) {
         get_rand_seed(cuckoo);
     
     table->size = table->size * CUCKOO_RESIZE_MULT;
-    table->max_used_size = table->size * CUCKOO_MAX_SIZE_USED / 100;
+    table->max_used_size = table->size * CUCKOO_RESIZE_THREASHOLD;
     table->e = ralloc(table->e, sizeof(cuckoo_node_t) * table->size);
     
     
@@ -103,6 +104,9 @@ void go_deep(struct mtable* table, int idx, int depth) {
     table->e[idx].used = 0;
 }
 
+/* mtable_insert: insert an entry into a mtable, if existed, update. 
+ * @return: key existed/not_existed
+ */
 exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
     exist_t exist;
 
@@ -183,6 +187,11 @@ end:
     return exist;
 }
 
+/*
+ * mtable_lookup: lookup a key in a mtable
+ * @return: key existed/not_existed
+ * @reulst: value if existed
+ */
 exist_t mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
 	int idx, idx1, idx2;
     pkey_t e_key;
@@ -216,7 +225,7 @@ exist_t mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
     return KEY_EXISTED;
 }
 
-exist_t mtable_remove(struct mtable* table, pkey_t key) {
+int mtable_remove(struct mtable* table, pkey_t key) {
 	int idx, idx1, idx2;
     pkey_t e_key;
 
@@ -239,7 +248,7 @@ exist_t mtable_remove(struct mtable* table, pkey_t key) {
     if (idx == -1) {
         read_unlock(&table->e[idx1].lock);
         read_unlock(&table->e[idx2].lock);
-        return KEY_NOT_EXISTED;
+        return ERR_NOENT;
     }
     
     table->e[idx].used = 0;
@@ -247,5 +256,5 @@ exist_t mtable_remove(struct mtable* table, pkey_t key) {
     read_unlock(&table->e[idx2].lock);
 
     oplog_insert(key, table->e[idx].addr, NULL, OP_REMOVE);
-    return KEY_EXISTED;
+    return 0;
 }
