@@ -28,7 +28,5 @@ struct oplog {
 };
 
 extern struct oplog* oplog_insert(pkey_t key, pval_t val, void *table, optype_t op);
-extern int oplog_remove(pkey_t key, void *table);
-pval_t oplog_lookup(pkey_t key, void *table);
 
 #endif

@@ -196,8 +196,7 @@ int mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
     if (table->e[idx1].used && 
     cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
         idx = idx1; 
-    }
-    else if (table->e[idx2].used && 
+    } else if (table->e[idx2].used && 
     cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
         idx = idx2; 
     }
@@ -222,6 +221,7 @@ int mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
 int mtable_remove(struct mtable* table, pkey_t key) {
 	int idx, idx1, idx2;
     pkey_t e_key;
+	int ret;
 
     idx1 = HASH1(key, cuckoo);
     idx2 = HASH2(key, cuckoo);
@@ -249,6 +249,7 @@ int mtable_remove(struct mtable* table, pkey_t key) {
     read_unlock(&table->e[idx1].lock);
     read_unlock(&table->e[idx2].lock);
 
-    oplog_insert(0, 0, table->e[idx].addr, OP_REMOVE);
-    return 0;
+    ret = oplog_insert(0, 0, table->e[idx].addr, OP_REMOVE);
+
+    return ret;
 }

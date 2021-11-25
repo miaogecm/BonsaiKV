@@ -218,7 +218,7 @@ int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
  * @key2: end_key
  * @res_array: result_array
  */
-int pnode_range(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr) {
+int pnode_scan(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr) {
     struct pnode* prev_pnode;
     int res_n = 0;
     uint8_t* slot;
@@ -253,7 +253,7 @@ int pnode_range(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr
 }
 
 /*
- * pnode_persist: persist the p_bitmap of pnode after a operation
+ * commit_bitmap: persist the p_bitmap of pnode after a operation
  * @pnode: pnode
  * @pos: the position where insert/remove an entry
  * @op: insert/remove
