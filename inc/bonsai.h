@@ -7,6 +7,7 @@
 #include <libpmemobj.h>
 
 #include "atomic.h"
+#include "thread.h"
 #include "cuckoo_hash.h"
 
 typedef skiplist_t index_layer_t;
@@ -21,6 +22,12 @@ struct data_layer {
 
 struct bonsai {
     uint8_t 			bonsai_init;
+	
+	/* 1. thread info */	
+	pthread_t tids[NUM_PFLUSH_THREAD];
+	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
+
+	/* 2. layer info */
     index_layer_t* 		ilayer;
     struct buffer_layer blayer;
     struct data_layer 	dlayer;

@@ -3,6 +3,8 @@
 
 #include <pthread.h>
 
+#define NUM_PFLUSH_THREAD
+
 typedef void (*work_func_t)(void*);
 
 struct work_struct {
@@ -17,11 +19,10 @@ struct workqueue_struct {
 };
 
 struct thread_info {
-	unsigned int thread_id;
-	unsigned int thread_cpu;
-	int socket_fd;
-	void* thread_data; /* thread_data could be tx_data or gc_data */
-	struct workqueue_struct workqueue;		
+	unsigned int 	t_id;
+	unsigned int 	t_cpu;
+	void* 			t_data;
+	struct workqueue_struct t_wq;		
 };
 
 static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
