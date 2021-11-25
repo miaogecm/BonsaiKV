@@ -3,6 +3,7 @@
 #define CUCKOO_RESIZE_THREASHOLD    	0.5
 #define CUCKOO_RESIZE_MULT      		2
 #define CUCKOO_MAX_DEPTH        		2
+#define CUCKOO_NUM_ENTRIES				32
 
 #define HASH1(key, cuckoo) (hash(key, \
     cuckoo->seed[0].murmur, cuckoo->seed[0].mixer) & (cuckoo->size - 1));
@@ -12,144 +13,168 @@
 int cuckoo_cmp(entry_key_t a, entry_key_t b) {
     if (a < b) return -1;
     if (a == b) return 0;
-    reutrn 1;
+    return 1;
 }
 
-static void get_rand_seed(cuckoo_hash_t* cuckoo) {
+static void get_rand_seed(struct mtable* table) {
     srand(time(0));
     int i;
     for (i = 0; i < 3; i++) {
-        cuckoo->seeds[i] = ((int64_t)rand() << 32) | rand();
+        table->seeds[i] = ((int64_t)rand() << 32) | rand();
     }
 }
 
-cuckoo_hash_t* cuckoo_init(uint32_t size) {
-    cuckoo_hash_t* cuckoo = malloc(sizeof(cuckoo_hash_t));
-    assert(cuckoo);
+struct mtable* mtable_init(struct pnode* pnode) {
+    struct mtable* table;
+	int i;
+
+	table = malloc(sizeof(struct mtable));
     rwlock_init(cuckoo->lock);
-    cuckoo->size = size;
-    cuckoo->used_size = 0;
-    cuckoo->max_used_size = size / 2;
-    get_rand_seed(cuckoo);
-    cuckoo->table = calloc(size, sizeof(cuckoo_node_t));
-    assert(cuckoo->table);
-    for (int i = 0; i < size; i++) {
-        rwlock_init(cuckoo->table[i].lock);
+    cuckoo->total_ent = CUCKOO_NUM_ENTRIES;
+    cuckoo->used_ent = 0;
+    
+    get_rand_seed(table);
+
+	table->pnode = pnode;
+	INIT_LIST_HEAD(&table->list);
+
+    table->e = malloc(size, sizeof(mtable_ent_t));
+    
+    for (i = 0; i < table->total_ent; i++) {
+		table->e[i].used = 0;
+		table->e[i].addr = NULL;
+        rwlock_init(&table->e[i].lock);
     }
-    return cuckoo;
+    return mtable;
 }
 
-int find_index(cuckoo_hash_t* cuckoo, pkey_t key) {
+int find_index(struct mtable* table, pkey_t key) {
     int idx1 = HASH1(key, cuckoo);
     int idx2 = HASH2(key, cuckoo);
-    read_lock(cuckoo->table[idx1].lock);
-    read_lock(cuckoo->table[idx2].lock);
+	int idx = -1;
 
-    int idx = -1;
-    if (cuckoo->table[idx1].used && 
-    cuckoo_cmp(key, GET_KEY(cuckoo->table[idx1].ptr)) == 0) {
+    read_lock(&table->e[idx1].lock);
+    read_lock(&table->e[idx2].lock);
+
+    if (table->e[idx1].used && 
+    cuckoo_cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
         idx = idx1; 
     }
-    else if (cuckoo->table[idx2].used && 
-    cuckoo_cmp(key, GET_KEY(cuckoo->table[idx2].ptr)) == 0) {
+    else if (table->e[idx2].used && 
+    cuckoo_cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
         idx = idx2; 
     }
     
-    read_unlock(cuckoo->table[idx1].lock);
-    read_unlock(cuckoo->table[idx2].lock);
+    read_unlock(&table->e[idx1].lock);
+    read_unlock(&table->e[idx2].lock);
     return idx;
 }
 
-void resize(cuckoo_hash_t* cuckoo, int reseed) {
-    uint32_t old_size = cuckoo->size;
-    if (reseed) {
+void resize(struct mtable* table, int reseed) {
+    uint32_t old_size = table->total_ent;
+	int i, idx1, idx2;
+	pkey_t key
+
+    if (reseed)
         get_rand_seed(cuckoo);
+    
+    table->size = table->size * CUCKOO_RESIZE_MULT;
+    table->max_used_size = table->size * CUCKOO_MAX_SIZE_USED / 100;
+    table->e = ralloc(table->e, sizeof(cuckoo_node_t) * table->size);
+    
+    
+    for (i = old_size; i < table->size; i++) {
+        table->e[i].used = 0;
+        rwlock_init(&table->e[i].lock);
     }
-    cuckoo->size = cuckoo->size * CUCKOO_RESIZE_MULT;
-    cuckoo->max_used_size = cuckoo->size * CUCKOO_MAX_SIZE_USED / 100;
-    cuckoo->table = ralloc(cuckoo->table, sizeof(cuckoo_node_t) * cuckoo->size);
-    assert(cuckoo->table);
-    int i;
-    for (i = old_size; i < cuckoo->size; i++) {
-        cuckoo->table[i].used = 0;
-        rwlock_init(cuckoo->table[i].lock);
-    }
+
     for (i = 0; i < old_size; i++) {
-        if (cuckoo->table[i].used) {
-            entry_key_t key = GET_KEY(cuckoo->table[i].ptr);
-            int idx1 = HASH1(key);
-            int idx2 = HASH2(key);
+        if (table->e[i].used) {
+            key = GET_KEY(table->e[i].addr);
+            idx1 = HASH1(key);
+            idx2 = HASH2(key);
             if (i != idx1 && i != idx2) {
-                cuckoo->table[i].used = 0;
-                cuckoo->size--;
-                cuckoo_insert(cuckoo, key, GET_VALUE(cuckoo->table[i].ptr);
+                table->e[i].used = 0;
+                table->size--;
+                table_insert(table, key, GET_VALUE(table->e[i].addr);
             }
         }
     }
 }
 
-void ge_deep(cuckoo_hash_t* cuckoo, int idx, int depth) {
-    entry_key_t key = GET_KEY(cuckoo->table[idx].ptr);
-    int idx1 = HASH1(key, cuckoo);
-    int idx2 = HASH2(key, cuckoo);
+void go_deep(struct mtable* table, int idx, int depth) {
+    pkey_t key = GET_KEY(table->e[idx].ptr);
+    int idx1 = HASH1(key, table);
+    int idx2 = HASH2(key, table);
     int u_idx = (idx1 == idx) ? idx2 : idx1;
-    if (cuckoo->table[u_idx].used) {
+
+    if (table->e[u_idx].used) {
         if (depth) {
-            ge_deep(cuckoo, u_idx, depth - 1)
+            go_deep(table, u_idx, depth - 1)
             return;
         }
         else {
-            resize(cuckoo, 1);
+            resize(table, 1);
             return;
         }
     }
-    cuckoo->table[u_idx].ptr = cuckoo->table[idx].ptr;
-    cuckoo->table[u_idx].used = 1;
-    cuckoo->table[idx].used = 0;
+    table->e[u_idx].addr = table->e[idx].addr;
+    table->e[u_idx].used = 1;
+    table->e[idx].used = 0;
 }
 
-int cuckoo_insert(cuckoo_hash_t* cuckoo, cuckoo_hash_t key, size_t value) {
-    read_lock(cuckoo->lock);
-    if (find_index(cuckoo, key) != -1) {
-        return 0;
-    }
+int mtable_insert(struct mtable* table, pkey_t key, void* addr) {
+	int idx1, idx2;
 
-    if (cuckoo->used_size > cuckoo->max_used_size) {
-        read_unlock(cuckoo->lock);
-        resize(cuckoo, 0);
-        if (cuckoo->used_size > cuckoo->max_used_size) {
-            write_lock(cuckoo->lock);
+    read_lock(&table->lock);
+    if (find_index(table, key) != -1) 
+        return 0;
+
+    if (table->used_size > table->max_used_size) {
+        read_unlock(&table->lock);
+        resize(table, 0);
+        if (table->used_size > table->max_used_size) {
+            write_lock(&table->lock);
         }
         else {
-            read_lock(cuckoo->lock);
+            read_lock(&table->lock);
         }
     }
     
     while(1) {
-        int idx1 = HASH1(key, cuckoo);
-        int idx2 = HASH2(key, cuckoo);
-        write_lock(cuckoo->table[idx1].lock);
-        write_lock(cuckoo->table[idx2].lock);
-        if (!cuckoo->table[idx1].used) {
-            cuckoo->table[idx1].ptr = value;
-            cuckoo->table[idx1].used = 1;
-            cuckoo->used_size++;
+        idx1 = HASH1(key, table);
+        idx2 = HASH2(key, table);
+        write_lock(&table->e[idx1].lock);
+        write_lock(&table->e[idx2].lock);
+
+        if (!table->e[idx1].used) {
+            table->e[idx1].addr = addr;
+            table->e[idx1].used = 1;
+            table->used_size++;
+            goto end;
+        } else if (!table->e[idx2].used) {
+            table->e[idx2].addr = addr;
+            table->e[idx2].used = 1;
+            table->used_size++;
             goto end;
         }
-        else if (!cuckoo->table[idx2].used) {
-            cuckoo->table[idx2].ptr = value;
-            cuckoo->table[idx2].used = 1;
-            cuckoo->used_size++;
-            goto end;
-        }
-        go_deep(cuckoo, idx1, CUCKOO_MAX_DEPTH);
-        write_unlock(cuckoo->table[idx1]);
-        write_unlock(cuckoo->table[idx2]);
+
+        go_deep(table, idx1, CUCKOO_MAX_DEPTH);
+        write_unlock(&table->e[idx1]);
+        write_unlock(&table->e[idx2]);
         continue;
-end:;
-        write_unlock(cuckoo->table[idx1]);
-        write_unlock(cuckoo->table[idx2]);
+end:
+        write_unlock(&table->e[idx1]);
+        write_unlock(&table->e[idx2]);
         break;
     }
     return 1;
+}
+
+int mtable_update(struct mtable* table, pkey_t key, void* addr) {
+	/*TODO*/
+}
+
+pval_t mtable_lookup(struct mtable* table, pkey_t key) {
+	/*TODO*/
 }

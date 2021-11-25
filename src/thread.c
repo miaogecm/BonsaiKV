@@ -14,6 +14,15 @@ __thread struct thread_info* __this;
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
+static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
+	list_add(&work->list, &wq->head);
+}
+
+static inline void workqueue_del(struct work_struct* work) {
+	list_del(&work->list);
+	free(work);
+}
+
 static void bind_to_cpu(int cpu) {
     int ret;
     cpu_set_t mask;
@@ -148,7 +157,7 @@ static void pflush_master(struct thread_info* this) {
 	}
 }
 
-int thread_init(struct bonsai* bonsai) {
+int bonsai_thread_init(struct bonsai* bonsai) {
 	struct thread_info* thread;
 	int ret;
 
@@ -176,7 +185,7 @@ int thread_init(struct bonsai* bonsai) {
 	return 0;
 }
 
-int thread_exit(struct bonsai* bonsai) {
+int bonsai_thread_exit(struct bonsai* bonsai) {
 	int i;
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
