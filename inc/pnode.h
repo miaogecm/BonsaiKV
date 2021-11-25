@@ -42,6 +42,7 @@ struct pnode {
 
     uint8_t slot[PNODE_ENT_NUM + 1];
     struct list_head list;
+    struct mtable* mtable;
 }__attribute__((aligned(CACHELINE_SIZE)));
 
 extern int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value);

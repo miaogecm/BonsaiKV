@@ -11,6 +11,7 @@
 #include "oplog.h"
 #include "common.h"
 #include "arch.h"
+#include "mtable.h"
 
 static struct pnode* alloc_pnode() {
     TOID(struct pnode) toid;
@@ -176,8 +177,7 @@ retry:
 
         list_add(new_pnode, pnode);
 
-        // todo
-        // split htable
+        mtable_split(pnode->mtable, new_pnode);
     }
 
     max_key = pnode->entry[slot[0]];
