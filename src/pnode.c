@@ -111,7 +111,7 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
 /*
  * pnode_insert: insert an kv-pair into a pnode
  */
-int pnode_insert(struct pnode* pnode, pkey_t key, char* value) {
+int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value) {
     uint32_t bucket_id;
     int offset, pos;
     uint64_t mask;
@@ -123,7 +123,7 @@ int pnode_insert(struct pnode* pnode, pkey_t key, char* value) {
     bucket_id = BUCKET_HASH(key);
     offset = BUCKET_SIZE * bucket_id;
 
-retry:;
+retry:
 
     write_lock(pnode->bucket_lock[bucket_id]);
     mask = (1ULL << (offset + BUCKET_SIZE)) - (1ULL << offset);
@@ -156,10 +156,11 @@ retry:;
 
     if (bucket_full_flag) {
         uint64_t bitmap, removed;
+		int n;
 
         new_pnode* = alloc_presist_node();
         memcpy(new_pnode->entry, pnode->entry, sizeof(pentry_t) * PNODE_ENT_NUM);
-        int n = pnode->slot[0];
+        n = pnode->slot[0];
         bitmap = pnode->v_bitmap;
         removed = 0;
 
@@ -195,9 +196,9 @@ retry:;
  * @pentry: the address of entry to be removed
  */
 int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
-    int pos;
     uint64_t mask;
     pkey_t key;
+	int pos;
 
     pos = ENTRY_ID(pnode, pentry);
     key = pnode->entry[pos];
@@ -216,31 +217,22 @@ int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
  * @pos: the position where insert/remove an entry
  * @op: insert/remove
  */
-void pnode_persist(struct pnode* pnode, int pos, optype_t op) {
+void commit_bitmap(struct pnode* pnode, int pos, optype_t op) {
     uint64_t mask;
     
     mask = 1ULL << pos;
     if (op == OP_INSERT) {
         pnode->p_bitmap |= mask;
-    }
-    else {
+    } else {
         pnode->p_bitmap &= ~mask;
     }
+
     clflush(pnode->p_bitmap, sizeof(uint64_t));
     mfence();
 }
 
 void free_pnode(struct pnode* pnode) {
 
-}
-
-void free_pnode_list(struct pnode* pnode) {
-    struct pnode* next_pnode;
-    while(pnode != NULL) {
-        next_pnode = list_next_entry(pnode->list, struct pnode);
-        free_pnode(pnode);
-        pnode = next_pnode;
-    }
 }
 
 /* remain unsolved:

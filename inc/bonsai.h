@@ -32,7 +32,8 @@ struct index_layer {
 };
 
 struct log_layer {
-	struct list_head oplogs[NUM_CPU];
+	spinlock_t locks[NUM_CPU];
+	struct list_head log_list[NUM_CPU];
 	struct list_head mtable_list;
 
 	insert_func_t insert;
@@ -51,6 +52,7 @@ struct data_layer {
 
 struct bonsai {
     uint8_t 			bonsai_init;
+	int					total_cpu;
 	
 	/* 1. thread info */	
 	pthread_t 			tids[NUM_PFLUSH_THREAD];

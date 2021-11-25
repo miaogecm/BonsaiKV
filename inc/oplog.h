@@ -17,7 +17,8 @@ struct oplog {
     atomic_t 			o_stamp;
 	optype_t 			o_type;
 	index_func_t 		o_func;
-	pentry_t 			o_kv;	
+	pentry_t 			o_kv;
+	struct pnode*		o_node;
     struct list_head 	o_list;
 };
 
