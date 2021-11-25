@@ -35,10 +35,10 @@ typedef struct pentry {
 /*
  * persistent node definition in data layer
  */
-struct pnode_struct {
+struct pnode {
 	/* first cache line */
-    uint64_t* bitmap;
-    uint64_t persist_bitmap;
+    uint64_t* v_bitmap;
+    uint64_t p_bitmap;
     rwlock_t* slot_lock;
     rwlock_t* bucket_lock[BUCKET_NUM];
 	char padding[40 - 8 * BUCKET_NUM];

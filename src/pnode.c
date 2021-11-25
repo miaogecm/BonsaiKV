@@ -87,7 +87,7 @@ int pnode_insert(struct pnode* pnode, pkey_t key, char* value) {
 retry:;
     write_lock(pnode->bucket_lock[bucket_id]);
     uint64_t mask = (1ULL << (offset + BUCKET_SIZE)) - (1ULL << offset);
-    int pos = find_unused_entry(pnode->bitmap & mask);
+    int pos = find_unused_entry(pnode->v_bitmap & mask);
     if (pos != -1) {
         pentry_t entry = {key, value};
         pnode->entry[pos] = entry;
@@ -112,7 +112,7 @@ retry:;
         struct pnode* = alloc_presist_node();
         memcpy(new_pnode->entry, pnode->entry, sizeof(pentry_t) * PNODE_ENT_NUM);
         int n = pnode->slot[0];
-        uint64_t bitmap = pnode->bitmap;
+        uint64_t bitmap = pnode->v_bitmap;
         uint64_t removed = 0;
         int i;
         for (i = n / 2 + 1; i <= n; i++) {
@@ -120,9 +120,9 @@ retry:;
             new_pnode->slot[i - n/2] = pnode->slot[i];
         }
         new_pnode->slot[0] = n - n / 2;
-        new_pnode->bitmap = removed;
+        new_pnode->v_bitmap = removed;
 
-        pnode->bitmap &= ~removed;
+        pnode->v_bitmap &= ~removed;
         pnode->slot[0] = n/2;
 
         list_add(new_pnode, pnode);
@@ -141,7 +141,7 @@ retry:;
 int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
     int pos = ENTRY_ID(pnode, pentry);
     uint64_t mask = ~(1ULL << pos);
-    pnode->bitmap &= mask;
-    pnode->persist_bitmap &= mask;
+    pnode->v_bitmap &= mask;
+    pnode->p_bitmap &= mask;
     return 1;
 }
