@@ -41,6 +41,7 @@ struct pnode {
     pentry_t entry[PNODE_ENT_NUM]__attribute__((aligned(CACHELINE_SIZE)));
 
     uint8_t slot[PNODE_ENT_NUM + 1];
+	void *forward[BUCKET_NUM];
     struct list_head list;
     struct mtable* mtable;
 }__attribute__((aligned(CACHELINE_SIZE)));
