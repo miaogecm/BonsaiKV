@@ -93,6 +93,7 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, int op) {
 int pnode_insert(struct pnode* pnode, pkey_t key, char* value) {
     uint32_t bucket_id = BUCKET_HASH(key);
     int offset = BUCKET_SIZE * bucket_id;
+
 retry:;
     write_lock(pnode->bucket_lock[bucket_id]);
     uint64_t mask = (1ULL << (offset + BUCKET_SIZE)) - (1ULL << offset);
@@ -147,6 +148,10 @@ retry:;
     goto retry;
 }
 
+/*
+ * pnode_remove: 
+ * @pnode: 
+ */
 int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
     int pos = ENTRY_ID(pnode, pentry);
     uint64_t mask = ~(1ULL << pos);
