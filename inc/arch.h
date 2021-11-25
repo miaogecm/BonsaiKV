@@ -17,7 +17,7 @@ extern "C" {
  */
 #define ____ptr_aligned __attribute__((aligned(sizeof(void *))))
 
-#define CPU_MAX_NUM     48
+#define NUM_CPU     48
 
 #define PAGE_SIZE 4096
 #define CACHELINE_SIZE 64

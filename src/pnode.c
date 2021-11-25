@@ -1,6 +1,15 @@
+/*
+ * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ *
+ * Hohai University
+ *
+ * Author: Miao Cai: mcai@hhu.edu.cn
+ *	   	   Kangyue Gao: xxxx@gmail.com
+ */
+
 #include "pnode.h"
 
-static struct pnode* alloc_presist_node() {
+static struct pnode* alloc_pnode() {
     TOID(struct pnode) toid;
     int size = sizeof(struct pnode);
     POBJ_ZALLOC(pop, &toid, struct pnode, size + CACHELINE_SIZE);
@@ -20,8 +29,8 @@ static struct pnode* alloc_presist_node() {
 }
 
 static int find_unused_entry(uint64_t v) {
-    v = ~v;
-    int n = 1;
+	int n = 1;    
+	v = ~v;
 
     if (!v) return -1;
 #if BUCKET_SIZE >= 64

@@ -10,13 +10,6 @@
 #include "list.h"
 #include "cmp.h"
 
-typedef uint64_t pkey_t;
-
-typedef struct pentry {
-    pkey_t key;
-    char* value;
-} pentry_t;
-
 #define GET_NODE(ptr) ((pentry_t*)ptr)
 #define GET_KEY(ptr) (GET_NODE(ptr)->key)
 #define GET_VALUE(ptr) (GET_NODE(ptr)->value)
@@ -32,6 +25,7 @@ typedef struct pentry {
     (pnode)->bitmap & ((1ULL << (x + BUCKET_SIZE)) - (1ULL << x))) == -1)
 
 #define ENTRY_ID(pnode, entry) ((entry - pnode - CACHELINE_SIZE) / sizeof(pentry_t))
+
 /*
  * persistent node definition in data layer
  */
@@ -49,9 +43,6 @@ struct pnode {
     uint8_t slot[PNODE_ENT_NUM + 1];
     struct list_head list;
 }__attribute__((aligned(CACHELINE_SIZE)));
-
-extern int pnode_insert(struct pnode* pnode, pkey_t key, char* value);
-extern int pnode_remove(struct pnode* pnode, pentry_t* pentry);
 
 #endif
 /*pnode.h*/

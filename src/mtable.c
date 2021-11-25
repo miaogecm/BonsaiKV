@@ -1,48 +1,13 @@
-#ifndef _CUCKOO_HASH
-#define _CUCKOO_HASH
+#include "mtable.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <stdint.h>
-#include <assert.h>
-
-#include "common.h"
-#include "spinlock.h"
-#include "hash.h"
-
-#define CUCKOO_MAX_SIZE_USED    50
-#define CUCKOO_RESIZE_MULT      2
-#define CUCKOO_MAX_DEPTH        2
-
-typedef struct cuckoo_node_s {
-    uint8_t used;
-    rwlock_t* lock;
-    size_t ptr;
-}cuckoo_node_t;
-
-typedef struct persist_node_s persist_node_t;
-
-typedef struct cuckoo_hash_s {
-    rwlock_t* lock;
-    uint32_t size;
-    uint32_t used_size;
-    uint32_t max_used_size;
-    int64_t seeds[3];
-    cuckoo_node_t* table;
-    persist_node_t* persist_node;
-}cuckoo_hash_t;
+#define CUCKOO_RESIZE_THREASHOLD    	0.5
+#define CUCKOO_RESIZE_MULT      		2
+#define CUCKOO_MAX_DEPTH        		2
 
 #define HASH1(key, cuckoo) (hash(key, \
     cuckoo->seed[0].murmur, cuckoo->seed[0].mixer) & (cuckoo->size - 1));
 #define HASH2(key, cuckoo) (hash(key, \
     cuckoo->seed[1].murmur, cuckoo->seed[1].mixer) & (cuckoo->size - 1));
-
-cuckoo_hash_t* cockoo_init(uint32_t size);
-int cuckoo_insert(cuckoo_hash_t* cuckoo, entry_key_t key, size_t value);
-int cuckoo_remove(cuckoo_hash_t* cuckoo, entry_key_t key);
-int cuckoo_lookup(cuckoo_hash_t* cuckoo, entry_key_t key);
-void cuckoo_destroy(cuckoo_hash_t* cuckoo);
 
 int cuckoo_cmp(entry_key_t a, entry_key_t b) {
     if (a < b) return -1;
@@ -50,7 +15,7 @@ int cuckoo_cmp(entry_key_t a, entry_key_t b) {
     reutrn 1;
 }
 
-void get_rand_seed(cuckoo_hash_t* cuckoo) {
+static void get_rand_seed(cuckoo_hash_t* cuckoo) {
     srand(time(0));
     int i;
     for (i = 0; i < 3; i++) {
@@ -74,7 +39,7 @@ cuckoo_hash_t* cuckoo_init(uint32_t size) {
     return cuckoo;
 }
 
-int find_index(cuckoo_hash_t* cuckoo, cuckoo_hash_t key) {
+int find_index(cuckoo_hash_t* cuckoo, pkey_t key) {
     int idx1 = HASH1(key, cuckoo);
     int idx2 = HASH2(key, cuckoo);
     read_lock(cuckoo->table[idx1].lock);
@@ -182,11 +147,9 @@ int cuckoo_insert(cuckoo_hash_t* cuckoo, cuckoo_hash_t key, size_t value) {
         write_unlock(cuckoo->table[idx2]);
         continue;
 end:;
-        write_1unlock(cuckoo->table[idx1]);
+        write_unlock(cuckoo->table[idx1]);
         write_unlock(cuckoo->table[idx2]);
         break;
     }
     return 1;
 }
-#endif
-/*cuckoo_hash.h*/

@@ -6,6 +6,7 @@
  * Author: Miao Cai: mcai@hhu.edu.cn
  *	   	   Kangyue Gao: xxxx@163.com
  */
+
 #include "thread.h"
 
 __thread struct thread_info* __this;

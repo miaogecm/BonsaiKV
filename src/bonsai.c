@@ -9,47 +9,96 @@
 
 #include "bonsai.h"
 
-buffer_node_t* buffer_layer_init() {
-    buffer_node_t* b_layer = (buffer_node_t*) malloc(sizeof(buffer_layer_t));
-    assert(b_layer);
-    int i;
-    for (i = 0; i < CPU_MAX_NUM; i++) {
-        b_layer->log_list[i].head = (op_log_t*) malloc(sizeof(op_log_t));
-        assert(b_layer->log_list[i].head);
-        b_layer->log_list[i].tail = b_layer->log_list[i].head;
-        b_layer->log_list[i].head->next = NULL;
-    }
-    return b_layer;
+static struct bonsai* bonsai;
+
+static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
+	layer->index_struct = init();
+	layer->insert = insert;
+	layer->remove = remove;
+	layer->lookup = lookup;
+	layer->scan = scan;
 }
 
-bonsai_t* get_bosai() {
-    PMEMoid root = pmemobj_root(pop[0], sizeof(bonsai_t));
+static void log_layer_init(struct log_layer* layer) {
+	int cpu;
+
+	for (cpu = 0; cpu < NUM_CPU; cpu++) {
+		INIT_LIST_HEAD(&layer->oplogs[cpu]);
+	}
+
+	INIT_LIST_HEAD(&layer->mtables);
+
+	layer->insert = oplog_insert;
+	layer->remove = oplog_remove;
+	layer->lookup = oplog_lookup;
+}
+
+static void data_layer_init(struct data_layer* layer) {
+	INIT_LIST_HEAD(&layer->pnodes);
+
+	layer->insert = pnode_insert;
+	layer->remove = pnode_remove;
+	layer->lookup = pnode_lookup;
+	layer->scan = pnode_scan;
+}
+
+static struct bonsai* get_bonsai() {
+    PMEMoid root = pmemobj_root(pop[0], sizeof(struct bonsai));
     return pmemobj_direct(root);
 }
 
-persist_node_t* alloc_persist_node() {
-    TOID(persist_node_t) toid;
-    POBJ_ZALLOC(pop[0], &toid, persist_node_t, sizeof(persist_node_t));
-    D_RW(toid)->slot_lock = rwlock_init();
-    D_RW(toid)->buffer_node = cuckoo_init(BUFFER_SIZE_MUL * NODE_SIZE);
-    return pmemobj_direct(toid);
+int bonsai_insert(pkey_t key, pval_t val) {
+	int ret = 0;
+
+	ret = INDEX(bonsai)->insert(key, val);
+	if (ret < 0)
+		goto out;
+
+	ret = LOG(bonsai)->insert(key, val);
+
+out:
+	return ret;
 }
 
-persist_layer_t* persist_layer_init() {
-    p_layer->tail = alloc_persist_node();
-    p_layer->tail
-    
-    p_layer->head->bitmap = 1;
+int bonsai_remove(pkey_t key) {
+	int ret = 0;
+
+	ret = INDEX(bonsai)->remove(key);
+	if (ret < 0)
+		goto out;
+
+	ret = LOG(bonsai)->remove(key);
+
+out:
+	return ret;	
 }
 
-bonsai_t* bonsai_init() {
-    bonsai_t* bonsai = get_bonsai();
-    if (!bonsai->init) {
-        INDEX(bonsai) = sl_init();
-        BUFFER(bonsai) = buffer_layer_init();
-        PERSIST(bonsai) = persist_layer_init();
+pval_t bonsai_lookup(pkey_t key) {
+	pval_t value;
+	
+	value = INDEX(bonsai)->lookup(key);
+	value = LOG(bonsai)->lookup(key);
+
+	return value;
+}
+
+int bonsai_scan(pkey_t low, pkey_t high) {
+	
+	DATA(bonsai)->scan(low, high);
+}
+
+void bonsai_deinit(struct bonsai* bonsai) {
+	
+}
+
+void bonsai_init(struct bonsai* bonsai) {
+    bonsai = get_bonsai();
+
+    if (!bonsai->bonsai_init) {
+        index_layer_init(&bonsai->i_layer);
+        log_layer_init(&bonsai->l_layer);
+        data_layer_init(&bonsai->d_layer);
     } else {
         bonsai_recover(bonsai);
     }
-    return bonsai;
 }
