@@ -12,9 +12,10 @@
 #include "hash.h"
 
 typedef struct {
-    int used;
-    rwlock_t lock;
-    void* addr;
+    int 		e_used;
+    rwlock_t 	e_lock;
+	pkey_t 		e_key;
+    void* 		e_addr;
 } mtable_ent_t;
 
 struct mtable {
@@ -28,7 +29,7 @@ struct mtable {
 };
 
 extern int mtable_insert(struct mtable* table, pkey_t key, void* addr);
-extern int mtable_update(struct mtable* table, pkey_t key, void* addr);
+extern int mtable_remove(struct mtable* table, pkey_t key);
 extern pval_t mtable_lookup(struct mtable* table, pkey_t key);
 
 #endif
