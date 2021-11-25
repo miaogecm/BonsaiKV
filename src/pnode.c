@@ -211,6 +211,47 @@ int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
     return 1;
 }
 /*
+ * pnode_range: range query from key1 to key2, return the number of entries whose value:[key1, key2]
+ * @pnode: pnode whose max_key is the upper bound of key1, search from its prev
+ * @key1: begin_key
+ * @key2: end_key
+ * @res_array: result_array
+ */
+int pnode_range(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr) {
+    struct pnode* prev_pnode;
+    int res_n = 0;
+    uint8_t* slot;
+    int i;
+
+    prev_pnode = list_prev_entry(pnode, struct pnode);
+    if (prev_pnode != NULL)
+        pnode = prev_node;
+
+    i = 0;
+    slot = pnode->slot;
+    while(i <= slot[0]) {
+        if (cmp(pnode->entry[slot[i]], key1) >= 0) {
+            break;
+        }
+        i++;
+    }
+    while(pnode != NULL) {
+        slot = pnode->slot;
+        while(i <= slot[0]) {
+            if (cmp(pnode->entry[slot[i]], key2) > 0) {
+                return res_n;
+            }
+            res_arr[res_n] = pnode->entry[slot[i]];
+            res_n++;
+            i++;
+        }
+        pnode = list_next_entry(pnode, struct pnode);
+    }
+
+    return res_n;
+}
+
+/*
  * pnode_persist: persist the p_bitmap of pnode after a operation
  * @pnode: pnode
  * @pos: the position where insert/remove an entry
@@ -236,6 +277,7 @@ void free_pnode(struct pnode* pnode) {
 
 void free_pnode_list(struct pnode* pnode) {
     struct pnode* next_pnode;
+
     while(pnode != NULL) {
         next_pnode = list_next_entry(pnode->list, struct pnode);
         free_pnode(pnode);
