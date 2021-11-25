@@ -14,11 +14,6 @@
 #define HASH2(key, cuckoo) (hash(key, \
     cuckoo->seed[1].murmur, cuckoo->seed[1].mixer) & (cuckoo->size - 1));
 
-typedef enum {
-    KEY_EXISTED = 0,
-    KEY_NOT_EXISTED,
-}exist_t;
-
 static void get_rand_seed(struct mtable* table) {
     srand(time(0));
     int i;
@@ -107,8 +102,8 @@ void go_deep(struct mtable* table, int idx, int depth) {
 /* mtable_insert: insert an entry into a mtable, if existed, update. 
  * @return: key existed/not_existed
  */
-exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
-    exist_t exist;
+int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
+    int existed;
 
     read_lock(&table->lock);
     if (find_index(table, key) != -1) 
@@ -140,7 +135,7 @@ exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
             if (cmp(e_key, key) == 0) {
                 op_log = oplog_insert(key, value, table->e[idx1].addr, OP_UPDATE);
                 table->e[idx1].addr = op_log->o_kv;
-                exist = KEY_EXISTED;
+                exist = EEXIST;
                 goto end;
             }
 
@@ -149,7 +144,7 @@ exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
                 table->e[idx2].addr = op_log;
                 table->e[idx2].used = 1;
                 table->used_size++;
-                exist = KEY_NOT_EXISTED;
+                exist = 0;
             goto end;
         }
         else if (table->e[idx2].used) {
@@ -160,7 +155,7 @@ exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
                 struct oplog* op_log;
                 op_log = oplog_insert(key, value, table->e[idx2].addr, OP_UPDATE);
                 table->e[idx2].addr = op_log->o_kv;
-                exist = KEY_EXISTED;
+                exist = EEXIST;
                 goto end;
             }
 
@@ -169,7 +164,7 @@ exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
                 table->e[idx1].addr = op_log;
                 table->e[idx1].used = 1;
                 table->used_size++;
-                exist = KEY_NOT_EXISTED;
+                exist = 0;
                 goto end;
             }
         }
@@ -184,15 +179,15 @@ end:
         break;
     }
 
-    return exist;
+    return existed;
 }
 
 /*
- * mtable_lookup: lookup a key in a mtable
+ * mtable_lookup: lookup a entry in a mtable
  * @return: key existed/not_existed
  * @reulst: value if existed
  */
-exist_t mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
+int mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
 	int idx, idx1, idx2;
     pkey_t e_key;
 
@@ -215,16 +210,20 @@ exist_t mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
     if (idx == -1) {
         read_unlock(&table->e[idx1].lock);
         read_unlock(&table->e[idx2].lock);
-        return KEY_NOT_EXISTED;
+        return 0;
     }
     
     *result = GET_VALUE(table->e[idx].addr);
     read_unlock(&table->e[idx1].lock);
     read_unlock(&table->e[idx2].lock);
 
-    return KEY_EXISTED;
+    return EEXIST;
 }
 
+/*
+ * mtable_remove: remove an entry in a mtable
+ * @return: key existed/not_existed
+ */
 int mtable_remove(struct mtable* table, pkey_t key) {
 	int idx, idx1, idx2;
     pkey_t e_key;
@@ -255,6 +254,6 @@ int mtable_remove(struct mtable* table, pkey_t key) {
     read_unlock(&table->e[idx1].lock);
     read_unlock(&table->e[idx2].lock);
 
-    oplog_insert(key, table->e[idx].addr, NULL, OP_REMOVE);
+    oplog_insert(0, 0, table->e[idx].addr, OP_REMOVE);
     return 0;
 }
