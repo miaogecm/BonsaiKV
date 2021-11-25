@@ -15,9 +15,7 @@ typedef enum {
  * operation log definition in log layer
  * if o_type == OP_INSERT
  * 		o_kv.key = key; o_kv.val = value; o_addr = address of pnode to be inserted
- * if o_type == OP_UPDATE
- * 		o_kv.key = keyl o_kv.val = value; o_addr = address of entry in pnode
- * if o_tyoe == OP_REMOVE
+ * if o_type == OP_REMOVE
  * 		ONLY o_addr is available, o_addr = address of entry in pnode
  */
 struct oplog {

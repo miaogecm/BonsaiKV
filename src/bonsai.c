@@ -33,9 +33,9 @@ static void log_layer_init(struct log_layer* layer) {
 
 	INIT_LIST_HEAD(&layer->mtable_list);
 
-	layer->insert = oplog_insert;
-	layer->remove = oplog_remove;
-	layer->lookup = oplog_lookup;
+	layer->insert = mtable_insert;
+	layer->remove = mtable_remove;
+	layer->lookup = mtable_lookup;
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
@@ -73,11 +73,11 @@ int bonsai_insert(pkey_t key, pval_t val) {
 	int ret = 0;
 	void* table;
 
-	addr = INDEX(bonsai)->lookup(key);
+	table = INDEX(bonsai)->lookup(key);
 	if (ret < 0)
 		goto out;
 
-	ret = LOG(bonsai)->insert(key, val, table);
+	ret = LOG(bonsai)->insert(key, val, table->pnode);
 
 out:
 	return ret;

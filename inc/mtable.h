@@ -28,7 +28,7 @@ struct mtable {
 	mtable_ent_t e[0];
 };
 
-extern int mtable_insert(struct mtable* table, pkey_t key, void* addr);
+extern int mtable_insert(struct mtable* table, pkey_t key, pval_t value);
 extern int mtable_remove(struct mtable* table, pkey_t key);
 extern pval_t mtable_lookup(struct mtable* table, pkey_t key);
 

@@ -103,7 +103,7 @@ void go_deep(struct mtable* table, int idx, int depth) {
  * @return: key existed/not_existed
  */
 int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
-    int existed;
+    int ret;
 
     read_lock(&table->lock);
     if (find_index(table, key) != -1) 
@@ -135,7 +135,7 @@ int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
             if (cmp(e_key, key) == 0) {
                 op_log = oplog_insert(key, value, table->e[idx1].addr, OP_UPDATE);
                 table->e[idx1].addr = op_log->o_kv;
-                exist = EEXIST;
+                exist = -EEXIST;
                 goto end;
             }
 
@@ -155,7 +155,7 @@ int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
                 struct oplog* op_log;
                 op_log = oplog_insert(key, value, table->e[idx2].addr, OP_UPDATE);
                 table->e[idx2].addr = op_log->o_kv;
-                exist = EEXIST;
+                exist = -EEXIST;
                 goto end;
             }
 
@@ -179,7 +179,7 @@ end:
         break;
     }
 
-    return existed;
+    return ret;
 }
 
 /*
@@ -217,7 +217,7 @@ int mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
     read_unlock(&table->e[idx1].lock);
     read_unlock(&table->e[idx2].lock);
 
-    return EEXIST;
+    return -EEXIST;
 }
 
 /*
@@ -247,7 +247,7 @@ int mtable_remove(struct mtable* table, pkey_t key) {
     if (idx == -1) {
         read_unlock(&table->e[idx1].lock);
         read_unlock(&table->e[idx2].lock);
-        return ERR_NOENT;
+        return -ERR_NOENT;
     }
     
     table->e[idx].used = 0;
