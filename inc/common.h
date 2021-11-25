@@ -11,5 +11,6 @@ typedef struct pentry {
 
 #define ERR_THREAD		100
 #define ERR_NOMEM		101
+#define ERR_NOENT		102
 
 #endif

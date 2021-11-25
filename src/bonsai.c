@@ -13,33 +13,55 @@ static struct bonsai* bonsai;
 
 static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
 	layer->index_struct = init();
+
 	layer->insert = insert;
 	layer->remove = remove;
 	layer->lookup = lookup;
 	layer->scan = scan;
 }
 
+static void index_layer_deinit(struct index_layer* layer) {
+	layer->destory(layer->index_struct);
+}
+
 static void log_layer_init(struct log_layer* layer) {
 	int cpu;
 
-	for (cpu = 0; cpu < NUM_CPU; cpu++) {
+	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		INIT_LIST_HEAD(&layer->oplogs[cpu]);
 	}
 
-	INIT_LIST_HEAD(&layer->mtables);
+	INIT_LIST_HEAD(&layer->mtable_list);
 
 	layer->insert = oplog_insert;
 	layer->remove = oplog_remove;
 	layer->lookup = oplog_lookup;
 }
 
+static void log_layer_deinit(struct log_layer* layer) {
+	struct mtable *table, *tmp;
+	int cpu;
+
+	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
+		assert(list_empty(&layer->oplogs[cpu]));
+	}
+
+	list_for_each_entry_safe(table, tmp, &layer->mtable_list, list) {
+		mapping_table_free(table);
+	}
+}
+
 static void data_layer_init(struct data_layer* layer) {
-	INIT_LIST_HEAD(&layer->pnodes);
+	INIT_LIST_HEAD(&layer->pnode_list);
 
 	layer->insert = pnode_insert;
 	layer->remove = pnode_remove;
 	layer->lookup = pnode_lookup;
 	layer->scan = pnode_scan;
+}
+
+static void data_layer_deinit(struct data_layer* layer) {
+	/*TODO*/
 }
 
 static struct bonsai* get_bonsai() {
@@ -49,12 +71,13 @@ static struct bonsai* get_bonsai() {
 
 int bonsai_insert(pkey_t key, pval_t val) {
 	int ret = 0;
+	void* addr;
 
-	ret = INDEX(bonsai)->insert(key, val);
+	addr = INDEX(bonsai)->lookup(key);
 	if (ret < 0)
 		goto out;
 
-	ret = LOG(bonsai)->insert(key, val);
+	ret = LOG(bonsai)->insert(key, val, addr);
 
 out:
 	return ret;
@@ -62,12 +85,13 @@ out:
 
 int bonsai_remove(pkey_t key) {
 	int ret = 0;
+	void *addr;
 
-	ret = INDEX(bonsai)->remove(key);
+	ret = INDEX(bonsai)->lookup(key);
 	if (ret < 0)
 		goto out;
 
-	ret = LOG(bonsai)->remove(key);
+	ret = LOG(bonsai)->remove(key, addr);
 
 out:
 	return ret;	
@@ -88,13 +112,19 @@ int bonsai_scan(pkey_t low, pkey_t high) {
 }
 
 void bonsai_deinit(struct bonsai* bonsai) {
-	
+
+	index_layer_deinit(&bonsai->i_layer);
+    log_layer_deinit(&bonsai->l_layer);
+    data_layer_deinit(&bonsai->d_layer);
+
+	free(bonsai);
 }
 
 void bonsai_init(struct bonsai* bonsai) {
     bonsai = get_bonsai();
 
     if (!bonsai->bonsai_init) {
+		bonsai_thread_init(bonsai);
         index_layer_init(&bonsai->i_layer);
         log_layer_init(&bonsai->l_layer);
         data_layer_init(&bonsai->d_layer);

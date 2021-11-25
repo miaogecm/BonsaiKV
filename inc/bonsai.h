@@ -9,11 +9,12 @@
 #include "atomic.h"
 #include "thread.h"
 #include "list.h"
-#include "cuckoo_hash.h"
+#include "mtable.h"
 
 typedef skiplist_t index_layer_t;
 
 typedef void (*init_func_t)(void);
+typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(pkey_t key, pval_t val);
 typedef int (*remove_func_t)(pkey_t key);
 typedef int (*lookup_func_t)(pkey_t key);
@@ -26,11 +27,13 @@ struct index_layer {
 	remove_func_t remove;
 	lookup_func_t lookup;
 	scan_func_t   scan;
+
+	destory_func_t destory;
 };
 
 struct log_layer {
 	struct list_head oplogs[NUM_CPU];
-	struct list_head mtables;
+	struct list_head mtable_list;
 
 	insert_func_t insert;
 	remove_func_t remove;
@@ -38,7 +41,7 @@ struct log_layer {
 };
 
 struct data_layer {
-	struct list_head pnodes;
+	struct list_head pnode_list;
 
 	insert_func_t insert;
 	remove_func_t remove;
@@ -50,7 +53,7 @@ struct bonsai {
     uint8_t 			bonsai_init;
 	
 	/* 1. thread info */	
-	pthread_t tids[NUM_PFLUSH_THREAD];
+	pthread_t 			tids[NUM_PFLUSH_THREAD];
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
 
 	/* 2. layer info */
@@ -59,9 +62,9 @@ struct bonsai {
     struct data_layer 	d_layer;
 };
 
-#define INDEX(bonsai)    (bonsai->i_layer)
-#define LOG(bonsai)   (bonsai->l_layer)
-#define DATA(bonsai)  (bonsai->d_layer)
+#define INDEX(bonsai)    	(bonsai->i_layer)
+#define LOG(bonsai)   		(bonsai->l_layer)
+#define DATA(bonsai)  		(bonsai->d_layer)
 
 extern struct bonsai *bonsai;
 

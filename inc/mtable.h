@@ -11,22 +11,24 @@
 #include "spinlock.h"
 #include "hash.h"
 
-typedef struct mt_ent {
-    uint8_t used;
-    rwlock_t* lock;
+typedef struct {
+    int used;
+    rwlock_t lock;
     void* addr;
-} mt_ent_t;
+} mtable_ent_t;
 
 struct mtable {
     uint32_t total_ent; 
     uint32_t used_ent;
-	rwlock_t* lock;
+	rwlock_t lock;
     int64_t seeds[3];
     struct pnode* pnode;
 	struct list_head list;
-	mt_ent_t e[0];
+	mtable_ent_t e[0];
 };
 
-extern int cuckoo_insert(cuckoo_hash_t* cuckoo, cuckoo_hash_t key, size_t value);
+extern int mtable_insert(struct mtable* table, pkey_t key, void* addr);
+extern int mtable_update(struct mtable* table, pkey_t key, void* addr);
+extern pval_t mtable_lookup(struct mtable* table, pkey_t key);
 
 #endif

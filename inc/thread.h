@@ -25,15 +25,9 @@ struct thread_info {
 	struct workqueue_struct t_wq;		
 };
 
-static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
-	list_add(&work->list, &wq->head);
-}
-
-static inline void workqueue_del(struct work_struct* work) {
-	list_del(&work->list);
-	free(work);
-}
-
 extern __thread struct thread_info* __this;
+
+extern int bonsai_thread_init(struct bonsai* bonsai);
+extern int bonsai_thread_exit(struct bonsai* bonsai);
 
 #endif
