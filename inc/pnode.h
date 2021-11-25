@@ -136,7 +136,11 @@ int persist_node_insert(struct pnode_s* pnode, pkey_t key, char* value) {
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, 1);
         write_unlock(pnode->slot_lock);
+        return 1;
     }
+    write_unlock(pnode->bucket_lock[bucket_id]);
+    write_lock(pnode->bucket_lock[0]);
+    
 }
 
 #endif
