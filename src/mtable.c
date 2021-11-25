@@ -182,7 +182,7 @@ end:
  * @return: key existed/not_existed
  * @reulst: value if existed
  */
-int mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
+int mtable_lookup(struct mtable* table, pkey_t key, pval_t* result) {
 	int idx, idx1, idx2;
     pkey_t e_key;
 
@@ -252,4 +252,45 @@ int mtable_remove(struct mtable* table, pkey_t key) {
     ret = oplog_insert(0, 0, table->e[idx].addr, OP_REMOVE);
 
     return ret;
+}
+
+
+void mtable_split(struct mtable* table, struct pnode* pnode) {
+    struct mtable* new_table;
+    uint8_t* slot;
+    int n, i;
+
+    write_lock(&table->lock);
+    slot = pnode->slot;
+    n = slot[0];
+    new_table = mtable_init(pnode);
+
+    for (i = 1; i <= n; i++) {
+        pkey_t key;
+        pval_t value;
+        int idx, idx1, idx2;
+
+        key = pnode->entry[slot[i]].key;
+        value = pnode->entry[slot[i]].value;
+        idx1 = HASH1(key, cuckoo);
+        idx2 = HASH2(key, cuckoo);
+        idx = -1;
+
+        if (table->e[idx1].used && 
+        cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
+            idx = idx1; 
+        }
+        else if (table->e[idx2].used && 
+        cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
+            idx = idx2; 
+        }
+
+        table->e[idx].used = 0;
+        
+        mtable_insert(new_table, key, value);
+    }
+    //todo
+    // insert/remove/lookup need to check max_key first
+    // index_layer insert
+    write_unlock(&table->lock);
 }

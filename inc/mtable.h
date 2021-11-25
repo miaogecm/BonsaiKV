@@ -31,5 +31,5 @@ struct mtable {
 extern int mtable_insert(struct mtable* table, pkey_t key, pval_t value);
 extern int mtable_remove(struct mtable* table, pkey_t key);
 extern pval_t mtable_lookup(struct mtable* table, pkey_t key);
-
+extern void mtable_split(struct mtable* table, struct pnode* pnode);
 #endif
