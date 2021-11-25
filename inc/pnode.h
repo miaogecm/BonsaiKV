@@ -7,6 +7,8 @@
 #include "pmem.h"
 #include "hash.h"
 #include "rwlock.h"
+#include "list.h"
+#include "cmp.h"
 
 typedef uint64_t pkey_t;
 
@@ -24,8 +26,12 @@ typedef struct pentry {
 #define BUCKET_SIZE     		8
 #define BUCKET_NUM      		4
 
-#define BUCKET_HASH(x) (hash(x) % BUCKET_NUM)
+#define BUCKET_HASH(x) (phash(x) % BUCKET_NUM)
 
+#define BUCKET_IS_FULL(pnode, x) (find_unused_entry(pnode, \
+    (pnode)->bitmap & ((1ULL << (x + BUCKET_SIZE)) - (1ULL << x))) == -1)
+
+#define ENTRY_ID(pnode, entry) ((entry - pnode - CACHELINE_SIZE) / sizeof(pentry_t))
 /*
  * persistent node definition in data layer
  */
@@ -33,14 +39,15 @@ struct pnode_s {
 	/* first cache line */
     uint64_t* bitmap;
     uint64_t persist_bitmap;
-	uint8_t slot[PNODE_ENT_NUM + 1];
     rwlock_t* slot_lock;
     rwlock_t* bucket_lock[BUCKET_NUM];
-	struct list_head list;
-	//char padding[8];
+	char padding[40 - 8 * BUCKET_NUM];
 
 	/* second cache line */
     pentry_t entry[PNODE_ENT_NUM]__attribute__((aligned(CACHELINE_SIZE)));
+
+    uint8_t slot[PNODE_ENT_NUM + 1];
+    struct list_head list;
 }__attribute__((aligned(CACHELINE_SIZE)));
 
 static inline struct pnode_s* alloc_presist_node() {
@@ -124,9 +131,10 @@ static inline void sort_in_pnode(struct pnode_s* pnode, int pos_e, pkey_t key, i
     }
 }
 
-int persist_node_insert(struct pnode_s* pnode, pkey_t key, char* value) {
+static inline int pnode_insert(struct pnode_s* pnode, pkey_t key, char* value) {
     uint32_t bucket_id = BUCKET_HASH(key);
     int offset = BUCKET_SIZE * bucket_id;
+retry:;
     write_lock(pnode->bucket_lock[bucket_id]);
     uint64_t mask = (1ULL << (offset + BUCKET_SIZE)) - (1ULL << offset);
     int pos = find_unused_entry(pnode->bitmap & mask);
@@ -136,7 +144,56 @@ int persist_node_insert(struct pnode_s* pnode, pkey_t key, char* value) {
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, 1);
         write_unlock(pnode->slot_lock);
+        write_unlock(pnode->bucket_lock[bucket_id]);
+        return 1;
     }
+
+    write_unlock(pnode->bucket_lock[bucket_id]);
+    int bucket_full_flag = 0;
+    int i;
+    for (i = 0; i < BUCKET_NUM; i++) {
+        write_lock(pnode->bucket_lock[i]);
+        if (BUCKET_IS_FULL(pnode, i)) {
+            bucket_full_flag = 1;
+        }
+    }
+    struct pnode_s* new_pnode;
+    if (bucket_full_flag) {
+        struct pnode_s* = alloc_presist_node();
+        memcpy(new_pnode->entry, pnode->entry, sizeof(pentry_t) * PNODE_ENT_NUM);
+        int n = pnode->slot[0];
+        uint64_t bitmap = pnode->bitmap;
+        uint64_t removed = 0;
+        int i;
+        for (i = n / 2 + 1; i <= n; i++) {
+            removed |= 1ULL << pnode->slot[i];
+            new_pnode->slot[i - n/2] = pnode->slot[i];
+        }
+        new_pnode->slot[0] = n - n / 2;
+        new_pnode->bitmap = removed;
+
+        pnode->bitmap &= ~removed;
+        pnode->slot[0] = n/2;
+
+        list_add(new_pnode, pnode);
+    }
+
+    pkey_t max_key = pnode->entry[slot[0]];
+    for (i = 0; i < BUCKET_NUM; i++) {
+        write_unlock(pnode->bucket_lock[i]);
+    }
+    if (bucket_full_flag) {
+        pnode = cmp(key, max_key) <= 0 ? pnode : new_pnode;
+    }
+    goto retry;
+}
+
+static int inline pnode_remove(struct pnode_s* pnode, pentry_t* pentry) {
+    int pos = ENTRY_ID(pnode, pentry);
+    uint64_t mask = ~(1ULL << pos);
+    pnode->bitmap &= mask;
+    pnode->persist_bitmap &= mask;
+    return 1;
 }
 
 #endif
