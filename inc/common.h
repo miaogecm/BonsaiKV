@@ -9,8 +9,8 @@ typedef struct pentry {
     pval_t value;
 } pentry_t;
 
-#define ERR_THREAD		100
-#define ERR_NOMEM		101
-#define ERR_NOENT		102
+#define ENOMEM		101 /* out-of memory */
+#define ENOENT		102 /* no such entry */
+#define EEXIST		103 /* key exist */
 
 #endif
