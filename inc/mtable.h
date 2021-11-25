@@ -1,5 +1,5 @@
-#ifndef _CUCKOO_HASH
-#define _CUCKOO_HASH
+#ifndef _MTABLE_H
+#define _MTABLE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,11 +11,11 @@
 #include "spinlock.h"
 #include "hash.h"
 
-typedef struct mtable_ent {
+typedef struct mt_ent {
     uint8_t used;
     rwlock_t* lock;
     void* addr;
-} mtable_ent_t;
+} mt_ent_t;
 
 struct mtable {
     uint32_t total_ent; 
@@ -24,10 +24,9 @@ struct mtable {
     int64_t seeds[3];
     struct pnode* pnode;
 	struct list_head list;
-	mtable_ent_t e[0];
+	mt_ent_t e[0];
 };
 
 extern int cuckoo_insert(cuckoo_hash_t* cuckoo, cuckoo_hash_t key, size_t value);
 
 #endif
-/*cuckoo_hash.h*/
