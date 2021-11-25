@@ -8,7 +8,6 @@ typedef void (*index_func_t)(void*);
 typedef enum {
 	OP_INSERT = 0,
 	OP_REMOVE,
-	OP_UPDATE,
 } optype_t;
 
 /*

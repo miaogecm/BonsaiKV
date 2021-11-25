@@ -133,9 +133,7 @@ int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
         if (table->e[idx1].used) {
             e_key = GET_KEY(table->e[idx1].addr);
             if (cmp(e_key, key) == 0) {
-                op_log = oplog_insert(key, value, table->e[idx1].addr, OP_UPDATE);
-                table->e[idx1].addr = op_log->o_kv;
-                exist = -EEXIST;
+                ret = -EEXIST;
                 goto end;
             }
 
@@ -144,7 +142,7 @@ int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
                 table->e[idx2].addr = op_log;
                 table->e[idx2].used = 1;
                 table->used_size++;
-                exist = 0;
+                ret = 0;
             goto end;
         }
         else if (table->e[idx2].used) {
@@ -152,9 +150,6 @@ int mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
 
             e_key = GET_KEY(table->e[idx2].addr);
             if (cmp(e_key, key) == 0) {
-                struct oplog* op_log;
-                op_log = oplog_insert(key, value, table->e[idx2].addr, OP_UPDATE);
-                table->e[idx2].addr = op_log->o_kv;
                 exist = -EEXIST;
                 goto end;
             }
@@ -247,7 +242,7 @@ int mtable_remove(struct mtable* table, pkey_t key) {
     if (idx == -1) {
         read_unlock(&table->e[idx1].lock);
         read_unlock(&table->e[idx2].lock);
-        return -ERR_NOENT;
+        return -EEXIST;
     }
     
     table->e[idx].used = 0;
