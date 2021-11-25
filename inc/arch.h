@@ -88,10 +88,10 @@ static inline uint64_t __attribute__((__always_inline__)) read_tscp(void)
 	return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
-static inline void clflush(volatile void *p)
-{
-	asm volatile("clflush (%0)" ::"r"(p));
-}
+// static inline void clflush(volatile void *p)
+// {
+// 	asm volatile("clflush (%0)" ::"r"(p));
+// }
 
 static inline void clflushopt(volatile void *p)
 {
@@ -142,8 +142,12 @@ static inline void clflush(void* buf, uint32_t len) {
         _mm_clflushopt(buf + i);    
 }
 
-#ifdef __cplusplus
+static inline void mfence() {
+    asm volatile ("sfence\n" : : );
 }
+
+#ifdef __cplusplus
+
 #endif
 
 #endif
