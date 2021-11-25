@@ -43,7 +43,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 	int cpu;
 
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
-		assert(list_empty(&layer->oplogs[cpu]));
+		assert(list_empty(&layer->log_list[cpu]));
 	}
 
 	list_for_each_entry_safe(table, tmp, &layer->mtable_list, list) {
@@ -71,13 +71,13 @@ static struct bonsai* get_bonsai() {
 
 int bonsai_insert(pkey_t key, pval_t val) {
 	int ret = 0;
-	void* addr;
+	void* table;
 
 	addr = INDEX(bonsai)->lookup(key);
 	if (ret < 0)
 		goto out;
 
-	ret = LOG(bonsai)->insert(key, val, addr);
+	ret = LOG(bonsai)->insert(key, val, table);
 
 out:
 	return ret;
@@ -85,13 +85,13 @@ out:
 
 int bonsai_remove(pkey_t key) {
 	int ret = 0;
-	void *addr;
+	void *table;
 
 	ret = INDEX(bonsai)->lookup(key);
 	if (ret < 0)
 		goto out;
 
-	ret = LOG(bonsai)->remove(key, addr);
+	ret = LOG(bonsai)->remove(key, table);
 
 out:
 	return ret;	
@@ -99,9 +99,11 @@ out:
 
 pval_t bonsai_lookup(pkey_t key) {
 	pval_t value;
+	void* table;
 	
-	value = INDEX(bonsai)->lookup(key);
-	value = LOG(bonsai)->lookup(key);
+	table = INDEX(bonsai)->lookup(key);
+
+	value = LOG(bonsai)->lookup(key, table);
 
 	return value;
 }
@@ -124,6 +126,7 @@ void bonsai_init(struct bonsai* bonsai) {
     bonsai = get_bonsai();
 
     if (!bonsai->bonsai_init) {
+		bonsai->total_cpu = sysconf(_SC_NPROCESSORS_ONLN);
 		bonsai_thread_init(bonsai);
         index_layer_init(&bonsai->i_layer);
         log_layer_init(&bonsai->l_layer);

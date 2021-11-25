@@ -44,5 +44,9 @@ struct pnode {
     struct list_head list;
 }__attribute__((aligned(CACHELINE_SIZE)));
 
+extern int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value);
+extern int pnode_remove(struct pnode* pnode, pentry_t* pentry);
+extern void commit_bitmap(struct pnode* pnode, int pos, optype_t op);
+
 #endif
 /*pnode.h*/

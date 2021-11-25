@@ -89,41 +89,6 @@ static void thread_work(struct workqueue_struct* wq) {
 	try_wakeup_master();
 }
 
-static int gc_master_work(struct thread_info* thread) {
-	struct message msg;
-
-#if 0
-	/* send message to the server */
-	msg.type = MSG_OBJECT_GC;
-	msg.data = NULL;
-	send_data(thread->socket_fd, &msg, sizeof(msg));
-
-	/* wait a moment for the message */
-	if (recv_data(thread->socket_fd, &msg, sizeof(msg)) < 0) {
-		DEBUG("wrong message\n");
-	}
-
-	/* check the message */
-	if (unlikely(msg.type != MSG_FINISH_MARKING)) {
-		DEBUG("gc master thread: wrong message\n");
-		return -ERR_NET_MSG;
-	}
-#endif
-
-	/* do GC */
-	msg.data = NULL;
-	gc_collector(thread, (struct list_head**)msg.data);
-
-#if 0
-	/* finish GC, tell the server */
-	msg.type = MSG_FINISH_MARK_COMPACT_GC;
-	msg.data = NULL;
-	send_data(thread->socket_fd, &msg, sizeof(msg));
-#endif
-
-	return 0;
-}
-
 static void pflush_worker(struct thread_info* this) {
 	__this = this;
 
