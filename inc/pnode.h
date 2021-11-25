@@ -10,9 +10,9 @@
 #include "list.h"
 #include "cmp.h"
 
-#define GET_NODE(ptr) ((pentry_t*)ptr)
-#define GET_KEY(ptr) (GET_NODE(ptr)->key)
-#define GET_VALUE(ptr) (GET_NODE(ptr)->value)
+#define GET_ENT(ptr) ((pentry_t*)ptr)
+#define GET_KEY(ptr) (GET_ENT(ptr)->key)
+#define GET_VALUE(ptr) (GET_ENT(ptr)->value)
 
 #define PNODE_ENT_NUM       	32
 #define BUFFER_SIZE_MUL 		2

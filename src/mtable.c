@@ -1,4 +1,7 @@
 #include "mtable.h"
+#include "oplog.h"
+#include "pnode.h"
+#include "cmp.h"
 
 #define CUCKOO_RESIZE_THREASHOLD    	0.5
 #define CUCKOO_RESIZE_MULT      		2
@@ -10,11 +13,10 @@
 #define HASH2(key, cuckoo) (hash(key, \
     cuckoo->seed[1].murmur, cuckoo->seed[1].mixer) & (cuckoo->size - 1));
 
-int cuckoo_cmp(entry_key_t a, entry_key_t b) {
-    if (a < b) return -1;
-    if (a == b) return 0;
-    return 1;
-}
+typedef enum {
+    KEY_EXISTED = 0,
+    KEY_NOT_EXISTED,
+}exist_t;
 
 static void get_rand_seed(struct mtable* table) {
     srand(time(0));
@@ -46,28 +48,6 @@ struct mtable* mtable_init(struct pnode* pnode) {
         rwlock_init(&table->e[i].lock);
     }
     return mtable;
-}
-
-int find_index(struct mtable* table, pkey_t key) {
-    int idx1 = HASH1(key, cuckoo);
-    int idx2 = HASH2(key, cuckoo);
-	int idx = -1;
-
-    read_lock(&table->e[idx1].lock);
-    read_lock(&table->e[idx2].lock);
-
-    if (table->e[idx1].used && 
-    cuckoo_cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
-        idx = idx1; 
-    }
-    else if (table->e[idx2].used && 
-    cuckoo_cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
-        idx = idx2; 
-    }
-    
-    read_unlock(&table->e[idx1].lock);
-    read_unlock(&table->e[idx2].lock);
-    return idx;
 }
 
 void resize(struct mtable* table, int reseed) {
@@ -123,8 +103,8 @@ void go_deep(struct mtable* table, int idx, int depth) {
     table->e[idx].used = 0;
 }
 
-int mtable_insert(struct mtable* table, pkey_t key, void* addr) {
-	int idx1, idx2;
+exist_t mtable_insert(struct mtable* table, pkey_t key, pval_t value) {
+    exist_t exist;
 
     read_lock(&table->lock);
     if (find_index(table, key) != -1) 
@@ -142,21 +122,52 @@ int mtable_insert(struct mtable* table, pkey_t key, void* addr) {
     }
     
     while(1) {
+        int idx1, idx2;
+        pkey_t e_key;
+        struct oplog* op_log;
+
         idx1 = HASH1(key, table);
         idx2 = HASH2(key, table);
         write_lock(&table->e[idx1].lock);
         write_lock(&table->e[idx2].lock);
+        
+        if (table->e[idx1].used) {
+            e_key = GET_KEY(table->e[idx1].addr);
+            if (cmp(e_key, key) == 0) {
+                op_log = oplog_insert(key, value, table->e[idx1].addr, OP_UPDATE);
+                table->e[idx1].addr = op_log->o_kv;
+                exist = KEY_EXISTED;
+                goto end;
+            }
 
-        if (!table->e[idx1].used) {
-            table->e[idx1].addr = addr;
-            table->e[idx1].used = 1;
-            table->used_size++;
+            if (!table->e[idx2].used) {
+                op_log = oplog_insert(key, value, table->pnode, OP_INSERT);
+                table->e[idx2].addr = op_log;
+                table->e[idx2].used = 1;
+                table->used_size++;
+                exist = KEY_NOT_EXISTED;
             goto end;
-        } else if (!table->e[idx2].used) {
-            table->e[idx2].addr = addr;
-            table->e[idx2].used = 1;
-            table->used_size++;
-            goto end;
+        }
+        else if (table->e[idx2].used) {
+            pkey_t e_key;
+
+            e_key = GET_KEY(table->e[idx2].addr);
+            if (cmp(e_key, key) == 0) {
+                struct oplog* op_log;
+                op_log = oplog_insert(key, value, table->e[idx2].addr, OP_UPDATE);
+                table->e[idx2].addr = op_log->o_kv;
+                exist = KEY_EXISTED;
+                goto end;
+            }
+
+            if (!table->e[idx1].used) {
+                op_log = oplog_insert(key, value, table->pnode, OP_INSERT);
+                table->e[idx1].addr = op_log;
+                table->e[idx1].used = 1;
+                table->used_size++;
+                exist = KEY_NOT_EXISTED;
+                goto end;
+            }
         }
 
         go_deep(table, idx1, CUCKOO_MAX_DEPTH);
@@ -168,13 +179,73 @@ end:
         write_unlock(&table->e[idx2]);
         break;
     }
-    return 1;
+
+    return exist;
 }
 
-int mtable_update(struct mtable* table, pkey_t key, void* addr) {
-	/*TODO*/
+exist_t mtable_lookup(struct mtable* table, pkey_t key, pkey_t* result) {
+	int idx, idx1, idx2;
+    pkey_t e_key;
+
+    idx1 = HASH1(key, cuckoo);
+    idx2 = HASH2(key, cuckoo);
+	idx = -1;
+
+    read_lock(&table->e[idx1].lock);
+    read_lock(&table->e[idx2].lock);
+
+    if (table->e[idx1].used && 
+    cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
+        idx = idx1; 
+    }
+    else if (table->e[idx2].used && 
+    cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
+        idx = idx2; 
+    }
+
+    if (idx == -1) {
+        read_unlock(&table->e[idx1].lock);
+        read_unlock(&table->e[idx2].lock);
+        return KEY_NOT_EXISTED;
+    }
+    
+    *result = GET_VALUE(table->e[idx].addr);
+    read_unlock(&table->e[idx1].lock);
+    read_unlock(&table->e[idx2].lock);
+
+    return KEY_EXISTED;
 }
 
-pval_t mtable_lookup(struct mtable* table, pkey_t key) {
-	/*TODO*/
+exist_t mtable_remove(struct mtable* table, pkey_t key) {
+	int idx, idx1, idx2;
+    pkey_t e_key;
+
+    idx1 = HASH1(key, cuckoo);
+    idx2 = HASH2(key, cuckoo);
+	idx = -1;
+
+    read_lock(&table->e[idx1].lock);
+    read_lock(&table->e[idx2].lock);
+
+    if (table->e[idx1].used && 
+    cmp(key, GET_KEY(table->e[idx1].addr)) == 0) {
+        idx = idx1; 
+    }
+    else if (table->e[idx2].used && 
+    cmp(key, GET_KEY(table->e[idx2].addr)) == 0) {
+        idx = idx2; 
+    }
+
+    if (idx == -1) {
+        read_unlock(&table->e[idx1].lock);
+        read_unlock(&table->e[idx2].lock);
+        return KEY_NOT_EXISTED;
+    }
+    
+    table->e[idx].used = 0;
+    read_unlock(&table->e[idx1].lock);
+    read_unlock(&table->e[idx2].lock);
+
+    oplog_insert(key, table->e[idx].addr, NULL, OP_REMOVE);
+    return KEY_EXISTED;
 }
