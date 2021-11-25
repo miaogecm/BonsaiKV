@@ -275,14 +275,3 @@ void commit_bitmap(struct pnode* pnode, int pos, optype_t op) {
 void free_pnode(struct pnode* pnode) {
 
 }
-
-void free_pnode_list(struct pnode* pnode) {
-    struct pnode* next_pnode;
-
-    while(pnode != NULL) {
-        next_pnode = list_next_entry(pnode->list, struct pnode);
-        free_pnode(pnode);
-        pnode = next_pnode;
-    }
-}
-

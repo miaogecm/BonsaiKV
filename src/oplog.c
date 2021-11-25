@@ -33,23 +33,6 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, void* addr, optype_t op) {
 	list_add_tail(&log->list, head);
 }
 
-int oplog_remove(pkey_t key, void *table) {
-	int cpu = get_cpu();
-	struct list_head *head;
-	struct oplog* log;
-	
-	log = alloc_oplog(OP_REMOVE);
-	head = &LOG(bonsai).oplogs[cpu];
-
-	list_add_tail(&log->list, head);
-
-	mtable_update(table, key, NULL);
-}
-
-pval_t oplog_lookup(pkey_t key, void *table) {
-	return mtable_lookup(table, key);
-}
-
 static void worker_oplog_flush(void* arg) {
 	struct list_head *head = (struct list_head*)arg;
 	struct oplog* log;
