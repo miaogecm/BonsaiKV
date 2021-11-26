@@ -9,6 +9,10 @@ typedef struct pentry {
     pval_t value;
 } pentry_t;
 
+#define GET_ENT(ptr) ((pentry_t*)ptr)
+#define GET_KEY(ptr) (GET_ENT(ptr)->key)
+#define GET_VALUE(ptr) (GET_ENT(ptr)->value)
+
 #define ENOMEM		101 /* out-of memory */
 #define ENOENT		102 /* no such entry */
 #define EEXIST		103 /* key exist */

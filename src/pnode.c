@@ -41,22 +41,22 @@ static int find_unused_entry(uint64_t v) {
 	v = ~v;
 
     if (!v) return -1;
-#if BUCKET_SIZE >= 64
+#if BUCKET_ENT_NUM >= 64
     if (!(v & 0xffffffff)) {v >>= 32; n += 32};
 #endif
-#if BUCKET_SIZE >= 32
+#if BUCKET_ENT_NUM >= 32
     if (!(v & 0xffff)) {v >>= 16; n += 16};
 #endif
-#if BUCKET_SIZE >= 16
+#if BUCKET_ENT_NUM >= 16
     if (!(v & 0xff)) {v >>= 8; n += 8};
 #endif
-#if BUCKET_SIZE >= 8
+#if BUCKET_ENT_NUM >= 8
     if (!(v & 0xf)) {v >>= 4; n += 4};
 #endif
-#if BUCKET_SIZE >= 4
+#if BUCKET_ENT_NUM >= 4
     if (!(v & 0x3)) {v >>= 2; n += 2};
 #endif
-#if BUCKET_SIZE >= 2
+#if BUCKET_ENT_NUM >= 2
     if (!(v & 0x1)) {v >>= 1; n += 1};
 #endif
 
@@ -122,12 +122,12 @@ int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value) {
     int i;
 
     bucket_id = BUCKET_HASH(key);
-    offset = BUCKET_SIZE * bucket_id;
+    offset = BUCKET_ENT_NUM * bucket_id;
 
 retry:
 
     write_lock(pnode->bucket_lock[bucket_id]);
-    mask = (1ULL << (offset + BUCKET_SIZE)) - (1ULL << offset);
+    mask = (1ULL << (offset + BUCKET_ENT_NUM)) - (1ULL << offset);
     pos = find_unused_entry(pnode->v_bitmap & mask);
     if (pos != -1) {
         pentry_t entry;
@@ -224,6 +224,8 @@ int pnode_scan(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr)
     uint8_t* slot;
     int i;
 
+    pnode = PNODE_OF_ENT(pnode->forward[0][0]);
+    
     prev_pnode = list_prev_entry(pnode, struct pnode);
     if (prev_pnode != NULL)
         pnode = prev_node;
@@ -267,11 +269,37 @@ void commit_bitmap(struct pnode* pnode, int pos, optype_t op) {
     } else {
         pnode->p_bitmap &= ~mask;
     }
-
-    clflush(pnode->p_bitmap, sizeof(uint64_t));
+    clflush(pnode->slot, sizeof(uint8_t) * (pnode->slot[0] + 1));
+    clflush(&pnode->p_bitmap, sizeof(uint64_t));
     mfence();
 }
 
 void free_pnode(struct pnode* pnode) {
 
+    POBJ_FREE(pmemobj_oid(pnode));
+}
+
+int pnode_migrate(struct pnode* pnode, struct pentry* entry, int numa_id) {
+    int bucket_id;
+    struct pnode* local_pnode;
+    int offset;
+    int i;
+
+    bucket_id = ENTRY_ID(pnode, entry) / BUCKET_ENT_NUM;
+    if (pnode->forward[numa_id][bucket_id] == NULL) {
+        local_pnode = alloc_pnode();
+        if (!cmpxchg(&pnode->forward[numa_id][0], NULL, local_pnode->entry)) {
+            free_pnode(local_pnode);
+            return -EEXIST;
+        }
+        for (i = 1; i < BUCKET_NUM; i++) {
+            pnode->forward[numa_id][i] = &local_pnode->entry[i * BUCKET_ENT_NUM];
+        }
+    }
+    
+    offset = bucket_id * BUCKET_ENT_NUM;
+    memcpy(&local_pnode->entry[offset], &pnode->entry[offset], BUCKET_ENT_NUM * sizeof(pentry_t));
+    clflush(&local_pnode->entry[offset], BUCKET_ENT_NUM * sizeof(pentry_t));
+
+    return 0;
 }

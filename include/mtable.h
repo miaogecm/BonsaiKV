@@ -10,6 +10,7 @@
 #include "common.h"
 #include "spinlock.h"
 #include "hash.h"
+#include "numa.h"
 
 typedef struct {
     int 		e_used;
@@ -19,12 +20,13 @@ typedef struct {
 } mtable_ent_t;
 
 struct mtable {
-	int8_t master;
+    uint8_t numa_id;
     uint8_t total_ent; 
     uint8_t used_ent;
 	char padding[1];
 	rwlock_t lock;
     int64_t seeds[3];
+    struct mtable* slave[NUM_SOCKET];
     struct pnode* pnode;
 	struct list_head list;
 	struct list_head numa_list;

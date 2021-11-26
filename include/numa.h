@@ -5,6 +5,7 @@ enum {
     NUM_SOCKET = 1,
     NUM_PHYSICAL_CPU_PER_SOCKET = 8,
     SMT_LEVEL = 2,
+    NUM_CPU = 8
 };
 
 const int OS_CPU_ID[NUM_SOCKET][NUM_PHYSICAL_CPU_PER_SOCKET][SMT_LEVEL] = {
@@ -28,4 +29,5 @@ const int OS_CPU_ID[NUM_SOCKET][NUM_PHYSICAL_CPU_PER_SOCKET][SMT_LEVEL] = {
     },
 };
 
+const int CPU_NUMA_ID[NUM_CPU] = {0};
 #endif
