@@ -8,16 +8,18 @@
  */
 
 #include "bonsai.h"
+#include "numa.h"
 
 static struct bonsai* bonsai;
 
-static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
+static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan, destory_func_t destory) {
 	layer->index_struct = init();
 
 	layer->insert = insert;
 	layer->remove = remove;
 	layer->lookup = lookup;
 	layer->scan = scan;
+	layer->destory = destroy;
 }
 
 static void index_layer_deinit(struct index_layer* layer) {
@@ -128,6 +130,7 @@ void bonsai_init(struct bonsai* bonsai) {
     if (!bonsai->bonsai_init) {
 		bonsai->total_cpu = sysconf(_SC_NPROCESSORS_ONLN);
 		bonsai_thread_init(bonsai);
+
         index_layer_init(&bonsai->i_layer);
         log_layer_init(&bonsai->l_layer);
         data_layer_init(&bonsai->d_layer);

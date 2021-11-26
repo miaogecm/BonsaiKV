@@ -9,6 +9,7 @@
 #include "rwlock.h"
 #include "list.h"
 #include "cmp.h"
+#include "numa.h"
 
 #define GET_ENT(ptr) ((pentry_t*)ptr)
 #define GET_KEY(ptr) (GET_ENT(ptr)->key)
@@ -35,15 +36,14 @@ struct pnode {
     uint64_t p_bitmap;
     rwlock_t* slot_lock;
     rwlock_t* bucket_lock[BUCKET_NUM];
-	char padding[40 - 8 * BUCKET_NUM];
+	struct mtable* mtable;
 
 	/* second cache line */
     pentry_t entry[PNODE_ENT_NUM]__attribute__((aligned(CACHELINE_SIZE)));
 
     uint8_t slot[PNODE_ENT_NUM + 1];
-	void *forward[BUCKET_NUM];
+	void *forward[NUM_SOCKET][BUCKET_NUM];
     struct list_head list;
-    struct mtable* mtable;
 }__attribute__((aligned(CACHELINE_SIZE)));
 
 extern int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value);

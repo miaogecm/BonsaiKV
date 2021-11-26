@@ -138,7 +138,7 @@ int bonsai_thread_init(struct bonsai* bonsai) {
 
 		thread->t_data = NULL;
 
-		if (pthread_create(&server->tids[i], NULL, 
+		if (pthread_create(&bonsai->tids[i], NULL, 
 			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)thread) != 0) {
         		printf("bonsai create thread[%d] failed\n", thread->t_id);
 			return -ERR_THREAD;

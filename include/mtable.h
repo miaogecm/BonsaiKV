@@ -19,12 +19,15 @@ typedef struct {
 } mtable_ent_t;
 
 struct mtable {
-    uint32_t total_ent; 
-    uint32_t used_ent;
+	int8_t master;
+    uint8_t total_ent; 
+    uint8_t used_ent;
+	char padding[1];
 	rwlock_t lock;
     int64_t seeds[3];
     struct pnode* pnode;
 	struct list_head list;
+	struct list_head numa_list;
 	mtable_ent_t e[0];
 };
 
@@ -32,4 +35,5 @@ extern int mtable_insert(struct mtable* table, pkey_t key, pval_t value);
 extern int mtable_remove(struct mtable* table, pkey_t key);
 extern pval_t mtable_lookup(struct mtable* table, pkey_t key);
 extern void mtable_split(struct mtable* table, struct pnode* pnode);
+
 #endif

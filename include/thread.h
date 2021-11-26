@@ -3,7 +3,12 @@
 
 #include <pthread.h>
 
-#define NUM_PFLUSH_THREAD
+#define NUM_PFLUSH_THREAD	4
+
+enum {
+	WORKER_SLEEP = 0,
+	WORKER_RUNNING = NUM_PFLUSH_THREAD,
+};
 
 typedef void (*work_func_t)(void*);
 
