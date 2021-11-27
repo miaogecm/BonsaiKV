@@ -23,7 +23,7 @@ OBJ_FILES = $(addprefix $(OBJS_DIR)/, $(SRC_FILES:.c=.o))
 all: libbonsai.a
 
 $(OBJS_DIR)/%.o: %.c $(DEPS_DIR) $(OBJS_DIR)
-	$(Q)$(CC) $(CFLAGS) $(DEPCFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(DEPCFLAGS) -c -o $@ $<
 
 $(OBJS_DIR):
 	$(Q)mkdir -p $(OBJS_DIR)
@@ -31,18 +31,16 @@ $(OBJS_DIR):
 $(DEPS_DIR):
 	$(Q)mkdir -p $(DEPS_DIR)
 
-$(INC_DIR)/numa-config.h:
-	$(Q)$(TOOLS_DIR)/cpu-topology.py > $@
+$(INC_DIR)/numa_config.h:
+	$(Q)$(TOOLS_DIR)/topology.py > $@
 
 libbonsai.a: $(OBJ_FILES)
 	$(Q)/bin/rm -f $@
 	$(Q)$(AR) cru $@ $^
 
-
 clean:
 	$(Q)rm -f libbonsai.a
 	$(Q)rm -rf $(CUR_DIR)/.deps*
 	$(Q)rm -rf $(CUR_DIR)/.objs*
-	$(Q)rm -f $(INC_DIR)/numa-config.h
+	$(Q)rm -f $(INC_DIR)/numa_config.h
 
-.PHONY: all clean
