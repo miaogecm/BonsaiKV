@@ -32,6 +32,7 @@ struct index_layer {
 };
 
 struct log_layer {
+	atomic_t num_log[NUM_CPU];
 	spinlock_t locks[NUM_CPU];
 	struct list_head log_list[NUM_CPU];
 	struct list_head mtable_list;

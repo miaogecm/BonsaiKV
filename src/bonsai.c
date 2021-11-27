@@ -30,6 +30,7 @@ static void log_layer_init(struct log_layer* layer) {
 	int cpu;
 
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
+		atomic_set(&layer->num_log, 0);
 		INIT_LIST_HEAD(&layer->oplogs[cpu]);
 	}
 
