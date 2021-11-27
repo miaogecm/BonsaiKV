@@ -10,22 +10,21 @@
 #include "list.h"
 #include "cmp.h"
 #include "numa.h"
-
-#define GET_ENT(ptr) ((pentry_t*)ptr)
-#define GET_KEY(ptr) (GET_ENT(ptr)->key)
-#define GET_VALUE(ptr) (GET_ENT(ptr)->value)
+#include "common.h"
 
 #define PNODE_ENT_NUM       	32
-#define BUFFER_SIZE_MUL 		2
-#define BUCKET_SIZE     		8
+#define BUCKET_ENT_NUM     		8
 #define BUCKET_NUM      		4
 
 #define BUCKET_HASH(x) (phash(x) % BUCKET_NUM)
 
 #define BUCKET_IS_FULL(pnode, x) (find_unused_entry(pnode, \
-    (pnode)->bitmap & ((1ULL << (x + BUCKET_SIZE)) - (1ULL << x))) == -1)
+    (pnode)->bitmap & ((1ULL << (x + BUCKET_ENT_NUM)) - (1ULL << x))) == -1)
 
 #define ENTRY_ID(pnode, entry) ((entry - pnode - CACHELINE_SIZE) / sizeof(pentry_t))
+#define PNODE_OF_ENT(ptr) ((struct pnode*)((char*) ptr - offsetof(struct pnode, entry)))
+
+#define IS_IN_NVM(ptr) (pmemobj_oid(ptr) != OID_NULL)
 
 /*
  * persistent node definition in data layer
