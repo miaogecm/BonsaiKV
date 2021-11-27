@@ -52,7 +52,7 @@ static void worker_oplog_flush(void* arg) {
 		ret = pnode_insert(log->o_node, log->o_kv.key, log->o_kv.val);
 		break;
 		case OP_REMOVE:
-		ret = pnode_remove(log->o_node, log->o_);
+		ret = pnode_remove(log->o_node, log->o_kv.key);
 		break;
 		default:
 		printf("bad operation type\n");
@@ -283,7 +283,7 @@ void oplog_flush(struct bonsai* bonsai) {
 
 	/* 4. commit all changes */
 	list_for_each_entry_safe(log, tmp, &head, list) {
-		commit_bitmap(log->o_node, , log->o_type);
+		commit_bitmap(log->o_node, log->o_pos, log->o_type);
 		list_del(&log->o_list);
 		free(log);
 	}
