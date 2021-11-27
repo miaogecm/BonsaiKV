@@ -121,6 +121,7 @@ int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value) {
     uint64_t mask;
     int bucket_full_flag;
     struct pnode* new_pnode;
+	struct oplog *log = container_of(pnode, struct oplog, o_node);
     pkey_t max_key;
     int i;
 
@@ -198,7 +199,8 @@ retry:
  * @pnode: the pnode
  * @pentry: the address of entry to be removed
  */
-int pnode_remove(struct pnode* pnode, pentry_t* pentry) {
+int pnode_remove(struct pnode* pnode, pkey_t key) {
+	struct oplog *log = container_of(pnode, struct oplog, o_node);
     uint64_t mask;
     pkey_t key;
 	int pos;

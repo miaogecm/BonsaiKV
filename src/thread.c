@@ -113,23 +113,18 @@ static void pflush_master(struct thread_info* this) {
 	long int i = 0;
 	for (;;) {		
 		sleep(5);
-		if (i == 0)
-			gc_master_work(__this);
-
-		printf("master gc thread[%d] finish mark-and-compact gc\n", __this->thread_id);
-		i++;
-		sleep(100);
+		oplog_flush(bonsai);
 	}
 }
 
 int bonsai_thread_init(struct bonsai* bonsai) {
 	struct thread_info* thread;
-	int ret;
+	int ret, i;
 
 	pthread_mutex_init(&work_mutex, NULL);
 	pthread_cond_init(&work_cond, NULL);
 
-	for (int i = 0; i < NUM_PFLUSH_THREAD; i++) {
+	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = i;
 		thread->t_cpu = i;

@@ -10,6 +10,17 @@ enum {
 	WORKER_RUNNING = NUM_PFLUSH_THREAD,
 };
 
+struct sort_work {
+	unsigned int	id;
+	struct list_head **head;
+};
+
+struct flush_work {
+	unsigned int id;
+	struct list_head *head;
+	struct oplog *from;
+}
+
 typedef void (*work_func_t)(void*);
 
 struct work_struct {

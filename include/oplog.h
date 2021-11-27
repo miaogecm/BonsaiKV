@@ -22,6 +22,7 @@ struct oplog {
 	optype_t 			o_type;
 	index_func_t 		o_func;
 	pentry_t 			o_kv;
+	int					o_pos;
 	struct pnode*		o_node;
 	void*				o_addr;
     struct list_head 	o_list;
