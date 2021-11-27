@@ -31,18 +31,17 @@
  */
 struct pnode {
 	/* first cache line */
-    uint64_t* v_bitmap;
-    uint64_t p_bitmap;
-    rwlock_t* slot_lock;
-    rwlock_t* bucket_lock[BUCKET_NUM];
-	struct mtable* mtable;
+    __le64 			bitmap;
+    rwlock_t* 		slot_lock;
+    rwlock_t* 		bucket_lock[BUCKET_NUM];
+	struct mtable* 	mtable;
 
 	/* second cache line */
-    pentry_t entry[PNODE_ENT_NUM]__attribute__((aligned(CACHELINE_SIZE)));
+    pentry_t 			entry[PNODE_ENT_NUM];
 
-    uint8_t slot[PNODE_ENT_NUM + 1];
-	void *forward[NUM_SOCKET][BUCKET_NUM];
-    struct list_head list;
+    __le8 				slot[PNODE_ENT_NUM + 1];
+	__le64 				forward[NUM_SOCKET][BUCKET_NUM];
+    struct list_head 	list;
 }__attribute__((aligned(CACHELINE_SIZE)));
 
 extern int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value);
