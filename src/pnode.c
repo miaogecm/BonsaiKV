@@ -13,16 +13,19 @@
 #include "arch.h"
 #include "mtable.h"
 
-static struct pnode* alloc_pnode() {
+static struct pnode* alloc_pnode(int numa) {
     TOID(struct pnode) toid;
     int size;
     struct pnode* pnode;
     int i;
 
     size = sizeof(struct pnode);
-    POBJ_ZALLOC(pop, &toid, struct pnode, size + CACHELINE_SIZE);
+    POBJ_ALLOC(pop[numa], &toid, struct pnode, sizeof(struct pnode));
+#if 0
+    /*i forget why ...*/
+    POBJ_ZALLOC(pop[i], &toid, struct pnode, size + CACHELINE_SIZE);
     TOID_OFFSET(toid) = TOID_OFFSET(toid) + CACHELINE_SIZE - TOID_OFFSET(toid) % CACHELINE_SIZE;
-
+#endif
     pnode = pmemobj_direct(toid);
     pnode->slot_lock = (rwlock_t*) malloc(sizeof(rwlock_t));
     rwlock_init(pnode->slot_lock);
