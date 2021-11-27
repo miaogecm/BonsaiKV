@@ -12,6 +12,7 @@
 #include "common.h"
 #include "arch.h"
 #include "mtable.h"
+#include "oplog.h"
 
 static struct pnode* alloc_pnode(int numa) {
     TOID(struct pnode) toid;
@@ -129,7 +130,7 @@ int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value) {
     offset = BUCKET_ENT_NUM * bucket_id;
 
 retry:
-
+    
     write_lock(pnode->bucket_lock[bucket_id]);
     mask = (1ULL << (offset + BUCKET_ENT_NUM)) - (1ULL << offset);
     pos = find_unused_entry(pnode->v_bitmap & mask);
@@ -140,6 +141,7 @@ retry:
         pnode->entry[pos] = entry;
         clflush(&pnode->entry[pos], sizeof(pentry_t));
         mfence();
+        log->o_pos = pos;
 
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, OP_INSERT);
@@ -201,11 +203,18 @@ retry:
  */
 int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct oplog *log = container_of(pnode, struct oplog, o_node);
-    uint64_t mask;
     pkey_t key;
-	int pos;
+    int bucket_id, offset;
+    int i;
 
-    pos = ENTRY_ID(pnode, pentry);
+    bucket_id = BUCKET_HASH(key);
+    offset = BUCKET_ENT_NUM * bucket_id;
+
+    write_lock(pnode->bucket_lock[bucket_id]);
+    for (i = offset; ;i++) {
+        
+    }
+    
     key = pnode->entry[pos];
     mask = ~(1ULL << pos);
     pnode->v_bitmap &= mask;
