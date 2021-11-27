@@ -1,26 +1,94 @@
+#include <numa.h>
+
 #include "mtable.h"
 #include "oplog.h"
 #include "pnode.h"
 #include "cmp.h"
 #include "common.h"
 
-#define MTABLE_RESIZE_THREASHOLD    	0.5
-#define MTABLE_MAX_DEPTH        		2
-#define MTABLE_NUM_ENTRIES				32
+#define MTABLE_NUM_ENTRIES	32
 
-#define HASH1(key, table) (hash(key, \
-    table->seed[0].murmur, table->seed[0].mixer) & (table->size - 1));
-#define HASH2(key, table) (hash(key, \
-    table->seed[1].murmur, table->seed[1].mixer) & (table->size - 1));
+struct mtable* mtable_alloc(struct pnode* pnode, int num, int numa) {
+    struct mtable* mtable;
+    
+    mtable = (struct mtable*) numa_alloc_onnode(sizeof(mtable), numa);
 
-static void get_rand_seed(struct mtable* table) {
-    srand(time(0));
-    int i;
-    for (i = 0; i < 3; i++) {
-        table->seeds[i] = ((int64_t)rand() << 32) | rand();
-    }
+    mtable->numa = numa;
+    mtable->slave = (struct mtable**) 
+    numa_alloc_onnode(NUM_SOCKET * sizeof(struct mtable*), numa);
+    mtable->pnode = pnode;
+    
+    htable_init(mtable->htable);
+    memset(mtable->slave, 0, sizeof(mtable->slave));
+    LIST_HEAD_INIT(mtable->list);
+    LIST_HEAD_INIT(mtable->numa_list);
+    
+    return mtable;
 }
 
+int mtable_insert(struct mtable* mtable, pkey_t key, pval_t val) {
+    struct htable* htable;
+    hnode_t* hnode;
+    int flag;
+    struct oplog* op_log;
+
+    htable = mtable->htable;
+    flag = htable_insert(htable, key, NULL, hnode);
+    if (flag == 0) {
+        /*succeed*/
+        op_log = oplog_insert(key, val, mtable, OP_INSERT);
+        hnode->val = op_log;
+
+        return 0;
+    }
+    
+    return -EEXIST;
+}
+
+int mtable_remove(struct mtable* mtable, pkey_t key) {
+    struct htable* htable;
+
+    htable = mtable->htable;
+    if (htable_remove(htable, key) == 0) {
+        oplog_insert(key, val, mtable, OP_INSERT);
+        return 0;
+    }
+
+    return -ENOENT;
+}
+
+int mtable_lookup(struct mtable* mtable, pkey_t key, pval_t* result) {
+    int cpu, numa;
+    struct mtable* local_mtable;
+    struct htable* htable;
+    hval_t h_res;
+
+    cpu = get_cpu();
+    numa = CPU_NUMA_NODE[cpu];
+
+    if (mtable->slave[numa] == NULL) {
+        mtable->slave[numa] = mtable_alloc(NULL, mtable_ent_num(mtable), numa);
+    }
+    local_mtable = mtable->slave[numa];
+
+    htable = local_mtable->htable;
+    if (htable_lookup(htable, key, &h_res) == 0) {
+        *result = GET_VALUE(h_res);
+        return 0;
+    }
+
+    htable = mtable->htable;
+    if (htable_lookup(htable, key, &h_res) == 0) {
+        hnode_t honde;
+        htable_insert(local_mtable->htable, key, h_res, &honde);
+        *result = GET_VALUE(h_res);
+        return 0;
+    }
+
+    return -ENOEXT;
+}
+
+#if 0
 struct mtable* mtable_init(struct pnode* pnode, int num) {
     struct mtable* table;
 	int i;
@@ -330,3 +398,4 @@ void mtable_split(struct mtable* table, struct pnode* pnode) {
 }
 
 //todo lock_seq
+#endif
