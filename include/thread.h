@@ -10,14 +10,14 @@ enum {
 	WORKER_RUNNING = NUM_PFLUSH_THREAD,
 };
 
-struct sort_work {
+struct merge_work {
 	unsigned int	id;
-	struct list_head **head;
+	struct log_blk* first_blks[NUM_CPU/NUM_PTHREAD];
+	struct log_blk* last_blks[NUM_CPU/NUM_PTHREAD];
 };
 
 struct flush_work {
 	unsigned int id;
-	struct list_head *head;
 	struct oplog *from;
 }
 

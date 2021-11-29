@@ -6,6 +6,7 @@
  * Author: Miao Cai: mcai@hhu.edu.cn
  *	   	   Kangyue Gao: xxxx@163.com
  */
+#include <signal.h>
 
 #include "thread.h"
 
@@ -13,6 +14,15 @@ __thread struct thread_info* __this;
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
+
+static void thread_block_alarm() {
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGALRM);
+
+	pthread_sigmask(SIG_BLOCK, &set, NULL);
+}
 
 static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
 	list_add(&work->list, &wq->head);
@@ -51,6 +61,12 @@ static void try_wakeup_master() {
 		pthread_cond_broadcast(&work_cond);
 		pthread_mutex_unlock(&work_mutex);
 	}
+}
+
+void wakeup_master() {
+	pthread_mutex_lock(&work_mutex);
+	pthread_cond_broadcast(&work_cond);
+	pthread_mutex_unlock(&work_mutex);
 }
 
 void park_workers() {
@@ -95,6 +111,8 @@ static void pflush_worker(struct thread_info* this) {
 	printf("pflush thread[%d] start.\n", __this->thread_id);
 
 	bind_to_cpu(__this->thread_cpu);
+
+	thread_block_alarm();
 	
 	while (1) {
 		worker_sleep();
@@ -109,6 +127,8 @@ static void pflush_master(struct thread_info* this) {
 	printf("pflush thread[%d] start.\n", __this->thread_id);
 
 	bind_to_cpu(__this->thread_cpu);
+
+	thread_block_alarm();
 
 	long int i = 0;
 	for (;;) {		

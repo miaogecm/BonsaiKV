@@ -31,5 +31,9 @@ typedef struct pentry {
 #define ENOMEM		101 /* out-of memory */
 #define ENOENT		102 /* no such entry */
 #define EEXIST		103 /* key exist */
+#define EOPEN		104 /* open file error */
+#define EPMEMOBJ	105 /* create pmemobj error */
+#define EMMAP		106 /* memory-map error */
+#define ESIGNO		107 /* sigaction error */	
 
 #endif

@@ -46,7 +46,6 @@ struct pnode {
 
 extern int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value);
 extern int pnode_remove(struct pnode* pnode, pkey_t key);
-extern void commit_bitmap(struct pnode* pnode, int pos, optype_t op);
 
 #endif
 /*pnode.h*/
