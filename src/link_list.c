@@ -3,8 +3,8 @@
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ *	   	   Shenming Liu
  *
  * A lock-free concurrent link list implementation with safe memory reclaimation.
  */

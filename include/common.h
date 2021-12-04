@@ -20,8 +20,8 @@ typedef uint64_t	__le64
 #define __le64_to_cpu(x)
 
 typedef struct pentry {
-    __le64 key;
-    __le64 value;
+    __le64 k;
+    __le64 v;
 } pentry_t;
 
 #define GET_ENT(ptr) ((pentry_t*)ptr)

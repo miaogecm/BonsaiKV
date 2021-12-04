@@ -135,15 +135,18 @@ static inline unsigned int max_cpu_freq(void)
 #define _mm_clflushopt(addr)\
     asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char*)(addr)))
 
-static inline void clflush(void* buf, uint32_t len) {
+static inline void mfence() {
+    asm volatile ("sfence\n" : : );
+}
+
+static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
     int i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE)
         _mm_clflushopt(buf + i);    
-}
 
-static inline void mfence() {
-    asm volatile ("sfence\n" : : );
+	if (fence)
+		mfence();
 }
 
 static inline int get_cpu() {
@@ -168,6 +171,10 @@ static inline void bind_to_cpu(int cpu) {
     if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
         printf("bind cpu[%d] failed.\n", cpu);
     }
+}
+
+static inline int get_numa_node() {
+	return 0;
 }
 
 #ifdef __cplusplus

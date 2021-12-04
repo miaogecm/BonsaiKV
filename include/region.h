@@ -1,7 +1,7 @@
 #ifndef REGION_H
 #define REGION_H
 
-#include "common.h"
+#include <libpmemobj.h>
 
 #define PAGE_SHIFT	12
 #define PAGE_MASK	(1 << 12)
@@ -11,7 +11,7 @@
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
-	__le64 p_num_log; /* how many oplogs in this page */
+	__le64 p_num_blk; /* how many log block in this page */
 	__le64 p_next; /* next log page */
 	char padding[8]; 
 };
@@ -48,5 +48,7 @@ extern int log_region_deinit(struct log_layer* layer);
 extern int data_region_init(struct data_layer *layer);
 
 extern struct oplog_blk* alloc_oplog_block(int cpu);
+
+extern void free_log_page(struct log_region *region, struct log_page_desc* page);
 
 #endif

@@ -3,11 +3,11 @@
 
 #include "linked_list.h"
 
-#define MAX_NUM_BUCKETS 	32  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
-#define INIT_NUM_BUCKETS 	2  /* a hash_set has INIT_NUM_BUCKETS at first */
-#define LOAD_FACTOR_DEFAULT 0.75
-#define MAIN_ARRAY_LEN 		16
-#define SEGMENT_SIZE 		4
+#define MAX_NUM_BUCKETS 		32  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
+#define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
+#define LOAD_FACTOR_DEFAULT 	0.75
+#define MAIN_ARRAY_LEN 			16
+#define SEGMENT_SIZE 			4
 
 struct bucket_list {
     struct linked_list bucket_sentinel;   /* head the bucket_list */
@@ -27,8 +27,8 @@ struct hash_set {
 };
 
 extern void hs_init(struct hash_set * hs);
-extern pval_t* hs_insert(struct hash_set* hs, int tid, pkey_t key);
-extern int hs_lookup(struct hash_set* hs, int tid, pkey_t key);
+extern int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* addr);
+extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 
 extern void hs_destroy(struct hash_set* hs);
 

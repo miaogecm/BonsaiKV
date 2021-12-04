@@ -1,10 +1,10 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ *	   	   Shenming Liu
  *
  * Safe memory reclaimation (SMR) of lock-free concurrent link list. 
  * The SMR technique uses hazard point technique, see "Hazard Pointers: Safe Memory 

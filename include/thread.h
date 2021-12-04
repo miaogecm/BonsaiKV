@@ -11,14 +11,18 @@ enum {
 };
 
 struct merge_work {
-	unsigned int	id;
+	unsigned int id;
+	unsigned int count;
+	struct log_layer* layer;
 	struct log_blk* first_blks[NUM_CPU/NUM_PTHREAD];
 	struct log_blk* last_blks[NUM_CPU/NUM_PTHREAD];
 };
 
 struct flush_work {
 	unsigned int id;
-	struct oplog *from;
+	unsigned int min_index;
+	unsigned int max_index;
+	struct log_layer* layer;
 }
 
 typedef void (*work_func_t)(void*);
@@ -40,6 +44,10 @@ struct thread_info {
 	void* 			t_data;
 	struct workqueue_struct t_wq;		
 };
+
+static inline int get_tid() {
+	return 0;
+}
 
 extern __thread struct thread_info* __this;
 

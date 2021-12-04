@@ -1,10 +1,9 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
  */
 #include <stdio.h>
 #include <fcntl.h>
@@ -34,29 +33,42 @@ static void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
 }
 
-static void log_layer_init(struct log_layer* layer) {
+static int log_layer_init(struct log_layer* layer) {
+	int i, err = 0;
 
-	log_region_init(layer, bonsai->desc)
+	err = epoch_init();
+	if (err)
+		goto out;
 
-	INIT_LIST_HEAD(&layer->mtable_list);
+	err = log_region_init(layer, bonsai->desc);
+	if (err)
+		goto out;
 
-	layer->insert = mtable_insert;
-	layer->remove = mtable_remove;
-	layer->lookup = mtable_lookup;
+	INIT_LIST_HEAD(&layer->mptable_list);
+
+	for (i = 0; i < MAX_HASH_BUCKET; i ++) {
+		INIT_HLIST_HEAD(&layer->buckets[i].head);
+		spin_lock_init(&layer->buckets[i].lock);
+	}
+
+	layer->insert = mptable_insert;
+	layer->update = mptable_update;
+	layer->remove = mptable_remove;
+	layer->lookup = mptable_lookup;
+
+out:
+	return err;
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
-	struct mtable *table, *tmp;
+	struct numa_table *table, *tmp;
 	int cpu, ret;
 
-	ret = log_region_deinit(layer);
+	log_region_deinit(layer);
 
-	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
-		assert(list_empty(&layer->log_list[cpu]));
-	}
-
-	list_for_each_entry_safe(table, tmp, &layer->mtable_list, list) {
-		mapping_table_free(table);
+	list_for_each_entry_safe(table, tmp, &layer->mptable_list, list) {
+		list_del(&table->list);
+		numa_mptable_free(table);
 	}
 }
 
@@ -77,41 +89,53 @@ static void data_layer_deinit(struct data_layer* layer) {
 	/*TODO*/
 }
 
-int bonsai_insert(pkey_t key, pval_t val) {
-	int ret = 0;
-	void* table;
+int bonsai_insert(pkey_t key, pval_t value) {
+	struct numa_table *tables, **addr;
 
-	table = INDEX(bonsai)->lookup(key);
-	if (ret < 0)
-		goto out;
+	addr = INDEX(bonsai)->lookup(key);
+	if (unlikely(!*addr)) {
+		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mtable_list);
+	}
+	tables = *addr;
 
-	ret = LOG(bonsai)->insert(key, val, table->pnode);
+	return LOG(bonsai)->insert(MPTABLE_NODE(tables, get_numa_node()), key, value);
+}
 
-out:
-	return ret;
+int bonsai_update(pkey_t key, pval_t value) {
+	struct numa_table *tables, **addr;
+
+	addr = INDEX(bonsai)->lookup(key);
+	if (unlikely(!*addr)) {
+		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mtable_list);
+	}
+	tables = *addr;
+
+	return LOG(bonsai)->update(MPTABLE_NODE(tables, get_numa_node()), key, val);
 }
 
 int bonsai_remove(pkey_t key) {
-	int ret = 0;
-	void *table;
+	struct numa_table *tables, **addr;
 
-	ret = INDEX(bonsai)->lookup(key);
-	if (ret < 0)
-		goto out;
+	addr = INDEX(bonsai)->lookup(key);
+	if (unlikely(!*addr)) {
+		return -ENOENT;
+	}
+	tables = *addr;
 
-	ret = LOG(bonsai)->remove(key, table);
-
-out:
-	return ret;	
+	return LOG(bonsai)->remove(MPTABLE_NODE(tables, get_numa_node()), key);
 }
 
 pval_t bonsai_lookup(pkey_t key) {
+	struct numa_table *tables, **addr;;
 	pval_t value;
-	void* table;
 	
-	table = INDEX(bonsai)->lookup(key);
+	addr = INDEX(bonsai)->lookup(key);
+	if (unlikely(!*addr)) {
+		return -ENOENT;
+	}
+	tables = *addr;
 
-	value = LOG(bonsai)->lookup(key, table);
+	value = LOG(bonsai)->lookup(tables, key, table);
 
 	return value;
 }
@@ -163,7 +187,7 @@ int bonsai_init() {
         log_layer_init(&bonsai->l_layer);
         data_layer_init(&bonsai->d_layer);
 
-		bonsai->desc->init = 1;
+		bonsai->desc_init = 1;
     } else {
         bonsai_recover(bonsai);
     }

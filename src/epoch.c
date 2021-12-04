@@ -1,3 +1,10 @@
+/*
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ *
+ * Hohai University
+ *
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ */
 #include <signal.h>
 #include <stdio.h>
 #include <sys/time.h>

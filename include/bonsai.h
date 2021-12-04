@@ -12,11 +12,14 @@
 #include "list.h"
 #include "mtable.h"
 
+#define BONSAI_SUPPORT_UPDATE
+
 typedef skiplist_t index_layer_t;
 
 typedef void (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(pkey_t key, pval_t val);
+typedef int (*insert_func_t)(pkey_t key, pval_t value);
+typedef int (*update_func_t)(pkey_t key, pval_t value);
 typedef int (*remove_func_t)(pkey_t key);
 typedef int (*lookup_func_t)(pkey_t key);
 typedef int (*scan_func_t)(pkey_t key1, pkey_t key2);
@@ -37,10 +40,11 @@ struct log_layer {
 	int pmem_fd[NUM_SOCKET];
 	char* pmem_addr[NUM_SOCKET];
 	struct log_region region[NUM_CPU];
-	
-	struct list_head mtable_list;
+	struct list_head mptable_list;
+	struct hbucket buckets[MAX_HASH_BUCKET];
 
 	insert_func_t insert;
+	update_func_t update;
 	remove_func_t remove;
 	lookup_func_t lookup;
 };
@@ -48,6 +52,7 @@ struct log_layer {
 struct data_layer {
 	struct data_region region[NUM_SOCKET];
 
+	spinlock_t lock;
 	struct list_head pnode_list;
 
 	insert_func_t insert;
@@ -80,9 +85,9 @@ struct bonsai_info {
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
 };
 
-#define INDEX(bonsai)    	(bonsai->i_layer)
-#define LOG(bonsai)   		(bonsai->l_layer)
-#define DATA(bonsai)  		(bonsai->d_layer)
+#define INDEX(bonsai)    	(&bonsai->i_layer)
+#define LOG(bonsai)   		(&bonsai->l_layer)
+#define DATA(bonsai)  		(&bonsai->d_layer)
 
 extern struct bonsai_info *bonsai;
 

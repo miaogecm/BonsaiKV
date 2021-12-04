@@ -1,10 +1,9 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@163.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
  */
 #include <signal.h>
 

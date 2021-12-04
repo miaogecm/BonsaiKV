@@ -1,10 +1,9 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
  * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
  */
 #include <stdio.h>
 #include <fcntl.h>
@@ -28,14 +27,16 @@ static char* data_region_fpath[NUM_SOCKET] = {
 	"/mnt/node1/objpool1"
 }
 
-static void free_log_page(struct log_region *region, struct log_page_desc* page) {
+void free_log_page(struct log_region *region, struct log_page_desc* page) {
 	page = inuse;
 	region->inuse = LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 
 	region->free->p_next = LOG_REGION_ADDR_TO_OFF(region, page);
 	region->free = page;
 
-	page->p_num_log = 0;
+	page->p_num_blk = 0;
+
+	bonsai_clflush(page, sizeof(struct log_page_desc)， 1);
 }
 
 struct log_page_desc* alloc_log_page(struct log_region *region) {
@@ -49,12 +50,14 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 	page->p_next = inuse->p_next;
 	inuse->p_next = LOG_REGION_ADDR_TO_OFF(region, page);
 
+	bonsai_clflush(page, sizeof(struct log_page_desc)， 1);
+
 	return page;
 }
 
 static inline void init_log_page(struct log_page_desc* page, off_t page_off, int last) {
 	page->p_off = page_off;
-	page->p_num_log = 0;
+	page->p_num_blk = 0;
 	page->p_next = last ? (page_off + PAGE_SIZE) : 0;
 }
 
@@ -65,6 +68,8 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	desc->r_off = offset;
 	desc->r_size = size;
 	desc->r_oplog_top = 0;
+
+	bonsai_clflush(desc, sizeof(struct log_region_desc)， 1);
 
 	memset(paddr, 0, size);
 

@@ -1,10 +1,10 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ *	   	   Shenming Liu
  *
  * A lock-free extendible hash table implementation. A lock-free hash table consists of two
  * components: 

@@ -12,6 +12,9 @@
 #define	_QR_SHIFT	8			/* Reader count shift	   */
 #define _QR_BIAS	(1U << _QR_SHIFT)
 
+/*
+ * 8 bytes
+ */
 typedef struct {
     atomic_t 	cnts; // counter for readers
     spinlock_t	slock;

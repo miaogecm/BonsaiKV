@@ -1,33 +1,51 @@
 /*
- * Bonsai: Transparent and Efficient DRAM Index Structure Transplant for NVM
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
  *
  * Hohai University
  *
- * Author: Miao Cai: mcai@hhu.edu.cn
- *	   	   Kangyue Gao: xxxx@gmail.com
+ * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#include <stdlib.h>
+#include <string.h>
+#include <libpmemobj.h>
 
 #include "pnode.h"
 #include "oplog.h"
 #include "common.h"
 #include "arch.h"
 #include "mtable.h"
-#include "oplog.h"
+#include "bonsai.h"
 
-static struct pnode* alloc_pnode(int numa) {
+static uint64_t hash(uint64_t x) {
+    x = (x ^ (x >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+    x = (x ^ (x >> 27)) * UINT64_C(0x94d049bb133111eb);
+    x = x ^ (x >> 31);
+    return x;
+}
+
+#define BUCKET_HASH(x) (hash(x) % BUCKET_NUM)
+
+static int cmp(pkey_t a, pkey_t b) {
+    if (a < b) return -1
+    if (a > b) return 1;
+    return 0;
+}
+
+static struct pnode* alloc_pnode() {
     TOID(struct pnode) toid;
-    int size;
     struct pnode* pnode;
-    int i;
+	int i;
 
-    size = sizeof(struct pnode);
-    POBJ_ALLOC(pop[numa], &toid, struct pnode, sizeof(struct pnode));
+    POBJ_ALLOC(DATA(bonsai)->pop, &toid, struct pnode, sizeof(struct pnode));
 #if 0
     /*i forget why ...*/
     POBJ_ZALLOC(pop[i], &toid, struct pnode, size + CACHELINE_SIZE);
     TOID_OFFSET(toid) = TOID_OFFSET(toid) + CACHELINE_SIZE - TOID_OFFSET(toid) % CACHELINE_SIZE;
 #endif
     pnode = pmemobj_direct(toid);
+
+	pnode->bitmap = cpu_to_le64(0);
+
     pnode->slot_lock = (rwlock_t*) malloc(sizeof(rwlock_t));
     rwlock_init(pnode->slot_lock);
 
@@ -36,10 +54,55 @@ static struct pnode* alloc_pnode(int numa) {
         rwlock_init(pnode->bucket_lock[i]);
     }
 
-    pmemobj_persist(pop, pnode, size);
+	INIT_LIST_HEAD(&pnode->list);
+
+	memset(pnode->slot, 0, PNODE_ENT_NUM + 1);
+
+	pnode->table = NULL;
+
+	memset(pnode->forward, 0, NUM_SOCKET * BUCKET_NUM * sizeof(__le64));
+
+    pmemobj_persist(pop, pnode, sizeof(struct pnode));
+
     return pnode;
 }
 
+static void free_pnode(struct pnode* pnode) {
+	PMEMoid toid = pmemobj_oid(top_node);
+	int i;
+
+	free(pnode->slot_lock);
+
+	for (i = 0; i < BUCKET_NUM; i++)
+		free(pnode->bucket_lock[i]);
+
+	spin_lock(&DATA(bonsai)->lock);
+	list_del(&pnode->list);
+	spin_unlock(&DATA(bonsai)->lock);
+
+	POBJ_FREE(&toid);
+}
+
+static void insert_pnode(struct pnode* pnode, pkey_t key) {
+	struct pnode *pos, *prev;
+	pkey_t max_key;
+	
+	spin_lock(&DATA(bonsai)->lock);
+	list_for_each_entry(pos, &DATA(bonsai)->pnode_list, list) {
+		max_key = pos->e[node->slot[0]];
+		if (max_key > key)
+			break;
+		else
+			prev = pos;
+	}
+
+	__list_add(&pnode->list, &prev->list, &pos->list);
+	spin_unlock(&DATA(bonsai)->lock);
+}
+
+/*
+ * find_unused_entry: return -1 if bitmap is full.
+ */
 static int find_unused_entry(uint64_t v) {
 	int n = 1;    
 	v = ~v;
@@ -94,8 +157,7 @@ static int lower_bound(struct pnode* pnode, pkey_t key) {
 
 static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t op) {
     uint8_t* slot;
-    int pos;
-    int i;
+    int pos, i;
 
     slot = pnode->slot;
     pos = lower_bound(pnode, key);
@@ -114,61 +176,71 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
 }
 
 /*
- * pnode_insert: insert an kv-pair into a pnode
+ * pnode_insert: insert a kv-pair into a pnode
+ * @pnode: persistent node
+ * @table: NUMA mapping table
+ * @numa_node: which numa node
+ * @key: key
+ * @val: value
+ * return 0 if successful
  */
-int pnode_insert(struct pnode* pnode, pkey_t key, pval_t value) {
-    uint32_t bucket_id;
-    int offset, pos;
-    uint64_t mask;
-    int bucket_full_flag;
+int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
+    int offset, pos, i, n, bucket_full = 0;
+    uint64_t mask, bucket_id;
+    uint64_t bitmap, removed;
     struct pnode* new_pnode;
-	struct oplog *log = container_of(pnode, struct oplog, o_node);
     pkey_t max_key;
-    int i;
 
     bucket_id = BUCKET_HASH(key);
-    offset = BUCKET_ENT_NUM * bucket_id;
+    offset = NUM_BUCKET * bucket_id;
+
+	if (unlikely(!pnode)) {
+		/* allocate a new pnode */
+		pnode = alloc_pnode();
+		table->pnode = pnode;
+		pnode->table = table;
+		insert_pnode(pnode, key);
+	}
 
 retry:
-    
     write_lock(pnode->bucket_lock[bucket_id]);
-    mask = (1ULL << (offset + BUCKET_ENT_NUM)) - (1ULL << offset);
-    pos = find_unused_entry(pnode->v_bitmap & mask);
+    mask = (1ULL << (offset + NUM_BUCKET)) - (1ULL << offset);
+    pos = find_unused_entry(pnode->bitmap & mask);
     if (pos != -1) {
-        pentry_t entry;
+        pentry_t entry = {key, value};
 
-        entry = {key, value};
         pnode->entry[pos] = entry;
-        clflush(&pnode->entry[pos], sizeof(pentry_t));
-        mfence();
-        log->o_pos = pos;
+
+        mptable_update_addr(pnode->table, MPTABLE_NODE(table, numa_node), key, &pnode->entry[pos]);
 
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, OP_INSERT);
         write_unlock(pnode->slot_lock);
 
         write_unlock(pnode->bucket_lock[bucket_id]);
-        return 1;
+		
+		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_clflush(&pnode->entry[pos], sizeof(pentry_t), 0);
+		bonsai_clflush(&pnode->slot, PNODE_ENT_NUM + 1, 1);
+
+        return 0;
     }
+	write_unlock(pnode->bucket_lock[bucket_id]);
 
-    write_unlock(pnode->bucket_lock[bucket_id]);
-
-    bucket_full_flag = 0;
-    for (i = 0; i < BUCKET_NUM; i++) {
+	/* split the node */
+	bucket_full = 0;
+    for (i = 0; i < NUM_BUCKET; i ++) {
         write_lock(pnode->bucket_lock[i]);
         if (BUCKET_IS_FULL(pnode, i)) {
-            bucket_full_flag = 1;
+            bucket_full = 1;
         }
     }
 
-    if (bucket_full_flag) {
-        uint64_t bitmap, removed;
-		int n;
-
-        new_pnode* = alloc_presist_node();
-        memcpy(new_pnode->entry, pnode->entry, sizeof(pentry_t) * PNODE_ENT_NUM);
+    if (bucket_full) {
+        new_pnode = alloc_pnode();
+        memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
         n = pnode->slot[0];
-        bitmap = pnode->v_bitmap;
+        bitmap = pnode->bitmap;
         removed = 0;
 
         for (i = n / 2 + 1; i <= n; i++) {
@@ -176,116 +248,112 @@ retry:
             new_pnode->slot[i - n/2] = pnode->slot[i];
         }
         new_pnode->slot[0] = n - n / 2;
-        new_pnode->v_bitmap = removed;
+        new_pnode->bitmap = removed;
 
-        pnode->v_bitmap &= ~removed;
+        pnode->bitmap &= ~removed;
         pnode->slot[0] = n/2;
 
-        list_add(new_pnode, pnode);
+		insert_pnode(new_pnode, pnode->e[pnode->slot[0]]);
 
-        mtable_split(pnode->mtable, new_pnode);
+		/* split the mapping table */
+        mptable_split(pnode->mtable, new_pnode);
     }
 
     max_key = pnode->entry[slot[0]];
-    for (i = 0; i < BUCKET_NUM; i++) {
+    for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
-    }
-    if (bucket_full_flag) {
+
+	bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
+	bonsai_clflush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 0);
+	bonsai_clflush(&new_pnode->bitmap, sizeof(__le64), 0);
+	bonsai_clflush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
+
+    if (bucket_full)
         pnode = cmp(key, max_key) <= 0 ? pnode : new_pnode;
-    }
+
     goto retry;
 }
 
 /*
  * pnode_remove: remove an entry of a pnode
  * @pnode: the pnode
- * @pentry: the address of entry to be removed
+ * @key: key to be removed
  */
 int pnode_remove(struct pnode* pnode, pkey_t key) {
-	struct oplog *log = container_of(pnode, struct oplog, o_node);
-    pkey_t key;
-    int bucket_id, offset;
-    int i;
+    int bucket_id, offset, i;
+	uint64_t mask;
 
     bucket_id = BUCKET_HASH(key);
-    offset = BUCKET_ENT_NUM * bucket_id;
+    offset = NUM_ENT_PER_BUCKET * bucket_id;
+
+	mask = (1ULL << (offset + NUM_ENT_PER_BUCKET)) - (1ULL << offset);
 
     write_lock(pnode->bucket_lock[bucket_id]);
-    for (i = offset; ;i++) {
-        
-    }
-    
-    key = pnode->entry[pos];
-    mask = ~(1ULL << pos);
-    pnode->v_bitmap &= mask;
+	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++)
+		if (pnode->e[i].k == key)
+			goto find;
+
+	return -ENOENT;
+
+find:
+    mask |= (offset + i);
+    pnode->bitmap &= mask;
+	write_unlock(pnode->bucket_lock[bucket_id]);
 
     write_lock(pnode->slot_lock);
-    sort_in_pnode(pnode, pos, key, OP_REMOVE);
+    sort_in_pnode(pnode, i, key, OP_REMOVE);
     write_unlock(pnode->slot_lock);
 
-    return 1;
+	if (unlikely(!pnode->slot[0])) {
+		/* free this persistent node */
+		free_pnode(pnode);
+		numa_mptable_free(pnode->table);
+		INDEX(bonsai)->remove(pnode->e[pnode->slot[0]]);
+	} else {
+		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_clflush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
+	}
+
+    return 0;
 }
 /*
- * pnode_range: range query from key1 to key2, return the number of entries whose value:[key1, key2]
+ * pnode_range: perform range query on [begin, end]
  * @pnode: pnode whose max_key is the upper bound of key1, search from its prev
- * @key1: begin_key
- * @key2: end_key
+ * @begin: begin_key
+ * @end: end_key
  * @res_array: result_array
  */
-int pnode_scan(struct pnode* pnode, pkey_t key1, pkey_t key2, pentry_t* res_arr) {
+int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr) {
     struct pnode* prev_pnode;
     int res_n = 0;
     uint8_t* slot;
     int i;
 
     pnode = PNODE_OF_ENT(pnode->forward[0][0]);
-    
+  
     prev_pnode = list_prev_entry(pnode, struct pnode);
     if (prev_pnode != NULL)
         pnode = prev_node;
 
-    i = 0;
-    slot = pnode->slot;
+    i = 0; slot = pnode->slot;
     while(i <= slot[0]) {
-        if (cmp(pnode->entry[slot[i]], key1) >= 0) {
+        if (cmp(pnode->entry[slot[i]], begin) >= 0) 
             break;
-        }
         i++;
     }
+
     while(pnode != NULL) {
         slot = pnode->slot;
         while(i <= slot[0]) {
-            if (cmp(pnode->entry[slot[i]], key2) > 0) {
+            if (cmp(pnode->entry[slot[i]], end) > 0)
                 return res_n;
-            }
             res_arr[res_n] = pnode->entry[slot[i]];
-            res_n++;
-            i++;
+            res_n++; i++;
         }
         pnode = list_next_entry(pnode, struct pnode);
     }
 
     return res_n;
-}
-
-/*
- * commit_bitmap: persist the p_bitmap of pnode after a operation
- * @pnode: pnode
- * @pos: the position where insert/remove an entry
- * @op: insert/remove
- */
-void commit_bitmap(struct pnode* pnode, int pos, optype_t op) {
-    uint64_t mask;
-    
-    mask = 1ULL << pos;
-    if (op == OP_INSERT) {
-        pnode->p_bitmap |= mask;
-    } else {
-        pnode->p_bitmap &= ~mask;
-    }
-    clflush(pnode->slot, sizeof(uint8_t) * (pnode->slot[0] + 1));
-    clflush(&pnode->p_bitmap, sizeof(uint64_t));
-    mfence();
 }
 
 void free_pnode(struct pnode* pnode) {
