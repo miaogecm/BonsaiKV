@@ -5,22 +5,16 @@
 extern "C" {
 #endif
 
-#ifndef likely
-#define likely(x) __builtin_expect((unsigned long)(x), 1)
-#endif
-#ifndef unlikely
-#define unlikely(x) __builtin_expect((unsigned long)(x), 0)
-#endif
-
 /*
  * machine-, architecture-specific information
  */
 #define ____ptr_aligned __attribute__((aligned(sizeof(void *))))
 
-#define NUM_CPU     48
-
 #define PAGE_SIZE 4096
 #define CACHELINE_SIZE 64
+
+#define PAGE_SHIFT	12
+#define PAGE_MASK	(1 << 12)
 
 #define L1_CACHE_BYTES 64
 #define ____cacheline_aligned __attribute__((aligned(L1_CACHE_BYTES)))
@@ -62,10 +56,12 @@ static inline void __attribute__((__always_inline__)) smp_wmb(void)
 	__asm__ __volatile__("sfence" ::: "memory");
 }
 
+#if 0
 static inline void __attribute__((__always_inline__)) barrier(void)
 {
 	__asm__ __volatile__("" ::: "memory");
 }
+#endif
 
 static inline void __attribute__((__always_inline__)) smp_wmb_tso(void)
 {
@@ -135,10 +131,6 @@ static inline unsigned int max_cpu_freq(void)
 #define _mm_clflushopt(addr)\
     asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char*)(addr)))
 
-static inline void mfence() {
-    asm volatile ("sfence\n" : : );
-}
-
 static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
     int i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
@@ -146,35 +138,7 @@ static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
         _mm_clflushopt(buf + i);    
 
 	if (fence)
-		mfence();
-}
-
-static inline int get_cpu() {
-	cpu_set_t mask;
-	int i;
-
-	if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1
-		printf("sched_getaffinity fail\n");
-
-	for (i = 0; i < NUM_CPU; i++) {
-		if (CPU_ISSET(i, &mask))
-			return i;
-	}
-
-	return -1;
-}
-
-static inline void bind_to_cpu(int cpu) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
-        printf("bind cpu[%d] failed.\n", cpu);
-    }
-}
-
-static inline int get_numa_node() {
-	return 0;
+		smp_mb();
 }
 
 #ifdef __cplusplus

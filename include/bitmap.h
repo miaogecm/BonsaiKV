@@ -1,6 +1,10 @@
 #ifndef BITMAP_H
 #define BITMAP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define __BITS_PER_LONG 64
 #define	  BITS_PER_LONG 64
 
@@ -171,5 +175,9 @@ static __always_inline int bitmap_weight(const unsigned long *src, unsigned int 
 		return hweight_long(*src & BITMAP_LAST_WORD_MASK(nbits));
 	return __bitmap_weight(src, nbits);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

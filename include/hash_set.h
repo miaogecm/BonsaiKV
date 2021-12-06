@@ -1,7 +1,11 @@
 #ifndef HASH_SET_H
 #define HASH_SET_H
 
-#include "linked_list.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "link_list.h"
 
 #define MAX_NUM_BUCKETS 		32  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
 #define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
@@ -26,10 +30,14 @@ struct hash_set {
     int set_size;  /* how many items in the hash_set */
 };
 
-extern void hs_init(struct hash_set * hs);
+extern void hs_init(struct hash_set * hs, int tid);
 extern int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* addr);
 extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 
 extern void hs_destroy(struct hash_set* hs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,9 +1,19 @@
 #ifndef __THREAD_H
 #define __THREAD_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <pthread.h>
 
+#include "numa_config.h"
+#include "list.h"
+
 #define NUM_PFLUSH_THREAD	4
+
+struct log_layer;
+struct log_blk;
 
 enum {
 	WORKER_SLEEP = 0,
@@ -14,8 +24,8 @@ struct merge_work {
 	unsigned int id;
 	unsigned int count;
 	struct log_layer* layer;
-	struct log_blk* first_blks[NUM_CPU/NUM_PTHREAD];
-	struct log_blk* last_blks[NUM_CPU/NUM_PTHREAD];
+	struct log_blk* first_blks[NUM_CPU/NUM_PFLUSH_THREAD];
+	struct log_blk* last_blks[NUM_CPU/NUM_PFLUSH_THREAD];
 };
 
 struct flush_work {
@@ -23,7 +33,7 @@ struct flush_work {
 	unsigned int min_index;
 	unsigned int max_index;
 	struct log_layer* layer;
-}
+};
 
 typedef void (*work_func_t)(void*);
 
@@ -53,5 +63,9 @@ extern __thread struct thread_info* __this;
 
 extern int bonsai_thread_init(struct bonsai* bonsai);
 extern int bonsai_thread_exit(struct bonsai* bonsai);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -6,8 +6,10 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 #include <signal.h>
+#include <stdlib.h>
 
 #include "thread.h"
+#include "cpu.h"
 
 __thread struct thread_info* __this;
 
@@ -30,16 +32,6 @@ static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct
 static inline void workqueue_del(struct work_struct* work) {
 	list_del(&work->list);
 	free(work);
-}
-
-static void bind_to_cpu(int cpu) {
-    int ret;
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    if ((ret = sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
-        DEBUG("glibc init: bind cpu[%d] failed.\n", cpu);
-    }
 }
 
 static void init_workqueue(struct thread_info* thread, struct workqueue_struct* wq) {

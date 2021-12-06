@@ -90,7 +90,7 @@ retry:
     }
 }
 
-int ll_insert(struct linked_list* ll, int tid, pkey_t key) {
+int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
 	struct ll_node *pred, *item, *succ;
     struct hp_item* hp = ll->HP[tid];
 
@@ -98,7 +98,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key) {
 		hp = hp_item_setup(ll, tid);
     
     while (1) {
-        pred = NULL, *succ = NULL;
+        pred = NULL, succ = NULL;
         item = ll_find(ll, tid, key, &pred, &succ);
         if (item && item->key == key) {
             //key is now in the linked list.
@@ -125,14 +125,14 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key) {
 }
 
 
-int ll_remove(struct linked_list* ll, int tid, int key) {
+int ll_remove(struct linked_list* ll, int tid, pkey_t key) {
 	struct ll_node *pred, *item;
     struct hp_item* hp = ll->HP[tid];
 
     if (hp == NULL) 
 		hp = hp_item_setup(ll, tid);
     
-    struct ll_node *pred = NULL;
+    pred = NULL;
     markable_t old_value;
     while (1) {
         item = ll_find(ll, tid, key, &pred, NULL);

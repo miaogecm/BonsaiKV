@@ -1,7 +1,14 @@
 #ifndef LINK_LIST_H
 #define LINK_LIST_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stddef.h>
+
 #include "common.h"
+#include "numa_config.h"
 
 typedef size_t markable_t;
 
@@ -25,5 +32,9 @@ extern int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val);
 extern int ll_remove(struct linked_list* ll, int tid, pkey_t key);
 extern int ll_lookup(struct linked_list* ll, int tid, pkey_t key);
 extern void ll_print(struct linked_list* ll);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

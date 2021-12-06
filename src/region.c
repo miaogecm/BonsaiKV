@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <libpmem.h>
+#include <unistd.h>
 #include <libpmemobj.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -16,6 +17,8 @@
 #include "bonsai.h"
 #include "region.h"
 #include "numa_config.h"
+
+#define TOID_OFFSET(o) ((o).oid.off)
 
 static char *log_region_fpath[NUM_SOCKET] = {
 	"/mnt/node0/region0",
@@ -83,16 +86,14 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	}
 }
 
-int log_region_deinit(struct log_layer* layer) {
+void log_region_deinit(struct log_layer* layer) {
 	struct log_region *region;
-	int node, cpu, fd, error = 0;
+	int node, cpu, fd;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		pmem_unmap(layer->pmem_addr[node], PMEM_SIZE);
 		close(layer->pmem_fd[node]);
 	}
-
-	return error;
 }
 
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
@@ -141,10 +142,15 @@ out:
 	return error;
 }
 
+static inline int file_exists(const char *filename) {
+    struct stat buffer;
+    return stat(filename, &buffer);
+}
+
 int data_region_init(struct data_layer *layer) {
 	struct data_region *region;
 	int node, sds_write_value = 0;
-	PMEMobjpool pop;
+	PMEMobjpool* pop;
 
 	pmemobj_ctl_set(NULL, "sds.at_create", &sds_write_value);
 
@@ -163,4 +169,14 @@ int data_region_init(struct data_layer *layer) {
 	}
 
 	return 0;
+}
+
+void data_region_deinit(struct data_layer *layer) {
+	struct data_region *region;
+	int node;
+
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		region = layer->region[node];
+		pmemobj_close(region->pop);
+	}
 }

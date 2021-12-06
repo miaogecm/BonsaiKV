@@ -1,7 +1,9 @@
 #ifndef ATOMIC_H
 #define ATOMIC_H
 
-//#include "types.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef unsigned int u32;
 
@@ -13,10 +15,10 @@ typedef struct {
 
 #define ATOMIC_INIT(i)	{ (i) }
 
-#define cmpxchg(addr,old,x)      	__sync_bool_compare_and_swap(addr,old,x)
-#define cmpxchg2(addr,old,x)		__sync_val_compare_and_swap(addr,old,x)
-//#define xadd(addr,n)          		__sync_add_and_fetch(addr,n)
-//#define xadd2(addr,n)				__sync_fetch_and_add(addr, n)
+#define cmpxchg(addr,old,x)      	__sync_var_compare_and_swap(addr,old,x)
+#define cmpxchg2(addr,old,x)		__sync_bool_compare_and_swap(addr,old,x)
+#define xadd(addr,n)          		__sync_add_and_fetch(addr,n)
+#define xadd2(addr,n)				__sync_fetch_and_add(addr, n)
 
 #define barrier()	 				__asm__ __volatile__("": : :"memory")
 
@@ -237,5 +239,9 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 {
     return atomic_add_return(-i, v);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

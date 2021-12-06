@@ -42,5 +42,5 @@ clean:
 	$(Q)rm -f libbonsai.a
 	$(Q)rm -rf $(CUR_DIR)/.deps*
 	$(Q)rm -rf $(CUR_DIR)/.objs*
-	$(Q)rm -f $(INC_DIR)/numa_config.h
-
+	$(Q)echo > $(CUR_DIR)/log
+	#$(Q)rm -f $(INC_DIR)/numa_config.h

@@ -1,20 +1,20 @@
 #ifndef _BONSAI_H
 #define _BONSAI_H
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <assert.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <libpmemobj.h>
+#include <thread.h>
 
 #include "atomic.h"
-#include "thread.h"
 #include "region.h"
 #include "list.h"
-#include "mtable.h"
-
-#define BONSAI_SUPPORT_UPDATE
-
-typedef skiplist_t index_layer_t;
+#include "common.h"
+#include "spinlock.h"
+#include "hash_set.h"
+#include "oplog.h"
 
 typedef void (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -37,6 +37,7 @@ struct index_layer {
 
 struct log_layer {
 	unsigned int epoch;
+	unsigned int nflush;
 	int pmem_fd[NUM_SOCKET];
 	char* pmem_addr[NUM_SOCKET];
 	struct log_region region[NUM_CPU];
@@ -85,11 +86,13 @@ struct bonsai_info {
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
 };
 
-#define INDEX(bonsai)    	(&bonsai->i_layer)
-#define LOG(bonsai)   		(&bonsai->l_layer)
-#define DATA(bonsai)  		(&bonsai->d_layer)
+#define INDEX(bonsai)    	(&(bonsai->i_layer))
+#define LOG(bonsai)   		(&(bonsai->l_layer))
+#define DATA(bonsai)  		(&(bonsai->d_layer))
 
-extern struct bonsai_info *bonsai;
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 /*bonsai.h*/

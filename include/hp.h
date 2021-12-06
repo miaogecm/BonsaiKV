@@ -1,6 +1,10 @@
 #ifndef HP_H
 #define HP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define HP_K 2
 
 typedef size_t hp_t;
@@ -32,5 +36,9 @@ extern void hp_dump_statics(struct linked_list* ll);
 
 extern void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr);
 extern void hp_retire_hp_item(struct linked_list* ll, int tid);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

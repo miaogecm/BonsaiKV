@@ -10,19 +10,27 @@
 #include <sys/time.h>
 
 #include "thread.h"
+#include "region.h"
+#include "oplog.h"
+#include "common.h"
+#include "bonsai.h"
+#include "epoch.h"
+
+extern struct bonsai_info* bonsai;
 
 static void main_alarm_handler(int sig) {
-	LOG(bonsai)->epoch ++;
+	struct log_layer* layer = LOG(bonsai);
+	layer->epoch ++;
 
-	printf("bonsai epoch[%d]\n", LOG(bonsai)->epoch);
+	printf("bonsai epoch[%d]\n", layer->epoch);
 }
 
 static void thread_alarm_handler(int sig) {
-	struct log_region *region = &LOG(bonsai)->region[get_cpu()];
+	struct log_layer* layer = LOG(bonsai);
+	struct log_region *region = &layer->region[get_cpu()];
 	
 	/* persist it */
-	clfush(region->block, sizeof(struct oplog_blk));
-	mfence();
+	bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
 }
 
 int epoch_init() {
@@ -30,7 +38,7 @@ int epoch_init() {
 	struct sigaction sa;
 	int err = 0;
 
-	memset(&value, sizeof(struct itimerval));
+	memset(&value, 0, sizeof(struct itimerval));
 	value.it_interval.tv_sec = 0;
 	value.it_interval.tv_usec = EPOCH;
 

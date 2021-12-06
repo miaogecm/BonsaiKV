@@ -1,7 +1,13 @@
 #ifndef __OPLOG_H
 #define __OPLOG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "atomic.h"
+#include "list.h"
+#include "common.h"
 
 #define MAX_HASH_BUCKET		64
 
@@ -32,7 +38,7 @@ struct oplog {
 };
 
 struct oplog_blk {
-	struct oplog[NUM_OPLOG_PER_BLK];
+	struct oplog logs[NUM_OPLOG_PER_BLK];
 	char padding[1];
 	__le8 cpu; /* which NUMA node */
 	__le8 cnt; /* how many logs in oplog block */
@@ -42,8 +48,18 @@ struct oplog_blk {
 #define OPLOG(val) (struct oplog*)((unsigned long)val - 26)
 
 #define OPLOG_BLK_MASK	0x100
-#define OPLOG_BLK(addr)	(struct oplog_blk*)(addr & OPLOG_BLK_MASK)
+#define OPLOG_BLK(addr)	(struct oplog_blk*)((unsigned long)addr & OPLOG_BLK_MASK)
 
-extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, struct mptable* mptable, struct pnode* node);
+struct pnode;
+struct mptable;
+struct log_region;
+
+extern struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, optype_t type, int cpu);
+
+extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, struct mptable* mptable, struct pnode* pnode);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

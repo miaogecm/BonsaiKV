@@ -14,13 +14,14 @@
 
 #include "bonsai.h"
 #include "numa_config.h"
+#include "mptable.h"
+#include "pnode.h"
 
-static struct bonsai_info* bonsai;
-
+struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
-static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan, destory_func_t destory) {
-	layer->index_struct = init();
+static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
+	//layer->index_struct = init();
 
 	layer->insert = insert;
 	layer->remove = remove;
@@ -61,7 +62,7 @@ out:
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
-	struct numa_table *table, *tmp;
+	struct mptable *table, *tmp;
 	int cpu, ret;
 
 	log_region_deinit(layer);
@@ -94,7 +95,7 @@ int bonsai_insert(pkey_t key, pval_t value) {
 
 	addr = INDEX(bonsai)->lookup(key);
 	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mtable_list);
+		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mptable_list);
 	}
 	tables = *addr;
 
@@ -106,11 +107,11 @@ int bonsai_update(pkey_t key, pval_t value) {
 
 	addr = INDEX(bonsai)->lookup(key);
 	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mtable_list);
+		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mptable_list);
 	}
 	tables = *addr;
 
-	return LOG(bonsai)->update(MPTABLE_NODE(tables, get_numa_node()), key, val);
+	return LOG(bonsai)->update(MPTABLE_NODE(tables, get_numa_node()), key, value);
 }
 
 int bonsai_remove(pkey_t key) {
@@ -183,7 +184,7 @@ int bonsai_init() {
 	bonsai->desc = (struct bonsai_desc*)addr;
 
     if (!bonsai->desc->init) {
-        index_layer_init(&bonsai->i_layer);
+        index_layer_init(&bonsai->i_layer, NULL, NULL, NULL, NULL, NULL, NULL);
         log_layer_init(&bonsai->l_layer);
         data_layer_init(&bonsai->d_layer);
 

@@ -16,6 +16,12 @@
 #include "link_list.h"
 #include "hp.h"
 
+#define MAX_NUM_THREADS		48
+
+static unsigned int hp_R(unsigned int R) {
+    return R + 2;
+}
+
 /*
  * hp_item_setup - thread use hp_item_setup() to allocate a hp_item belongs to it.
  * @ll: a hp_item struct is used for a specified linked_list. (A thread can holds a lot of hp_items when it accesses a lot of linked_lists)
@@ -105,25 +111,22 @@ void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr) {
 	}
 }
 
-unsigned int hp_R(unsigned int R) {
-    return R + 2;
-}
-
 /* 
  * hp_retire_hp_item - when a thread exits, it ought to call hp_retire_hp_item() to retire the hp_item.
  */
 void hp_retire_hp_item(struct linked_list* ll, int tid) {
     struct hp_item* hp = ll->HP[tid];
 	struct hp_rnode *rnode, *old_rnode;
+	int node_count;
     
 	if (hp == NULL) 
 		return;
 
     ll->HP[tid] = NULL;
-    hp_rnode* rnode = hp->d_list;
+    rnode = hp->d_list;
     rnode = rnode->next;
     while (rnode) {
-        SYNC_SUB(&node_count, 1);
+        xadd(&node_count, -1);
         free((void *)rnode->address);  //free the linked_list node.
         old_rnode = rnode;
         rnode = rnode->next;
@@ -145,8 +148,7 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
 	struct hp_rnode *new_d_list, *__rnode__;
 	struct hp_item* __item__;
 	unsigned int pi;
-	int new_d_count;
-	int i;  
+	int i, new_d_count, node_count;;  
 
 	hp_t* plist = (hp_t *) malloc(plist_len * sizeof(hp_t));
 
@@ -189,7 +191,7 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
             free((void *)target_hp);
             //the __rnode__ can be freed too.
             free(__rnode__);
-            SYNC_SUB(&node_count, 1);
+            xadd(&node_count, -1);
         }
         __rnode__ = hp->d_list->next;
     }

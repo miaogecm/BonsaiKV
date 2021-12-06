@@ -1,6 +1,10 @@
 #ifndef RWLOCK_H
 #define RWLOCK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "spinlock.h"
 
 /*
@@ -164,5 +168,9 @@ void __write_unlock(rwlock_t* lock) {
     memory_sfence();
     atomic_sub(_QW_LOCKED, &lock->cnts);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

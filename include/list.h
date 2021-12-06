@@ -1,6 +1,10 @@
 #ifndef LIST_H
 #define LIST_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 
 //#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
@@ -655,5 +659,9 @@ static inline int fifo_empty(struct fifo* fifo) {
  */
 #define fifo_entry(ptr, type, member) \
 	list_entry(ptr, type, member)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __ALIVETHREADS_H__ */

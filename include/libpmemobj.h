@@ -14,13 +14,13 @@
 #ifndef LIBPMEMOBJ_H
 #define LIBPMEMOBJ_H 1
 
-#include <libpmemobj/action.h>
-#include <libpmemobj/atomic.h>
-#include <libpmemobj/ctl.h>
-#include <libpmemobj/iterator.h>
-#include <libpmemobj/lists_atomic.h>
-#include <libpmemobj/pool.h>
-#include <libpmemobj/thread.h>
-#include <libpmemobj/tx.h>
+#include "libpmemobj/action.h"
+#include "libpmemobj/atomic.h"
+#include "libpmemobj/ctl.h"
+#include "libpmemobj/iterator.h"
+#include "libpmemobj/lists_atomic.h"
+#include "libpmemobj/pool.h"
+#include "libpmemobj/thread.h"
+#include "libpmemobj/tx.h"
 
 #endif	/* libpmemobj.h */

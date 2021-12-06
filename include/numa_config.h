@@ -1,11 +1,15 @@
-#ifndef _NUMA_UTIL_H
-#define _NUMA_UTIL_H
+#ifndef NUMA_CONFIG_H
+#define NUMA_CONFIG_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum {
     NUM_SOCKET = 1,
     NUM_PHYSICAL_CPU_PER_SOCKET = 8,
     SMT_LEVEL = 2,
-    NUM_CPU = 8
+	NUM_CPU = 8,
 };
 
 const int OS_CPU_ID[NUM_SOCKET][NUM_PHYSICAL_CPU_PER_SOCKET][SMT_LEVEL] = {
@@ -29,5 +33,8 @@ const int OS_CPU_ID[NUM_SOCKET][NUM_PHYSICAL_CPU_PER_SOCKET][SMT_LEVEL] = {
     },
 };
 
-const int CPU_NUMA_NODE[NUM_CPU] = {0};
+#ifdef __cplusplus
+}
+#endif
+
 #endif
