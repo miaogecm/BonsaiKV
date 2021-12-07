@@ -38,7 +38,6 @@ struct index_layer {
 struct log_layer {
 	unsigned int epoch;
 	unsigned int nflush;
-	int pmem_fd[NUM_SOCKET];
 	char* pmem_addr[NUM_CPU];
 	struct log_region region[NUM_CPU];
 	struct list_head mptable_list;

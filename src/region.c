@@ -103,19 +103,20 @@ void log_region_deinit(struct log_layer* layer) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		pmem_unmap(layer->pmem_addr[node], LOG_REGION_SIZE);
-		close(layer->pmem_fd[node]);
 	}
 }
 
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region_desc *desc;
 	struct log_region *region;
-	int node, cpu, fd, error = 0;
+	int node, cpu, is_pmem, error = 0;
 	size_t size_per_cpu = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET;
+	size_t mapped_len;
 	char* pmemaddr;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		/* create a pmem file */
+	#if 0
 		if ((fd = open(log_region_fpath[node], O_CREAT|O_RDWR, 0666)) < 0) {
 			perror("open error\n");
 			error = -EOPEN;
@@ -127,12 +128,19 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 			perror("posix_fallocate");
 			goto out;
 		}
-
+		
 		pmemaddr = (char*)pmem_map(fd);
 		if (pmemaddr == NULL) {
 			perror("pmem_map");
 			goto out;
 		}
+#endif
+		pmemaddr = pmem_map_file(log_region_fpath[node], LOG_REGION_SIZE, 0666, O_CREAT|O_RDWR, &mapped_len, &is_pmem);
+		if (pmemaddr == NULL) {
+			perror("pmem_map");
+			goto out;
+		}
+	
 		layer->pmem_addr[node] = pmemaddr;
 
 		for (cpu = 0; cpu < NUM_PHYSICAL_CPU_PER_SOCKET; cpu ++) {
@@ -146,8 +154,6 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 				pmemaddr - layer->pmem_addr[node], size_per_cpu);
 			pmemaddr += size_per_cpu;
 		}
-
-		layer->pmem_fd[node] = fd;
 	}
 
 out:
