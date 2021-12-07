@@ -8,6 +8,7 @@ extern "C" {
 #include "common.h"
 #include "numa_config.h"
 #include "hash_set.h"
+#include "list.h"
 
 struct mptable {
 	struct hash_set hs;
@@ -16,7 +17,7 @@ struct mptable {
 struct numa_table {
 	struct mptable* tables[NUM_SOCKET];
 	struct pnode* pnode;
-	struct list_head* list;
+	struct list_head list;
 };
 
 #define MPTABLE_NODE(TABLE, NODE)	TABLE->tables[NODE]

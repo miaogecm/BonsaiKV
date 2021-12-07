@@ -61,12 +61,12 @@ static inline void __attribute__((__always_inline__)) barrier(void)
 {
 	__asm__ __volatile__("" ::: "memory");
 }
-#endif
 
 static inline void __attribute__((__always_inline__)) smp_wmb_tso(void)
 {
 	barrier();
 }
+#endif
 
 #define cpu_relax() asm volatile("pause\n" : : : "memory")
 
@@ -132,7 +132,7 @@ static inline unsigned int max_cpu_freq(void)
     asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char*)(addr)))
 
 static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
-    int i;
+    uint32_t i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE)
         _mm_clflushopt(buf + i);    

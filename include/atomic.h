@@ -15,7 +15,7 @@ typedef struct {
 
 #define ATOMIC_INIT(i)	{ (i) }
 
-#define cmpxchg(addr,old,x)      	__sync_var_compare_and_swap(addr,old,x)
+#define cmpxchg(addr,old,x)      	__sync_val_compare_and_swap(addr,old,x)
 #define cmpxchg2(addr,old,x)		__sync_bool_compare_and_swap(addr,old,x)
 #define xadd(addr,n)          		__sync_add_and_fetch(addr,n)
 #define xadd2(addr,n)				__sync_fetch_and_add(addr, n)

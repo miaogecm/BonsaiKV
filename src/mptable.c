@@ -5,17 +5,23 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
+#include <stdlib.h>
+#include <numa.h>
+
 #include "mptable.h"
 #include "oplog.h"
 #include "pnode.h"
 #include "common.h"
 #include "bonsai.h"
+#include "cpu.h"
+#include "ordo.h"
 
 extern struct bonsai_info* bonsai;
 
 static struct mptable* init_one_mptable(int node) {
     struct mptable* mptable;
-	int tid;
+	int tid = 0;
 
 	mptable = (struct mptable*) numa_alloc_onnode(sizeof(struct mptable), node);
 	hs_init(&mptable->hs, tid);
@@ -45,7 +51,7 @@ void numa_mptable_free(struct numa_table* tables) {
 	int node;
 
 	for (node = 0; node < NUM_SOCKET; node ++)
-		free_one_mptable(tables);
+		free_one_mptable(MPTABLE_NODE(tables, node));
 
 	free(tables);
 }
@@ -60,7 +66,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, pkey_t key, pval_t 
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, table, tables->pnode);
-	hs_insert(table, tid, key, &log->o_kv.v);
+	hs_insert(&table->hs, tid, key, &log->o_kv.v);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(tables, node);
@@ -69,7 +75,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, pkey_t key, pval_t 
 			return -EEXIST;
 		else {
 			log = oplog_insert(key, val, OP_INSERT, numa_node, table, table->pnode);
-			hs_insert(table, tid, key, &log->o_kv.value);
+			hs_insert(&table->hs, tid, key, &log->o_kv.value);
 		}
 	}
 #endif
@@ -88,7 +94,7 @@ int mptable_update(struct numa_table* tables, int numa_node, pkey_t key, pval_t*
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, mptable, tables->pnode);
-	hs_insert(mptable, tid, key, &log->o_kv.v);
+	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(tables, node);
@@ -97,7 +103,7 @@ int mptable_update(struct numa_table* tables, int numa_node, pkey_t key, pval_t*
 			return -ENOENT;
 		else {
 			log = oplog_insert(key, val, OP_INSERT, numa_node, mptable, mptable->pnode);
-			hs_insert(table, tid, key, &log->o_kv.v);
+			hs_insert(&table->hs, tid, key, &log->o_kv.v);
 		}
 	}
 #endif
@@ -107,26 +113,24 @@ int mptable_update(struct numa_table* tables, int numa_node, pkey_t key, pval_t*
 
 int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key) {
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
-	pval_t* addr;
 	int tid = get_tid();
 	struct oplog* log;
 
 	log = oplog_insert(key, 0, OP_REMOVE, get_numa_node(), mptable, tables->pnode);
-	hs_insert(mptable, tid, key, &log->o_kv.v);
+	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
 
 	return 0;
 }
 
 pval_t mptable_lookup(struct numa_table* mptables, pkey_t key) {
-	int i, node, nlog = 0, tid = get_tid();
-	struct oplog* insert_logs[NUM_SOCKET], *remove_logs[NUM_SOCKET];
+	int node, tid = get_tid();
+	struct oplog* insert_logs[NUM_SOCKET];
 	struct oplog* log;
 	struct mptable *table;
 	pval_t *addr, *master_node_addr, *self_node_addr;
 	unsigned long max_insert_t = 0, max_remove_t = 0;
-	int max_insert_index = 0, max_remove_index = 0;
-	int n_insert = 0, n_remove = 0, numa_node;
-	struct log_layer* layer = LOG(bonsai);
+	int n_insert = 0, n_remove = 0, numa_node = get_numa_node();
+	int max_insert_index;
 	void* map_addrs[NUM_SOCKET];
 	struct pnode* pnode;
 	
@@ -150,9 +154,7 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key) {
 			case OP_REMOVE:
 			if (ordo_cmp_clock(log->o_stamp, max_remove_t)) {
 				max_remove_t = log->o_stamp;
-				max_remove_index = node;
 			}
-			remove_logs[node] = log;
 			n_remove++;
 			break;
 			}
@@ -168,6 +170,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key) {
 				self_node_addr = addr;
 		}
 	}
+
+	printf("%p %p\n", master_node_addr, self_node_addr);
 
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
@@ -244,7 +248,7 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 }
 
 void mptable_split(struct numa_table* src, struct pnode* pnode) {	
-	int tid, i, node, N = pnode->slot[0];
+	int tid = get_tid(), i, node, N = pnode->slot[0];
 	struct numa_table* tables;
 	struct mptable *table;
 	struct log_layer* layer = LOG(bonsai);
@@ -258,10 +262,10 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 		key = pnode->e[pnode->slot[i]].k;
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			table = MPTABLE_NODE(src, node);
-			if (addr = hs_lookup(&table->hs, tid, key)) {
+			if ((addr = hs_lookup(&table->hs, tid, key)) != NULL) {
 				if (point_to_nvm(addr)) {
 					hs_remove(&table->hs, tid, key);
-					hs_insert(&tables->tables[node]->hs, tid, key, *addr);
+					hs_insert(&tables->tables[node]->hs, tid, key, addr);
 				}
 			}		
 		}

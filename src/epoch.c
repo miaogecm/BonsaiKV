@@ -5,6 +5,7 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
 #include <sys/time.h>
@@ -14,7 +15,9 @@
 #include "oplog.h"
 #include "common.h"
 #include "bonsai.h"
+#include "arch.h"
 #include "epoch.h"
+#include "cpu.h"
 
 extern struct bonsai_info* bonsai;
 
@@ -30,7 +33,7 @@ static void thread_alarm_handler(int sig) {
 	struct log_region *region = &layer->region[get_cpu()];
 	
 	/* persist it */
-	bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
+	bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
 }
 
 int epoch_init() {

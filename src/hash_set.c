@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <thread.h>
 
 #include "hash_set.h"
 #include "common.h"
@@ -27,7 +28,6 @@ static int hs_add_success_time = 0;
 static int hs_add_fail_time = 0;
 static int hs_remove_success_time = 0;
 static int hs_remove_fail_time = 0;
-static int ll_node_count = 0;  //just for test.
 
 static void bucket_list_init(struct bucket_list** bucket, int key);
 static struct bucket_list* get_bucket_list(struct hash_set* hs, int tid, int bucket_index);
@@ -53,6 +53,7 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int tid, int buc
     int main_array_index = bucket_index / SEGMENT_SIZE;
     int segment_index = bucket_index % SEGMENT_SIZE;
 	struct bucket_list** buckets;
+	segment_t* old_value;
 	
     // First, find the segment in the hs->main_array.
     segment_t* p_segment = hs->main_array[main_array_index];
@@ -60,7 +61,7 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int tid, int buc
         //allocate the segment until the first bucket_list in it is visited.
         p_segment = (segment_t*) malloc(sizeof(segment_t));
         memset(p_segment, 0, sizeof(segment_t));  //important
-        segment_t* old_value = cmpxchg(&hs->main_array[main_array_index], NULL, p_segment);
+        old_value = cmpxchg(&hs->main_array[main_array_index], NULL, p_segment);
 
         if (old_value != NULL) {  //someone beat us to it.
             free(p_segment);
@@ -97,26 +98,16 @@ void hs_init(struct hash_set* hs, int tid) {
 }
 
 static int reverse(int code) {
-    int i, result = 0;
+    unsigned int i; 
+	int bit, result = 0;
 
     for (i = 0; i < (sizeof(int) * 8); i++) {
-        int bit = code == (code >> 1) << 1 ? 0 : 1;
+        bit = (code == (code >> 1) << 1) ? 0 : 1;
         bit = bit << (sizeof(int) * 8 - i - 1);
         result = result | bit;
         code = code >> 1;
     }
     return result;
-}
-
-static void print_binary(int code, int bit_count) {
-    int bit = ((code == (code >> 1)) << 1 ? 0 : 1);  //the current LSB.
-
-    if (bit_count == 1) {
-        printf("%d", bit);
-    } else {
-        print_binary(code >> 1, bit_count - 1);
-        printf("%d", bit);
-    }
 }
 
 static int hash(int key) {
@@ -161,6 +152,7 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
     int main_array_index = bucket_index / SEGMENT_SIZE;
     int segment_index = bucket_index % SEGMENT_SIZE;
 	struct bucket_list** buckets;
+	segment_t* old_value;
 
     // First, find the segment in the hs->main_array.
     segment_t* p_segment = hs->main_array[main_array_index];
@@ -168,7 +160,7 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
         //allocate the segment until the first bucket_list in it is visited.
         p_segment = (segment_t*) malloc(sizeof(segment_t));
         memset(p_segment, 0, sizeof(segment_t));  //important
-        segment_t* old_value = cmpxchg(&hs->main_array[main_array_index], NULL, p_segment);
+        old_value = cmpxchg(&hs->main_array[main_array_index], NULL, p_segment);
 
         if (old_value != NULL) {  //someone beat us to it.
             free(p_segment);
@@ -212,8 +204,8 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     bucket_list_init(&new_bucket, bucket_index);
 
     //FIXME:We want to insert the a allocated sentinel node into the parent bucket_list. But ll_insert() will also malloc a new memory area. It't duplicated.
-    //if (ll_insert(&parent_bucket->bucket_sentinel, tid, make_sentinel_key(bucket_index)) == 0) {
-    if (ll_insert_ready_made(&parent_bucket->bucket_sentinel, tid, &(new_bucket->bucket_sentinel.ll_head)) == 0) {
+    if (ll_insert(&parent_bucket->bucket_sentinel, tid, make_sentinel_key(bucket_index), 0) == 0) {
+    //if (ll_insert_ready_made(&parent_bucket->bucket_sentinel, tid, &(new_bucket->bucket_sentinel.ll_head)) == 0) {
         //success!
         set_bucket_list(hs, tid, bucket_index, new_bucket);
     } else {
@@ -252,12 +244,12 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
 
     if (ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), *val) != 0) {
         //fail to insert the key into the hash_set
-        printf("thread-%lx : hs_add(%d) fail!\n", pthread_self(), key);
+        printf("thread-%d : hs_add(%lu) fail!\n", tid, key);
         xadd(&hs_add_fail_time, 1);
         return -1;
     }
 
-    printf("thread-%lx : hs_add(%d) success!\n", pthread_self(), key);
+    printf("thread-%d : hs_add(%lu) success!\n", tid, key);
     xadd(&hs_node_count, 1);
     set_size_now = xadd(&hs->set_size, 1);
     xadd(&hs_add_success_time, 1);
@@ -290,7 +282,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
     // Actually, we need to  initialize the new bucket and insert it into the hs main_list.
     int bucket_index = hash(key) % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, tid, bucket_index);
-	pval_t* addr;
+	pval_t* addr = NULL;
 
     if (bucket == NULL) {
         initialize_bucket(hs, tid, bucket_index);  
@@ -310,14 +302,14 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     //if the hash_set is resized now! Maybe we cannot find the new bucket. Just initialize it if the bucket if NULL.
     int bucket_index = hash(key) % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, tid, bucket_index);
-	int origin_sentinel_key, ret;
+	int ret;
 
     if (bucket == NULL) {
         initialize_bucket(hs, tid, bucket_index);  
         bucket = get_bucket_list(hs, tid, bucket_index);
     }
 
-    origin_sentinel_key = get_origin_key(bucket->bucket_sentinel.ll_head.key);
+    //origin_sentinel_key = get_origin_key(bucket->bucket_sentinel.ll_head.key);
     //sl_debug("key - %d 's sentinel origin key is %u.\n", key, origin_sentinel_key);
     // Second, remove the key from the bucket.
     // the node will be taken over by bucket->bucket_sentinel's HP facility. I think it isn't efficient but can work.
@@ -376,12 +368,12 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 	struct ll_node *head, *curr;
 	int i, j; 
 
-    for (int i = 0; i < MAIN_ARRAY_LEN; i++) {
+    for (i = 0; i < MAIN_ARRAY_LEN; i++) {
         segment_t* p_segment = hs->main_array[i];
         if (p_segment == NULL) {
             continue;
         }
-        for (int j = 0; j < SEGMENT_SIZE; j++) {
+        for (j = 0; j < SEGMENT_SIZE; j++) {
             buckets = (struct bucket_list**)p_segment;
             bucket = buckets[j];
             if (bucket == NULL) {
@@ -407,7 +399,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
         }
     }
     //sl_debug("NULL.\n");
-    printf("hash_set : set_size = %lu.\n", hs->set_size);
+    printf("hash_set : set_size = %d.\n", hs->set_size);
     printf("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
 }
 

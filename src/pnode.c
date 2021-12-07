@@ -5,6 +5,7 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
 #include <libpmemobj.h>
@@ -13,6 +14,8 @@
 #include "oplog.h"
 #include "mptable.h"
 #include "bonsai.h"
+#include "cpu.h"
+#include "arch.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -84,7 +87,7 @@ static void free_pnode(struct pnode* pnode) {
 }
 
 static void insert_pnode(struct pnode* pnode, pkey_t key) {
-	struct pnode *pos, *prev;
+	struct pnode *pos, *prev = NULL;
 	pkey_t max_key;
 	
 	spin_lock(&DATA(bonsai)->lock);
@@ -191,7 +194,7 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
 int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
     int offset, pos, i, n, bucket_full = 0;
     uint64_t mask, bucket_id;
-    uint64_t bitmap, removed;
+    uint64_t removed;
     struct pnode* new_pnode;
     pkey_t max_key;
 
@@ -215,7 +218,7 @@ retry:
 
         pnode->e[pos] = entry;
 
-        mptable_update_addr(pnode->table, MPTABLE_NODE(table, numa_node), key, &pnode->e[pos]);
+        mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, OP_INSERT);
@@ -244,7 +247,6 @@ retry:
         new_pnode = alloc_pnode();
         memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
         n = pnode->slot[0];
-        bitmap = pnode->bitmap;
         removed = 0;
 
         for (i = n / 2 + 1; i <= n; i++) {
@@ -332,8 +334,6 @@ int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr)
     int res_n = 0;
     uint8_t* slot;
     int i;
-
-    pnode = PNODE_OF_ENT(pnode->forward[0][0]);
   
     prev_pnode = list_prev_entry(pnode, list);
     if (prev_pnode != NULL)
@@ -366,15 +366,15 @@ int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr)
  * @key: target key
  */
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
-	int bucket_id, offset, i;	
+	int bucket_id, i;	
 
 	bucket_id = BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
-		if (key_cmp(pnode->e[i].k, key))
-			return &pnode->e[i].v;
+		if (key_cmp(pnode->e[bucket_id + i].k, key))
+			return &pnode->e[bucket_id + i].v;
 	}	
 
-	return -ENOENT;
+	return NULL;
 }
 
 /*
@@ -384,12 +384,12 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
  * @numa_node: remote NUMA node
  */
 pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
-	struct pnode* remote_pnode;
-	int bucket_id, offset, i;
+	struct pnode* remote_pnode = NULL;
+	int bucket_id, i, offset;
 
 	bucket_id = BUCKET_HASH(key);
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
-	if (pnode->forward[numa_node][bucket_id] == NULL) {
+	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode();
 		memcpy(&remote_pnode[offset], &pnode->e[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
@@ -398,12 +398,12 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 		memcpy(&remote_pnode->e[offset], &pnode->e[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 	}
 
-	bonsai_flush(&remote_pnode[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
+	bonsai_clflush(&remote_pnode[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i++) {
 		if (key_cmp(remote_pnode->e[i].k, key))
-			return &remote_pnode->e[i];
+			return &remote_pnode->e[i].v;
 	}
 	
-	return -ENOENT;
+	return NULL;
 }

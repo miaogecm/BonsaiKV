@@ -58,6 +58,8 @@ extern struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t v
 
 extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, struct mptable* mptable, struct pnode* pnode);
 
+extern void oplog_flush();
+
 #ifdef __cplusplus
 }
 #endif

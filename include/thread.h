@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <pthread.h>
+#include <stdlib.h>
 
 #include "numa_config.h"
 #include "list.h"
@@ -13,7 +14,7 @@ extern "C" {
 #define NUM_PFLUSH_THREAD	4
 
 struct log_layer;
-struct log_blk;
+struct oplog_blk;
 
 enum {
 	WORKER_SLEEP = 0,
@@ -24,8 +25,8 @@ struct merge_work {
 	unsigned int id;
 	unsigned int count;
 	struct log_layer* layer;
-	struct log_blk* first_blks[NUM_CPU/NUM_PFLUSH_THREAD];
-	struct log_blk* last_blks[NUM_CPU/NUM_PFLUSH_THREAD];
+	struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_THREAD];
+	struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_THREAD];
 };
 
 struct flush_work {
@@ -56,13 +57,27 @@ struct thread_info {
 };
 
 static inline int get_tid() {
-	return 0;
+	return 1;
 }
 
 extern __thread struct thread_info* __this;
 
-extern int bonsai_thread_init(struct bonsai* bonsai);
-extern int bonsai_thread_exit(struct bonsai* bonsai);
+static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
+	list_add(&work->list, &wq->head);
+}
+
+static inline void workqueue_del(struct work_struct* work) {
+	list_del(&work->list);
+	free(work);
+}
+
+extern int bonsai_thread_init();
+extern int bonsai_thread_exit();
+
+extern void wakeup_master();
+extern void park_master();
+extern void park_workers();
+extern void wakeup_workers();
 
 #ifdef __cplusplus
 }

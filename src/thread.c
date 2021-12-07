@@ -5,16 +5,26 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "thread.h"
 #include "cpu.h"
+#include "atomic.h"
+#include "common.h"
+#include "bonsai.h"
+#include "oplog.h"
 
 __thread struct thread_info* __this;
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
+
+static atomic_t STATUS;
+
+extern struct bonsai_info* bonsai;
 
 static void thread_block_alarm() {
 	sigset_t set;
@@ -23,15 +33,6 @@ static void thread_block_alarm() {
 	sigaddset(&set, SIGALRM);
 
 	pthread_sigmask(SIG_BLOCK, &set, NULL);
-}
-
-static inline void workqueue_add(struct workqueue_struct* wq, struct work_struct* work) {
-	list_add(&work->list, &wq->head);
-}
-
-static inline void workqueue_del(struct work_struct* work) {
-	list_del(&work->list);
-	free(work);
 }
 
 static void init_workqueue(struct thread_info* thread, struct workqueue_struct* wq) {
@@ -83,7 +84,7 @@ static void worker_sleep() {
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
 
-	printf("worker thread[%d] start to work\n", __this->thread_id);
+	printf("worker thread[%d] start to work\n", __this->t_id);
 
 	if (likely(list_empty(&wq->head)))
 		return;
@@ -99,38 +100,37 @@ static void thread_work(struct workqueue_struct* wq) {
 static void pflush_worker(struct thread_info* this) {
 	__this = this;
 
-	printf("pflush thread[%d] start.\n", __this->thread_id);
+	printf("pflush thread[%d] start.\n", __this->t_id);
 
-	bind_to_cpu(__this->thread_cpu);
+	bind_to_cpu(__this->t_cpu);
 
 	thread_block_alarm();
 	
 	while (1) {
 		worker_sleep();
 		
-		thread_work(&__this->workqueue);
+		thread_work(&__this->t_wq);
 	}
 }
 
 static void pflush_master(struct thread_info* this) {
 	__this = this;
 
-	printf("pflush thread[%d] start.\n", __this->thread_id);
+	printf("pflush thread[%d] start.\n", __this->t_id);
 
-	bind_to_cpu(__this->thread_cpu);
+	bind_to_cpu(__this->t_cpu);
 
 	thread_block_alarm();
 
-	long int i = 0;
 	for (;;) {		
 		sleep(5);
 		oplog_flush(bonsai);
 	}
 }
 
-int bonsai_thread_init(struct bonsai* bonsai) {
+int bonsai_thread_init() {
 	struct thread_info* thread;
-	int ret, i;
+	int i;
 
 	pthread_mutex_init(&work_mutex, NULL);
 	pthread_cond_init(&work_cond, NULL);
@@ -147,7 +147,7 @@ int bonsai_thread_init(struct bonsai* bonsai) {
 		if (pthread_create(&bonsai->tids[i], NULL, 
 			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)thread) != 0) {
         		printf("bonsai create thread[%d] failed\n", thread->t_id);
-			return -ERR_THREAD;
+			return -ETHREAD;
     	}
 
 		bonsai->pflushd[i] = thread;
@@ -156,7 +156,7 @@ int bonsai_thread_init(struct bonsai* bonsai) {
 	return 0;
 }
 
-int bonsai_thread_exit(struct bonsai* bonsai) {
+int bonsai_thread_exit() {
 	int i;
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {

@@ -33,17 +33,21 @@ typedef struct pentry {
     __le64 v;
 } pentry_t;
 
-#define ENOMEM		101 /* out-of memory */
-#define ENOENT		102 /* no such entry */
+//#define ENOMEM		101 /* out-of memory */
+//#define ENOENT		102 /* no such entry */
+#ifndef EEXIST
 #define EEXIST		103 /* key exist */
+#endif
 #define EOPEN		104 /* open file error */
 #define EPMEMOBJ	105 /* create pmemobj error */
 #define EMMAP		106 /* memory-map error */
 #define ESIGNO		107 /* sigaction error */
+#define ETHREAD		108 /* thread create error */
 
 #ifndef likely
 #define likely(x) __builtin_expect((unsigned long)(x), 1)
 #endif
+
 #ifndef unlikely
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
 #endif

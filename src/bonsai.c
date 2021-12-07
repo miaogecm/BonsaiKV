@@ -5,9 +5,12 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h> 
@@ -16,6 +19,8 @@
 #include "numa_config.h"
 #include "mptable.h"
 #include "pnode.h"
+#include "epoch.h"
+#include "cpu.h"
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
@@ -52,18 +57,12 @@ static int log_layer_init(struct log_layer* layer) {
 		spin_lock_init(&layer->buckets[i].lock);
 	}
 
-	layer->insert = mptable_insert;
-	layer->update = mptable_update;
-	layer->remove = mptable_remove;
-	layer->lookup = mptable_lookup;
-
 out:
 	return err;
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
-	struct mptable *table, *tmp;
-	int cpu, ret;
+	struct numa_table *table, *tmp;
 
 	log_region_deinit(layer);
 
@@ -80,10 +79,7 @@ static int data_layer_init(struct data_layer* layer) {
 
 	INIT_LIST_HEAD(&layer->pnode_list);
 
-	layer->insert = pnode_insert;
-	layer->remove = pnode_remove;
-	layer->lookup = pnode_lookup;
-	layer->scan = pnode_scan;
+	return ret;
 }
 
 static void data_layer_deinit(struct data_layer* layer) {
@@ -92,59 +88,67 @@ static void data_layer_deinit(struct data_layer* layer) {
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	struct numa_table *tables, **addr;
+	int numa_node = get_numa_node();
+	struct index_layer* i_layer = INDEX(bonsai);
+	struct log_layer* l_layer = LOG(bonsai);
 
-	addr = INDEX(bonsai)->lookup(key);
+	addr = (struct numa_table**)i_layer->lookup(key);
 	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mptable_list);
+		*addr = numa_mptable_alloc(&l_layer->mptable_list);
 	}
 	tables = *addr;
 
-	return LOG(bonsai)->insert(MPTABLE_NODE(tables, get_numa_node()), key, value);
+	return mptable_insert(tables, numa_node, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
 	struct numa_table *tables, **addr;
+	int numa_node = get_numa_node();
+	struct index_layer* layer = INDEX(bonsai);
+	struct log_layer* l_layer = LOG(bonsai);
 
-	addr = INDEX(bonsai)->lookup(key);
+	addr = (struct numa_table**)layer->lookup(key);
 	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(tables, &LOG(bonsai)->mptable_list);
+		*addr = numa_mptable_alloc(&l_layer->mptable_list);
 	}
 	tables = *addr;
 
-	return LOG(bonsai)->update(MPTABLE_NODE(tables, get_numa_node()), key, value);
+	return mptable_update(tables, numa_node, key, &value);
 }
 
 int bonsai_remove(pkey_t key) {
 	struct numa_table *tables, **addr;
+	int numa_node = get_numa_node();
+	struct index_layer* layer = INDEX(bonsai);
 
-	addr = INDEX(bonsai)->lookup(key);
+	addr = (struct numa_table**)layer->lookup(key);
 	if (unlikely(!*addr)) {
 		return -ENOENT;
 	}
 	tables = *addr;
 
-	return LOG(bonsai)->remove(MPTABLE_NODE(tables, get_numa_node()), key);
+	return mptable_remove(tables, numa_node, key);
 }
 
 pval_t bonsai_lookup(pkey_t key) {
-	struct numa_table *tables, **addr;;
-	pval_t value;
+	struct numa_table *tables, **addr;
+	struct index_layer* layer = INDEX(bonsai);
 	
-	addr = INDEX(bonsai)->lookup(key);
+	addr = (struct numa_table**)layer->lookup(key);
 	if (unlikely(!*addr)) {
 		return -ENOENT;
 	}
 	tables = *addr;
 
-	value = LOG(bonsai)->lookup(tables, key, table);
-
-	return value;
+	return mptable_lookup(tables, key);
 }
 
+/*
 int bonsai_scan(pkey_t low, pkey_t high) {
 	
 	DATA(bonsai)->scan(low, high);
 }
+*/
 
 void bonsai_deinit() {
 
@@ -174,7 +178,7 @@ int bonsai_init() {
 	}
 
 	addr = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FILE, fd, 0);
-	if (addr = MAP_FAILED) {
+	if (addr == MAP_FAILED) {
 		perror("mmap");
 		error = -EMMAP;
 	}
@@ -188,13 +192,13 @@ int bonsai_init() {
         log_layer_init(&bonsai->l_layer);
         data_layer_init(&bonsai->d_layer);
 
-		bonsai->desc_init = 1;
+		bonsai->desc->init = 1;
     } else {
-        bonsai_recover(bonsai);
+        //bonsai_recover(bonsai);
     }
 
 	epoch_init();
-	bonsai_thread_init(bonsai);
+	bonsai_thread_init();
 
 out:
 	return error;

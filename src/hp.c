@@ -12,11 +12,14 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "link_list.h"
 #include "hp.h"
+#include "arch.h"
+#include "atomic.h"
 
-#define MAX_NUM_THREADS		48
+void hp_scan(struct linked_list* ll, struct hp_item* hp);
 
 static unsigned int hp_R(unsigned int R) {
     return R + 2;
@@ -36,7 +39,7 @@ struct hp_item* hp_item_setup(struct linked_list* ll, int tid) {
     while (1) {
         hp_H = ll->count_of_hp;  //How many hps are there in the system.
         //every time there comes a new thread, increase HP_K hps in the system.
-        old_H = SYNC_CAS(&ll->count_of_hp, hp_H, hp_H + HP_K);  
+        old_H = cmpxchg(&ll->count_of_hp, hp_H, hp_H + HP_K);  
         if (old_H == hp_H) 
             break;  //success to increment hp_list->d_count.
     }
@@ -106,7 +109,7 @@ void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr) {
 
     hp->d_count++;
 
-	if (hp->d_count >= hp_R(ll->count_of_hp)) {
+	if (hp->d_count >= (int)hp_R(ll->count_of_hp)) {
 		hp_scan(ll, hp);
 	}
 }
@@ -148,16 +151,17 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
 	struct hp_rnode *new_d_list, *__rnode__;
 	struct hp_item* __item__;
 	unsigned int pi;
-	int i, new_d_count, node_count;;  
+	int i, new_d_count, node_count;
+	hp_t* plist, target_hp, hp0, hp1;
 
-	hp_t* plist = (hp_t *) malloc(plist_len * sizeof(hp_t));
+	plist = (hp_t *) malloc(plist_len * sizeof(hp_t));
 
     for (i = 0; i < MAX_NUM_THREADS; i++) {
 		__item__ = ll->HP[i];
        	if (__item__ == NULL) 
 	    	continue;
-        hp_t hp0 = ACCESS_ONCE(__item__->hp0);
-        hp_t hp1 = ACCESS_ONCE(__item__->hp1);
+        hp0 = ACCESS_ONCE(__item__->hp0);
+        hp1 = ACCESS_ONCE(__item__->hp1);
         if (hp0 != 0)
             plist[plist_count++] = hp0;
         if (hp1 != 0)
@@ -175,7 +179,7 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
         hp->d_list->next = __rnode__->next;
             
         //search the __rnode__->address in the plist.
-        hp_t target_hp = __rnode__->address;
+        target_hp = __rnode__->address;
         pi = 0;
         for(; pi < plist_count; pi++) {
             if (plist[pi] == target_hp) {

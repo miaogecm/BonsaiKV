@@ -21,7 +21,7 @@ typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(pkey_t key, pval_t value);
 typedef int (*update_func_t)(pkey_t key, pval_t value);
 typedef int (*remove_func_t)(pkey_t key);
-typedef int (*lookup_func_t)(pkey_t key);
+typedef void* (*lookup_func_t)(pkey_t key);
 typedef int (*scan_func_t)(pkey_t key1, pkey_t key2);
 
 struct index_layer {
@@ -39,15 +39,10 @@ struct log_layer {
 	unsigned int epoch;
 	unsigned int nflush;
 	int pmem_fd[NUM_SOCKET];
-	char* pmem_addr[NUM_SOCKET];
+	char* pmem_addr[NUM_CPU];
 	struct log_region region[NUM_CPU];
 	struct list_head mptable_list;
 	struct hbucket buckets[MAX_HASH_BUCKET];
-
-	insert_func_t insert;
-	update_func_t update;
-	remove_func_t remove;
-	lookup_func_t lookup;
 };
 
 struct data_layer {
@@ -55,11 +50,6 @@ struct data_layer {
 
 	spinlock_t lock;
 	struct list_head pnode_list;
-
-	insert_func_t insert;
-	remove_func_t remove;
-	lookup_func_t lookup;
-	scan_func_t   scan;
 };
 
 #define REGION_FPATH_LEN	19

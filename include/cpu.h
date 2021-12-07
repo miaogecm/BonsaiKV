@@ -5,7 +5,6 @@
 extern "C" {
 #endif
 
-#define _GNU_SOURCE
 #include <sched.h>
 #include <stdio.h>
 
@@ -13,8 +12,8 @@ static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
 
-	if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1
-		printf("sched_getaffinity fail\n");
+	if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1)
+		perror("sched_getaffinity fail\n");
 
 	for (i = 0; i < NUM_CPU; i++) {
 		if (CPU_ISSET(i, &mask))

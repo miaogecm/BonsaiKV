@@ -46,10 +46,13 @@ void __write_unlock(rwlock_t* lock);
 #define write_lock(lock)		do{ barrier(); __write_lock(lock); } while (0)
 #define write_unlock(lock)		do{ barrier(); __write_unlock(lock); } while (0)
 
-#define cpu_relax()		asm volatile("rep; nop" ::: "memory")
-
+#ifndef likely
 #define likely(x)               __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef unlikely
 #define unlikely(x)				__builtin_expect(!!(x), 0)
+#endif
 
 /**
  * rspin_until_writer_unlock - inc reader count & spin until writer is gone
@@ -110,7 +113,7 @@ void __read_unlock(rwlock_t* lock) {
 }
 
 static void __write_lock_slowpath(rwlock_t* lock) {
-    unsigned int cnts;
+    int cnts;
 
     /* Put the writer into the wait queue */
     spin_lock(&lock->slock);

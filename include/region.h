@@ -10,8 +10,8 @@ extern "C" {
 #include "spinlock.h"
 #include "common.h"
 
-#define LOG_REGION_SIZE	1024*1024*1024*8 /* 8 GB */
-#define DATA_REGION_SIZE	1024*1024*1024*8 /* 8 GB */
+#define LOG_REGION_SIZE		1024*1024*1024*8UL /* 8 GB */
+#define DATA_REGION_SIZE	1024*1024*1024*8UL /* 8 GB */
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
@@ -48,6 +48,8 @@ struct data_region {
 
 struct log_layer;
 struct data_layer;
+struct bonsai_desc;
+
 extern int log_region_init(struct log_layer* layer, struct bonsai_desc* desc);
 extern void log_region_deinit(struct log_layer* layer);
 
@@ -56,6 +58,7 @@ extern void data_region_deinit(struct data_layer *layer);
 
 extern struct oplog_blk* alloc_oplog_block(int cpu);
 
+extern struct log_page_desc* alloc_log_page(struct log_region *region);
 extern void free_log_page(struct log_region *region, struct log_page_desc* page);
 
 #ifdef __cplusplus
