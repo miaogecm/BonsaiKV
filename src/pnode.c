@@ -391,14 +391,17 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
 	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode(numa_node);
-		memcpy(&remote_pnode[offset], &pnode->e[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t));
+		memcpy(&remote_pnode[offset], &pnode->e[offset], 
+            NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
 			free_pnode(pnode);
 	} else {
-		memcpy(&remote_pnode->e[offset], &pnode->e[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t));
+		memcpy(&remote_pnode->e[offset], &pnode->e[offset], 
+            NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 	}
 
-	bonsai_clflush(&remote_pnode[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
+	bonsai_clflush(&remote_pnode[offset], 
+        NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i++) {
 		if (key_cmp(remote_pnode->e[i].k, key))

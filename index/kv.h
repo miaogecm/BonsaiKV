@@ -3,9 +3,16 @@
 
 #include "common.h"
 #include "list.h"
+#include "rwlock.h"
+
+struct kv_node {
+  pentry_t kv;
+  struct list_head list;
+}
 
 struct toy_kv {
-	
+	rwlock_t lock;
+  struct list_head head;
 };
 
 extern void* kv_init();

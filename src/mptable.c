@@ -117,11 +117,26 @@ int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key, int cpu
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
 	int tid = get_tid();
 	struct oplog* log;
+#ifndef BONSAI_SUPPORT_UPDATE
+	pval_t* addr;
+	int node;
+#endif
 
-	log = oplog_insert(key, 0, OP_REMOVE, get_numa_node(cpu), mptable, tables->pnode);
+#ifdef BONSAI_SUPPORT_UPDATE
+	log = oplog_insert(key, 0, OP_REMOVE, numa_node, mptable, tables->pnode);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+#else
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		mptable = MPTABLE_NODE(tables, node);
+		addr = hs_lookup(&mptable->hs, tid, key);
+		if (addr) {
+			log = oplog_insert(key, 0, OP_REMOVE, numa_node, mptable, tables->pnode);
+			hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+		}
+	}
+#endif
 
-	return 0;
+	return -ENOENT;
 }
 
 pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
