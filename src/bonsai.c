@@ -23,10 +23,13 @@
 #include "cpu.h"
 
 struct bonsai_info* bonsai;
+
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
-static void index_layer_init(struct index_layer* layer, init_func_t init, insert_func_t insert, remove_func_t remove, lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
-	//layer->index_struct = init();
+static void index_layer_init(struct index_layer* layer, init_func_t init, 
+				insert_func_t insert, remove_func_t remove, 
+				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
+	layer->index_struct = init();
 
 	layer->insert = insert;
 	layer->remove = remove;
@@ -42,10 +45,12 @@ static void index_layer_deinit(struct index_layer* layer) {
 static int log_layer_init(struct log_layer* layer) {
 	int i, err = 0;
 
+	layer->epoch = 0;
 	err = epoch_init();
 	if (err)
 		goto out;
 
+	layer->nflush = 0;
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
 		goto out;
@@ -76,79 +81,79 @@ static int data_layer_init(struct data_layer* layer) {
 	int ret;
 
 	ret = data_region_init(layer);
+	if (ret)
+		goto out;
 
 	INIT_LIST_HEAD(&layer->pnode_list);
 
+out:
 	return ret;
 }
 
 static void data_layer_deinit(struct data_layer* layer) {
-	/*TODO*/
+	data_region_deinit(layer);
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
-	struct numa_table *tables, **addr;
-	int numa_node = get_numa_node();
+	struct numa_table *table;
+	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
 	struct index_layer* i_layer = INDEX(bonsai);
 	struct log_layer* l_layer = LOG(bonsai);
 
-	addr = (struct numa_table**)i_layer->lookup(key);
-	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(&l_layer->mptable_list);
+	table = (struct numa_table*)i_layer->lookup(key);
+	if (unlikely(!table)) {
+		table = numa_mptable_alloc(&l_layer->mptable_list);
 	}
-	tables = *addr;
 
-	return mptable_insert(tables, numa_node, key, value);
+	return mptable_insert(table, numa_node, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
-	struct numa_table *tables, **addr;
-	int numa_node = get_numa_node();
+	struct numa_table *table;
+	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
 	struct index_layer* layer = INDEX(bonsai);
 	struct log_layer* l_layer = LOG(bonsai);
 
-	addr = (struct numa_table**)layer->lookup(key);
-	if (unlikely(!*addr)) {
-		*addr = numa_mptable_alloc(&l_layer->mptable_list);
+	table = (struct numa_table*)layer->lookup(key);
+	if (unlikely(!table)) {
+		*table = numa_mptable_alloc(&l_layer->mptable_list);
 	}
-	tables = *addr;
 
-	return mptable_update(tables, numa_node, key, &value);
+	return mptable_update(table, numa_node, key, &value);
 }
 
 int bonsai_remove(pkey_t key) {
-	struct numa_table *tables, **addr;
-	int numa_node = get_numa_node();
+	struct numa_table *table;
+	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
 	struct index_layer* layer = INDEX(bonsai);
 
-	addr = (struct numa_table**)layer->lookup(key);
-	if (unlikely(!*addr)) {
+	table = (struct numa_table*)layer->lookup(key);
+	if (unlikely(!table)) {
 		return -ENOENT;
 	}
-	tables = *addr;
 
-	return mptable_remove(tables, numa_node, key);
+	return mptable_remove(table, numa_node, key, cpu);
 }
 
 pval_t bonsai_lookup(pkey_t key) {
-	struct numa_table *tables, **addr;
+	struct numa_table *table;
 	struct index_layer* layer = INDEX(bonsai);
+	int cpu = get_cpu();
 	
-	addr = (struct numa_table**)layer->lookup(key);
-	if (unlikely(!*addr)) {
+	table = (struct numa_table*)layer->lookup(key);
+	if (unlikely(!table)) {
 		return -ENOENT;
 	}
-	tables = *addr;
 
-	return mptable_lookup(tables, key);
+	return mptable_lookup(table, key, cpu);
 }
 
-/*
+
 int bonsai_scan(pkey_t low, pkey_t high) {
-	
-	DATA(bonsai)->scan(low, high);
+	struct index_layer* layer = INDEX(bonsai);
+
+	layer->scan(low, high);
 }
-*/
 
 void bonsai_deinit() {
 
@@ -167,7 +172,7 @@ int bonsai_init() {
 	char *addr;
 
 	if ((fd = open(bonsai_fpath, O_CREAT|O_RDWR, 0666)) < 0) {
-		perror("open\n");
+		perror("open");
 		error = -EOPEN;
 		goto out;	
 	}
@@ -181,6 +186,7 @@ int bonsai_init() {
 	if (addr == MAP_FAILED) {
 		perror("mmap");
 		error = -EMMAP;
+		goto out;
 	}
 
     bonsai = malloc(sizeof(struct bonsai_info));
@@ -188,16 +194,23 @@ int bonsai_init() {
 	bonsai->desc = (struct bonsai_desc*)addr;
 
     if (!bonsai->desc->init) {
-        index_layer_init(&bonsai->i_layer, NULL, NULL, NULL, NULL, NULL, NULL);
-        log_layer_init(&bonsai->l_layer);
-        data_layer_init(&bonsai->d_layer);
+        error = index_layer_init(&bonsai->i_layer, kv_init, kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
+		if (error)
+			goto out;
+		
+        error = log_layer_init(&bonsai->l_layer);
+		if (error)
+			goto out;
+		
+        error = data_layer_init(&bonsai->d_layer);
+		if (error)
+			goto out;
 
 		bonsai->desc->init = 1;
     } else {
-        //bonsai_recover(bonsai);
+        bonsai_recover();
     }
 
-	epoch_init();
 	bonsai_thread_init();
 
 out:

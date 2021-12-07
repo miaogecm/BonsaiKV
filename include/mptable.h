@@ -39,11 +39,13 @@ static inline int addr_in_pnode(void* addr) {
 extern struct numa_table* numa_mptable_alloc(struct list_head* head);
 extern void numa_mptable_free(struct numa_table* tables);
 
-extern int mptable_insert(struct numa_table* tables, int numa_node, pkey_t key, pval_t value);
+extern int mptable_insert(struct numa_table* tables, int numa_node, pkey_t key, pval_t value, int cpu);
 extern int mptable_update(struct numa_table* tables, int num_node, pkey_t key, pval_t* address);
-extern int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key);
-extern pval_t mptable_lookup(struct numa_table* tables, pkey_t key);
+extern int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key int cpu);
+extern pval_t mptable_lookup(struct numa_table* tables, pkey_t key int cpu);
+
 extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);
+
 extern void mptable_split(struct numa_table* src, struct pnode* pnode);
 
 #ifdef __cplusplus

@@ -57,7 +57,7 @@ struct thread_info {
 };
 
 static inline int get_tid() {
-	return 1;
+	return pthread_self();
 }
 
 extern __thread struct thread_info* __this;

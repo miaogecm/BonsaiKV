@@ -32,11 +32,11 @@ POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
 POBJ_LAYOUT_END(BONSAI);
 
-static struct pnode* alloc_pnode() {
+static struct pnode* alloc_pnode(int node) {
     TOID(struct pnode) toid;
     struct pnode* pnode;
 	PMEMobjpool* pop;
-	int i, node = get_numa_node();
+	int i;
 
 	pop = DATA(bonsai)->region[node].pop;
     POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode), NULL, NULL);
@@ -203,7 +203,7 @@ int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, p
 
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
-		pnode = alloc_pnode();
+		pnode = alloc_pnode(numa_node);
 		table->pnode = pnode;
 		pnode->table = table;
 		insert_pnode(pnode, key);
@@ -244,7 +244,7 @@ retry:
     }
 
     if (bucket_full) {
-        new_pnode = alloc_pnode();
+        new_pnode = alloc_pnode(numa_node);
         memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
         n = pnode->slot[0];
         removed = 0;
@@ -390,7 +390,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	bucket_id = BUCKET_HASH(key);
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
 	if (pnode->forward[numa_node][bucket_id] == 0) {
-		remote_pnode = alloc_pnode();
+		remote_pnode = alloc_pnode(numa_node);
 		memcpy(&remote_pnode[offset], &pnode->e[offset], NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
 			free_pnode(pnode);

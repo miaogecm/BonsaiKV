@@ -16,8 +16,8 @@ extern "C" {
 struct log_page_desc {
 	__le64 p_off; /* page offset */
 	__le64 p_num_blk; /* how many log block in this page */
-	__le64 p_next; /* next log page */
-	char padding[8]; 
+	__le64 p_prev; /* previous log page */ 
+	__le64 p_next; /* next log page */ 
 };
 
 struct log_region_desc {
@@ -38,7 +38,7 @@ struct log_region {
 };
 
 struct data_region {
-	PMEMobjpool* pop;
+	PMEMobjpool* pop[NUM_SOCKET];
 };
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)addr & PAGE_MASK)

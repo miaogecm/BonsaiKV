@@ -19,11 +19,11 @@
 #include "thread.h"
 #include "pnode.h"
 
-static int hash(pkey_t key) {
-	return 0;
-}
-
 extern struct bonsai_info *bonsai;
+
+static int hash(pkey_t key) {
+	return (key % MAX_HASH_BUCKET);
+}
 
 struct oplog_blk* alloc_oplog_block(int cpu) {
 	struct log_layer* layer = LOG(bonsai);
@@ -280,5 +280,6 @@ void oplog_flush() {
 	park_master();
 
 	/* 4. finish */
-	printf("finish log checkpoint\n");
+	layer->nflush ++;
+	printf("finish log checkpoint %d\n", layer->nflush);
 }

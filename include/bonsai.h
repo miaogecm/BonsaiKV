@@ -16,13 +16,13 @@ extern "C" {
 #include "hash_set.h"
 #include "oplog.h"
 
-typedef void (*init_func_t)(void);
+typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(pkey_t key, pval_t value);
-typedef int (*update_func_t)(pkey_t key, pval_t value);
-typedef int (*remove_func_t)(pkey_t key);
-typedef void* (*lookup_func_t)(pkey_t key);
-typedef int (*scan_func_t)(pkey_t key1, pkey_t key2);
+typedef int (*insert_func_t)(void* struct, pkey_t key, pval_t value);
+typedef int (*update_func_t)(void* struct, pkey_t key, pval_t value);
+typedef int (*remove_func_t)(void* struct, pkey_t key);
+typedef void* (*lookup_func_t)(void* struct, pkey_t key);
+typedef int (*scan_func_t)(void* struct, pkey_t key1, pkey_t key2);
 
 struct index_layer {
 	void *index_struct;
@@ -38,7 +38,7 @@ struct index_layer {
 struct log_layer {
 	unsigned int epoch;
 	unsigned int nflush;
-	char* pmem_addr[NUM_CPU];
+	char* pmem_addr[NUM_SOCKET];
 	struct log_region region[NUM_CPU];
 	struct list_head mptable_list;
 	struct hbucket buckets[MAX_HASH_BUCKET];
@@ -56,9 +56,10 @@ struct data_layer {
 
 struct bonsai_desc {
 	__le32 init;
+	__le32 padding;
 	struct log_region_desc log_region[NUM_CPU];
 	char log_region_fpath[NUM_SOCKET][REGION_FPATH_LEN];
-};
+}____cacheline_aligned;
 
 struct bonsai_info {
 	/* 1. bonsai info */
@@ -73,15 +74,16 @@ struct bonsai_info {
 	/* 3. thread info */	
 	pthread_t 			tids[NUM_PFLUSH_THREAD];
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
-};
+}____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
+
+extern void bonsai_recover();
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
-/*bonsai.h*/

@@ -56,5 +56,5 @@ int epoch_init() {
 		err = -ESIGNO;
 	}
 
-	return 0;
+	return err;
 }

@@ -139,14 +139,12 @@ int bonsai_thread_init() {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = i;
 		thread->t_cpu = i;
-
 		init_workqueue(thread, &thread->t_wq);
-
 		thread->t_data = NULL;
 
 		if (pthread_create(&bonsai->tids[i], NULL, 
 			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)thread) != 0) {
-        		printf("bonsai create thread[%d] failed\n", thread->t_id);
+        		perror("bonsai create thread failed\n");
 			return -ETHREAD;
     	}
 

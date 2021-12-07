@@ -8,6 +8,10 @@ extern "C" {
 #include <sched.h>
 #include <stdio.h>
 
+#include "numa_config.h"
+
+#define NOCPU	-1
+
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
@@ -28,12 +32,12 @@ static inline void bind_to_cpu(int cpu) {
     CPU_ZERO(&mask);
     CPU_SET(cpu, &mask);
     if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
-        printf("bind cpu[%d] failed.\n", cpu);
+        perror("bind cpu failed\n");
     }
 }
 
-static inline int get_numa_node() {
-	return 0;
+static inline int get_numa_node(int cpu) {
+	return ((cpu != NOCPU) ? cpu : get_cpu()) / NUM_PHYSICAL_CPU_PER_SOCKET;
 }
 
 #ifdef __cplusplus

@@ -18,23 +18,27 @@ typedef uint16_t	__le16;
 typedef uint32_t	__le32;
 typedef uint64_t	__le64;
 
-#define cpu_to_le8(x)		x
-#define cpu_to_le16(x)		x
-#define cpu_to_le32(x)		x
-#define cpu_to_le64(x)		x
+#define cpu_to_le8(x)		(x)
+#define cpu_to_le16(x)		(x)
+#define cpu_to_le32(x)		(x)
+#define cpu_to_le64(x)		(x)
 
-#define __le8_to_cpu(x)		x
-#define __le16_to_cpu(x)	x
-#define __le32_to_cpu(x)	x
-#define __le64_to_cpu(x)	x
+#define __le8_to_cpu(x)		(x)
+#define __le16_to_cpu(x)	(x)
+#define __le32_to_cpu(x)	(x)
+#define __le64_to_cpu(x)	(x)
 
 typedef struct pentry {
     __le64 k;
     __le64 v;
 } pentry_t;
 
-//#define ENOMEM		101 /* out-of memory */
-//#define ENOENT		102 /* no such entry */
+#ifndef EEXIST
+#define ENOMEM		101 /* out-of memory */
+#endif
+#ifndef ENOENT
+#define ENOENT		102 /* no such entry */
+#endif
 #ifndef EEXIST
 #define EEXIST		103 /* key exist */
 #endif
