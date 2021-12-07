@@ -11,7 +11,7 @@ CFLAGS += -g -ggdb3
 CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
 CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value
 CFLAGS += -Wno-unused-function
-LDFLAGS += -lpthread -lpmem -lpmemobj -lnuma
+LDFLAGS += -pthread -lpmem -lpmemobj -lnuma
 
 DEPS_DIR  := $(CUR_DIR)/.deps
 DEPCFLAGS = -MD -MF $(DEPS_DIR)/$*.d -MP

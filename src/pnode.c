@@ -33,12 +33,13 @@ POBJ_LAYOUT_TOID(BONSAI, struct pnode);
 POBJ_LAYOUT_END(BONSAI);
 
 static struct pnode* alloc_pnode(int node) {
+	struct data_layer *layer = DATA(bonsai);
     TOID(struct pnode) toid;
     struct pnode* pnode;
 	PMEMobjpool* pop;
 	int i;
 
-	pop = DATA(bonsai)->region[node].pop;
+	pop = layer->region[node].pop;
     POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode), NULL, NULL);
 #if 0
     /*i forget why ...*/
@@ -215,7 +216,6 @@ retry:
     pos = find_unused_entry(pnode->bitmap & mask);
     if (pos != -1) {
         pentry_t entry = {key, value};
-
         pnode->e[pos] = entry;
 
         mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
@@ -286,6 +286,7 @@ retry:
  * @key: key to be removed
  */
 int pnode_remove(struct pnode* pnode, pkey_t key) {
+	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
 	uint64_t mask;
 
@@ -314,7 +315,7 @@ find:
 		/* free this persistent node */
 		free_pnode(pnode);
 		numa_mptable_free(pnode->table);
-		INDEX(bonsai)->remove(pnode->e[pnode->slot[0]].k);
+		i_layer->remove(i_layer->index_struct, pnode->e[pnode->slot[0]].k);
 	} else {
 		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_clflush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	

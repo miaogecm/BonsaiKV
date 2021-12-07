@@ -15,14 +15,15 @@ extern "C" {
 #include "spinlock.h"
 #include "hash_set.h"
 #include "oplog.h"
+#include "arch.h"
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* struct, pkey_t key, pval_t value);
-typedef int (*update_func_t)(void* struct, pkey_t key, pval_t value);
-typedef int (*remove_func_t)(void* struct, pkey_t key);
-typedef void* (*lookup_func_t)(void* struct, pkey_t key);
-typedef int (*scan_func_t)(void* struct, pkey_t key1, pkey_t key2);
+typedef int (*insert_func_t)(void* index_struct, pkey_t key, pval_t value);
+typedef int (*update_func_t)(void* index_struct, pkey_t key, pval_t value);
+typedef int (*remove_func_t)(void* index_struct, pkey_t key);
+typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
+typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
 struct index_layer {
 	void *index_struct;
@@ -40,6 +41,7 @@ struct log_layer {
 	unsigned int nflush;
 	char* pmem_addr[NUM_SOCKET];
 	struct log_region region[NUM_CPU];
+	spinlock_t lock;
 	struct list_head mptable_list;
 	struct hbucket buckets[MAX_HASH_BUCKET];
 };
@@ -79,6 +81,11 @@ struct bonsai_info {
 #define INDEX(bonsai)    	(&(bonsai->i_layer))
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
+
+extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+				insert_func_t insert, remove_func_t remove, 
+				lookup_func_t lookup, scan_func_t scan);
+extern void bonsai_deinit();
 
 extern void bonsai_recover();
 

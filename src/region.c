@@ -25,28 +25,32 @@
 #define TOID_OFFSET(o) ((o).oid.off)
 /*
 static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/node0/region0",
-	"/mnt/node1/region1"
+	"/mnt/ext4/node0/region0",
+	"/mnt/ext4/node1/region1"
 };
 
 static char* data_region_fpath[NUM_SOCKET] = {
-	"/mnt/node0/objpool0",
-	"/mnt/node1/objpool1"
+	"/mnt/ext4/node0/objpool0",
+	"/mnt/ext4/node1/objpool1"
 };
 */
 static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/node0/region0"
+	"/mnt/ext4/node0/region0"
 };
 
 static char* data_region_fpath[NUM_SOCKET] = {
-	"/mnt/node0/objpool0"
+	"/mnt/ext4/node0/objpool0"
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
+	
 	page = region->inuse;
 	region->inuse = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
+	region->inuse->p_prev = 0;
 
 	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
+	page->p_prev = 0;
+	
 	region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	region->free = page;
 
@@ -90,7 +94,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 
 	bonsai_clflush(desc, sizeof(struct log_region_desc), 1);
 
-	memset(paddr, 0, size);
+	memset((char*)paddr, 0, size);
 
 	spin_lock_init(&region->lock);
 	region->first_blk = NULL;
@@ -124,10 +128,11 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		/* create a pmem file */
-		pmemaddr = pmem_map_file(log_region_fpath[node], 
-				LOG_REGION_SIZE, 0666, O_CREAT|O_RDWR, &mapped_len, &is_pmem);
+		pmemaddr = pmem_map_file(log_region_fpath[node], LOG_REGION_SIZE,
+						0666, O_CREAT|O_RDWR, &mapped_len, &is_pmem);
 		if (pmemaddr == NULL) {
 			perror("pmem_map");
+			error = -EMMAP;
 			goto out;
 		}
 
@@ -137,7 +142,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 			region = &layer->region[cpu];
 			
 			desc = &bonsai->log_region[OS_CPU_ID[node][cpu][0]];
-			init_per_cpu_log_region(region, desc, pmemaddr, 
+			init_per_cpu_log_region(region, desc, (unsigned long)pmemaddr, 
 				pmemaddr - layer->pmem_addr[node], size_per_cpu);
 
 			region->desc = desc;
@@ -171,7 +176,7 @@ int data_region_init(struct data_layer *layer) {
 			return -EPMEMOBJ;
 		}
 
-		region->pop[node] = pop;
+		region->pop = pop;
 	}
 
 	return 0;
@@ -183,6 +188,6 @@ void data_region_deinit(struct data_layer *layer) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
-		pmemobj_close(region->pop[node]);
+		pmemobj_close(region->pop);
 	}
 }

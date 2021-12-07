@@ -22,11 +22,13 @@
 #include "epoch.h"
 #include "cpu.h"
 
+#include "../index/kv.h"
+
 struct bonsai_info* bonsai;
 
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
-static void index_layer_init(struct index_layer* layer, init_func_t init, 
+static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
 	layer->index_struct = init();
@@ -36,6 +38,8 @@ static void index_layer_init(struct index_layer* layer, init_func_t init,
 	layer->lookup = lookup;
 	layer->scan = scan;
 	layer->destory = destroy;
+
+	printf("index_layer_init: %s\n", index_name);
 }
 
 static void index_layer_deinit(struct index_layer* layer) {
@@ -55,12 +59,15 @@ static int log_layer_init(struct log_layer* layer) {
 	if (err)
 		goto out;
 
+	spin_lock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->mptable_list);
 
 	for (i = 0; i < MAX_HASH_BUCKET; i ++) {
 		INIT_HLIST_HEAD(&layer->buckets[i].head);
 		spin_lock_init(&layer->buckets[i].lock);
 	}
+
+	printf("log_layer_init\n");
 
 out:
 	return err;
@@ -86,11 +93,22 @@ static int data_layer_init(struct data_layer* layer) {
 
 	INIT_LIST_HEAD(&layer->pnode_list);
 
+	printf("data_layer_init\n");
+
 out:
 	return ret;
 }
 
 static void data_layer_deinit(struct data_layer* layer) {
+	struct pnode* pnode;
+	int i;
+
+	list_for_each_entry(pnode, &layer->pnode_list, list) {
+		free(pnode->slot_lock);
+		for (i = 0; i < NUM_BUCKET; i ++)
+			free(pnode->bucket_lock[i]);
+	}
+	
 	data_region_deinit(layer);
 }
 
@@ -100,9 +118,9 @@ int bonsai_insert(pkey_t key, pval_t value) {
 	struct index_layer* i_layer = INDEX(bonsai);
 	struct log_layer* l_layer = LOG(bonsai);
 
-	table = (struct numa_table*)i_layer->lookup(key);
+	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
-		table = numa_mptable_alloc(&l_layer->mptable_list);
+		table = numa_mptable_alloc(l_layer);
 	}
 
 	return mptable_insert(table, numa_node, key, value);
@@ -111,12 +129,12 @@ int bonsai_insert(pkey_t key, pval_t value) {
 int bonsai_update(pkey_t key, pval_t value) {
 	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
-	struct index_layer* layer = INDEX(bonsai);
+	struct index_layer* i_layer = INDEX(bonsai);
 	struct log_layer* l_layer = LOG(bonsai);
 
-	table = (struct numa_table*)layer->lookup(key);
+	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
-		*table = numa_mptable_alloc(&l_layer->mptable_list);
+		table = numa_mptable_alloc(l_layer);
 	}
 
 	return mptable_update(table, numa_node, key, &value);
@@ -125,22 +143,22 @@ int bonsai_update(pkey_t key, pval_t value) {
 int bonsai_remove(pkey_t key) {
 	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
-	struct index_layer* layer = INDEX(bonsai);
+	struct index_layer* i_layer = INDEX(bonsai);
 
-	table = (struct numa_table*)layer->lookup(key);
+	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
 		return -ENOENT;
 	}
 
-	return mptable_remove(table, numa_node, key, cpu);
+	return mptable_remove(table, numa_node, key);
 }
 
 pval_t bonsai_lookup(pkey_t key) {
 	struct numa_table *table;
-	struct index_layer* layer = INDEX(bonsai);
+	struct index_layer* i_layer = INDEX(bonsai);
 	int cpu = get_cpu();
 	
-	table = (struct numa_table*)layer->lookup(key);
+	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
 		return -ENOENT;
 	}
@@ -152,11 +170,11 @@ pval_t bonsai_lookup(pkey_t key) {
 int bonsai_scan(pkey_t low, pkey_t high) {
 	struct index_layer* layer = INDEX(bonsai);
 
-	layer->scan(low, high);
+	return layer->scan(layer->index_struct, low, high);
 }
 
 void bonsai_deinit() {
-
+	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);
     data_layer_deinit(&bonsai->d_layer);
@@ -167,7 +185,9 @@ void bonsai_deinit() {
 	free(bonsai);
 }
 
-int bonsai_init() {
+int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+				insert_func_t insert, remove_func_t remove, 
+				lookup_func_t lookup, scan_func_t scan) {
 	int error = 0, fd;
 	char *addr;
 
@@ -194,9 +214,8 @@ int bonsai_init() {
 	bonsai->desc = (struct bonsai_desc*)addr;
 
     if (!bonsai->desc->init) {
-        error = index_layer_init(&bonsai->i_layer, kv_init, kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
-		if (error)
-			goto out;
+        index_layer_init(index_name, &bonsai->i_layer, kv_init, 
+			kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
 		
         error = log_layer_init(&bonsai->l_layer);
 		if (error)

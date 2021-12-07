@@ -39,7 +39,7 @@ struct oplog {
 
 struct oplog_blk {
 	struct oplog logs[NUM_OPLOG_PER_BLK];
-	char padding[1];
+	__le8 flush; /* whether it has been flushed */
 	__le8 cpu; /* which NUMA node */
 	__le8 cnt; /* how many logs in oplog block */
 	__le64 next; /* next oplog block */

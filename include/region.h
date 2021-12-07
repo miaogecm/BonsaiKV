@@ -10,8 +10,8 @@ extern "C" {
 #include "spinlock.h"
 #include "common.h"
 
-#define LOG_REGION_SIZE		1024*1024*1024*8UL /* 8 GB */
-#define DATA_REGION_SIZE	1024*1024*1024*8UL /* 8 GB */
+#define LOG_REGION_SIZE		1024*1024*32UL /* 32 MB */
+#define DATA_REGION_SIZE	1024*1024*32UL /* 32 MB */
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
@@ -38,7 +38,7 @@ struct log_region {
 };
 
 struct data_region {
-	PMEMobjpool* pop[NUM_SOCKET];
+	PMEMobjpool* pop;
 };
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)addr & PAGE_MASK)

@@ -21,6 +21,8 @@
 
 extern struct bonsai_info* bonsai;
 
+typedef void (*signal_handler_t)(int);
+
 static void main_alarm_handler(int sig) {
 	struct log_layer* layer = LOG(bonsai);
 	layer->epoch ++;
@@ -28,15 +30,16 @@ static void main_alarm_handler(int sig) {
 	printf("bonsai epoch[%d]\n", layer->epoch);
 }
 
-static void thread_alarm_handler(int sig) {
+void thread_alarm_handler(int sig) {
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region *region = &layer->region[get_cpu()];
 	
 	/* persist it */
+	region->curr_blk->flush = cpu_to_le8(1);
 	bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
 }
 
-int epoch_init() {
+static int register_alarm(signal_handler_t handler) {
 	struct itimerval value;
 	struct sigaction sa;
 	int err = 0;
@@ -51,10 +54,16 @@ int epoch_init() {
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-	sa.sa_handler = main_alarm_handler;
+	sa.sa_handler = handler;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) {
 		err = -ESIGNO;
 	}
+}
 
-	return err;
+int thread_epoch_init() {
+	return register_alarm(thread_alarm_handler);
+}
+
+int epoch_init() {
+	return register_alarm(main_alarm_handler);
 }

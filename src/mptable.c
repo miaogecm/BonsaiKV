@@ -33,16 +33,19 @@ static void free_one_mptable(struct mptable *table) {
 	numa_free(table, sizeof(struct mptable));
 }
 
-struct numa_table* numa_mptable_alloc(struct list_head* head) {
+struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 	struct numa_table* tables;
 	int node;
 
 	tables = malloc(sizeof(struct numa_table));
+	
 	for (node = 0; node < NUM_SOCKET; node ++)
 		tables->tables[node] = init_one_mptable(node);
-
 	tables->pnode = NULL;
-	list_add_tail(&tables->list, head);
+
+	spin_lock(&layer->lock);
+	list_add_tail(&tables->list, &layer->mptable_list);
+	spin_unlock(&layer->lock);
 
 	return tables;
 }
@@ -113,7 +116,7 @@ int mptable_update(struct numa_table* tables, int numa_node, pkey_t key, pval_t*
 	return 0;
 }
 
-int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key, int cpu) {
+int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key) {
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
 	int tid = get_tid();
 	struct oplog* log;
@@ -215,14 +218,13 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 		if (n_remove > 0)
 			return -ENOENT;
 		else {
-			node = numa_node();
-			addr = map_addrs[node];
+			addr = map_addrs[numa_node];
 			if (addr) {
 				return *addr;
 			} else {
 				if (map_addrs[0]) {
 					/* pull latest value */
-					table = MPTABLE_NODE(mptables, node);
+					table = MPTABLE_NODE(mptables, numa_node);
 					hs_insert(&table->hs, tid, key, map_addrs[0]);
 					return *(pval_t*)map_addrs[0];
 				} else {
@@ -234,14 +236,14 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 			}			
 		}
 #else
-		node = numa_node();
-		addr = map_addrs[node];
+		numa_node = numa_node();
+		addr = map_addrs[numa_node];
 		if (addr) {
 			return *addr;
 		} else {
 			if (map_addrs[0]) {
 				/* pull latest value */
-				table = MPTABLE_NODE(mptables, node);
+				table = MPTABLE_NODE(mptables, numa_node);
 				hs_insert(&table->hs, tid, key, map_addrs[0]);
 				return *map_addrs[0];
 			} else {
@@ -268,12 +270,11 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 	int tid = get_tid(), i, node, N = pnode->slot[0];
 	struct numa_table* tables;
 	struct mptable *table;
-	struct log_layer* layer = LOG(bonsai);
-	struct index_layer* i_layer;
+	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
 	
-	tables = numa_mptable_alloc(&layer->mptable_list);
+	tables = numa_mptable_alloc(LOG(bonsai));
 
 	for (i = 0; i < N; i ++) {
 		key = pnode->e[pnode->slot[i]].k;
@@ -289,5 +290,6 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 	}
 
 	i_layer = INDEX(bonsai);
-	i_layer->insert(pnode->e[pnode->slot[0]].k, pnode->e[pnode->slot[0]].v);
+	i_layer->insert(i_layer->index_struct, 
+		pnode->e[pnode->slot[0]].k, pnode->e[pnode->slot[0]].v);
 }

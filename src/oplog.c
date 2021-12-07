@@ -36,7 +36,7 @@ struct oplog_blk* alloc_oplog_block(int cpu) {
 again:
 	old_val = desc->r_oplog_top, new_val = old_val + sizeof(struct oplog_blk);
 	
-	if(cmpxchg(&desc->r_oplog_top, old_val, new_val)) {		
+	if(cmpxchg(&desc->r_oplog_top, old_val, new_val)) {	
 		if (unlikely(old_val | PAGE_MASK)) {
 			/* we reach a page end */
 			page = alloc_log_page(region);
@@ -62,7 +62,7 @@ struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, opt
 	struct oplog_blk* block = region->curr_blk;
 	struct oplog* log;
 
-	if (unlikely(block->cnt == NUM_OPLOG_PER_BLK)) {
+	if (unlikely(block->cnt == NUM_OPLOG_PER_BLK || block->flush)) {
 		block = alloc_oplog_block(cpu);
 		region->curr_blk = block;
 	}
@@ -73,12 +73,13 @@ struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, opt
 }
 
 struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, struct mptable* mptable, struct pnode* pnode) {
-	unsigned int epoch = LOG(bonsai)->epoch;
+	struct log_layer* layer = LOG(bonsai);
+	unsigned int epoch = layer->epoch;
 	struct log_region *region;
 	struct oplog* log;
 	int cpu = get_cpu();
 	
-	region = &LOG(bonsai)->region[cpu];
+	region = &layer->region[cpu];
 	log = alloc_oplog(region, key, val, op, cpu);
 	
 	log->o_type = cpu_to_le8(op);
@@ -89,7 +90,7 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, s
 	log->o_kv.k = key;
 	log->o_kv.v = (pkey_t) val;
 
-	if (unlikely(epoch != LOG(bonsai)->epoch)) {
+	if (unlikely(epoch != layer->epoch)) {
 		/* an epoch passed */
 		region->curr_blk->cnt--;
 		bonsai_clflush(&region->curr_blk->cnt, sizeof(__le64), 1);
@@ -98,6 +99,7 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, s
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it */
+		region->curr_blk->flush = cpu_to_le8(1);
 		bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
 	}
 
@@ -179,7 +181,7 @@ static void worker_oplog_flush(void* arg) {
 			pnode_remove((struct pnode*)log->o_addr, log->o_kv.k);
 			break;
 			default:
-			printf("bad operation type\n");
+			perror("bad operation type\n");
 			break;
 			}
 			free(entry);
@@ -281,5 +283,6 @@ void oplog_flush() {
 
 	/* 4. finish */
 	layer->nflush ++;
+	
 	printf("finish log checkpoint %d\n", layer->nflush);
 }

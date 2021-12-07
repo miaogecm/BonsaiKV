@@ -8,6 +8,7 @@ extern "C" {
 #define EPOCH	1000 /* 1ms */
 
 extern int epoch_init();
+extern int thread_epoch_init();
 
 #ifdef __cplusplus
 }
