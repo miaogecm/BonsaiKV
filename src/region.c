@@ -14,7 +14,8 @@
 #include <libpmemobj.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>    
+#include <sys/types.h>
+#include <sys/mman.h>
 
 #include "arch.h"
 #include "bonsai.h"
@@ -63,12 +64,17 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 	struct log_page_desc* page;
 	
 	page = region->free;
+
 	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 	region->free->p_prev = 0;
 
-	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
 	page->p_prev = 0;
-	region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
+	
+	if (likely(region->inuse)) {
+		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
+		region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
+	} else
+		page->p_next = 0;
 		
 	region->inuse = page;
 
@@ -80,8 +86,8 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 static inline void init_log_page(struct log_page_desc* page, off_t page_off, int first, int last) {
 	page->p_off = page_off;
 	page->p_num_blk = 0;
-	page->p_prev = first ? (page_off - PAGE_SIZE) : 0;
-	page->p_next = last ? (page_off + PAGE_SIZE) : 0;
+	page->p_prev = first ? 0 : (page_off - PAGE_SIZE);
+	page->p_next = last ? 0 : (page_off + PAGE_SIZE);
 }
 
 static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, 
@@ -97,6 +103,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	memset((char*)paddr, 0, size);
 
 	spin_lock_init(&region->lock);
+	
 	region->first_blk = NULL;
 	region->curr_blk = NULL;
 	region->start = paddr;
@@ -114,36 +121,50 @@ void log_region_deinit(struct log_layer* layer) {
 	int node;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		pmem_unmap(layer->pmem_addr[node], LOG_REGION_SIZE);
+		munmap(layer->pmem_addr[node], LOG_REGION_SIZE);
+		close(layer->pmem_fd[node]);
 	}
 }
 
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region_desc *desc;
 	struct log_region *region;
-	int node, cpu, is_pmem, error = 0;
+	int node, cpu, fd, error = 0;
 	size_t size_per_cpu = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET;
-	size_t mapped_len;
 	char* pmemaddr;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		/* create a pmem file */
-		pmemaddr = pmem_map_file(log_region_fpath[node], LOG_REGION_SIZE,
-						0666, O_CREAT|O_RDWR, &mapped_len, &is_pmem);
-		if (pmemaddr == NULL) {
-			perror("pmem_map");
-			error = -EMMAP;
-			goto out;
-		}
+    	if ((fd = open(log_region_fpath[node], O_CREAT|O_RDWR, 0666)) < 0) {
+        	perror("open");
+        	goto out;
+    	}
 
+    	/* allocate the pmem */
+    	if ((error = posix_fallocate(fd, 0, LOG_REGION_SIZE)) != 0) {
+        	perror("posix_fallocate");
+        	goto out;
+    	}
+
+    	/* memory map it */
+    	if ((pmemaddr = mmap(NULL, LOG_REGION_SIZE, PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, fd, 0)) == MAP_FAILED) {
+       		perror("mmap");
+        	goto out;
+    	}
+		
+		layer->pmem_fd[node] = fd;
 		layer->pmem_addr[node] = pmemaddr;
 		
 		for (cpu = 0; cpu < NUM_PHYSICAL_CPU_PER_SOCKET; cpu ++, pmemaddr += size_per_cpu) {
 			region = &layer->region[cpu];
 			
 			desc = &bonsai->log_region[OS_CPU_ID[node][cpu][0]];
+		
 			init_per_cpu_log_region(region, desc, (unsigned long)pmemaddr, 
 				pmemaddr - layer->pmem_addr[node], size_per_cpu);
+
+			printf("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
+				cpu, (unsigned long)pmemaddr, (unsigned long)pmemaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;
 		}
@@ -167,12 +188,15 @@ int data_region_init(struct data_layer *layer) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
-		if (file_exists(data_region_fpath[node]) != 0)
-			perror("create a new pmdk pool error:\n");
+		
+		if (!file_exists(data_region_fpath[node])) {
+			perror("create a existed new pmdk pool");
+			return -EPMEMOBJ;
+		}
 		
 		if ((pop = pmemobj_create(data_region_fpath[node], POBJ_LAYOUT_NAME(bonsai##node),
-                              (uint64_t)DATA_REGION_SIZE, 0666)) == NULL) {
-			perror("fail to create object pool\n");
+                              DATA_REGION_SIZE, 0666)) == NULL) {
+			perror("fail to create object pooL");
 			return -EPMEMOBJ;
 		}
 

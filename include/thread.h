@@ -53,12 +53,8 @@ struct thread_info {
 	unsigned int 	t_id;
 	unsigned int 	t_cpu;
 	void* 			t_data;
-	struct workqueue_struct t_wq;		
+	struct workqueue_struct t_wq;	
 };
-
-static inline int get_tid() {
-	return pthread_self();
-}
 
 extern __thread struct thread_info* __this;
 
@@ -71,13 +67,18 @@ static inline void workqueue_del(struct work_struct* work) {
 	free(work);
 }
 
-extern int bonsai_thread_init();
-extern int bonsai_thread_exit();
+extern int bonsai_pflushd_thread_init();
+extern int bonsai_pflushd_thread_exit();
+
+extern void bonsai_user_thread_init();
+extern void bonsai_user_thread_exit();
 
 extern void wakeup_master();
 extern void park_master();
 extern void park_workers();
 extern void wakeup_workers();
+
+extern int get_tid();
 
 #ifdef __cplusplus
 }

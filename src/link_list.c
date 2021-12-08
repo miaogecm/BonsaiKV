@@ -17,9 +17,11 @@
 #include "hp.h"
 #include "atomic.h"
 
+#ifdef BONSAI_HASHSET_DEBUG
 static int node_count = 0;
 static int retire_count = 0;
 static int print_count = 0;
+#endif
 
 void ll_init(struct linked_list* ll) {
     memset(ll, 0, sizeof(struct linked_list));
@@ -29,7 +31,7 @@ struct ll_node* ll_find(struct linked_list* ll, int tid, pkey_t key,
 		struct ll_node** __pred, struct ll_node** __succ) {
 	struct ll_node *pred, *curr, *succ;
     struct hp_item* hp = ll->HP[tid];
-	markable_t old_value, next;
+	markable_t next, old_value;
 	hp_t hp0;
 
     if (hp == NULL)
@@ -60,7 +62,9 @@ retry:
                 
                 //=======================retire the node curr===========================
                 hp_retire_node(ll, hp, (hp_t)curr);
+#ifdef BONSAI_HASHSET_DEBUG
                 xadd(&retire_count, 1);
+#endif
                 curr = succ;
             } else {
                 succ = GET_NODE(STRIP_MARK(next));
@@ -111,7 +115,9 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
             continue;
         }
         //CAS succeed!
+#ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
+#endif
         hp_clear_all_addr(hp);
         return 0;
     }
@@ -121,7 +127,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
 int ll_remove(struct linked_list* ll, int tid, pkey_t key) {
 	struct ll_node *pred, *item;
     struct hp_item* hp = ll->HP[tid];
-	markable_t old_value;
+	markable_t next, old_value;
 
     if (hp == NULL) 
 		hp = hp_item_setup(ll, tid);
@@ -136,8 +142,8 @@ int ll_remove(struct linked_list* ll, int tid, pkey_t key) {
         } else {
             //logically remove the item.
             //try to mark item.
-            markable_t next = item->next;
-            old_value = cmpxchg(&item->next, next, MARK_NODE(next));
+            next = item->next;
+			old_value = cmpxchg(&item->next, next, MARK_NODE(next));
             if (old_value != next) {
                 //fail to mark item. Now item could be marked by others OR removed by others OR freed by others OR still there.
                 //so we need to retry from list head.
@@ -168,14 +174,16 @@ int ll_lookup(struct linked_list* ll, int tid, pkey_t key) {
     return 0;
 }
 
-
+#ifdef BONSAI_HASHSET_DEBUG
 void ll_print(struct linked_list* ll) {
     struct ll_node* head = &(ll->ll_head);
     struct ll_node* curr = GET_NODE(head->next);
 
     printf("[head] -> ");
     while (curr) {
+#ifdef BONSAI_HASHSET_DEBUG
         xadd(&print_count, 1);
+#endif
         printf("[%lu]%c -> ", curr->key, (HAS_MARK(curr->next) ? '*' : ' '));
         curr = GET_NODE(curr->next);
     } 
@@ -183,6 +191,7 @@ void ll_print(struct linked_list* ll) {
     printf("NULL.\n");
     printf("print_count = %d.\n", print_count);
 }
+#endif
 
 void ll_destroy(struct linked_list* ll) {
 	struct ll_node *head, *curr;
@@ -196,14 +205,19 @@ void ll_destroy(struct linked_list* ll) {
         old_curr = curr;
         curr = GET_NODE(curr->next);
         free(old_curr);
+#ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, -1);
+#endif
     } 
 
     free(head);
+	
+#ifdef BONSAI_HASHSET_DEBUG
     printf("node_count = %d.\n", node_count);
     printf("retire_count = %d.\n", retire_count);
 
     retire_count = 0;
     node_count = 0;
     print_count = 0;
+#endif
 }

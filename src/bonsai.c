@@ -75,11 +75,16 @@ out:
 
 static void log_layer_deinit(struct log_layer* layer) {
 	struct numa_table *table, *tmp;
+	int node;
 
 	log_region_deinit(layer);
 
 	list_for_each_entry_safe(table, tmp, &layer->mptable_list, list) {
 		list_del(&table->list);
+
+		for (node = 0; node < NUM_SOCKET; node ++)
+			hs_destroy(&MPTABLE_NODE(table, node)->hs);
+		
 		numa_mptable_free(table);
 	}
 }
@@ -122,8 +127,8 @@ int bonsai_insert(pkey_t key, pval_t value) {
 	if (unlikely(!table)) {
 		table = numa_mptable_alloc(l_layer);
 	}
-
-	return mptable_insert(table, numa_node, key, value);
+	
+	return mptable_insert(table, numa_node, cpu, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
@@ -137,7 +142,7 @@ int bonsai_update(pkey_t key, pval_t value) {
 		table = numa_mptable_alloc(l_layer);
 	}
 
-	return mptable_update(table, numa_node, key, &value);
+	return mptable_update(table, numa_node, cpu, key, &value);
 }
 
 int bonsai_remove(pkey_t key) {
@@ -150,7 +155,7 @@ int bonsai_remove(pkey_t key) {
 		return -ENOENT;
 	}
 
-	return mptable_remove(table, numa_node, key);
+	return mptable_remove(table, numa_node, cpu, key);
 }
 
 pval_t bonsai_lookup(pkey_t key) {
@@ -174,6 +179,8 @@ int bonsai_scan(pkey_t low, pkey_t high) {
 }
 
 void bonsai_deinit() {
+
+	bonsai_pflushd_thread_exit();
 	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);
@@ -214,13 +221,16 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 	bonsai->desc = (struct bonsai_desc*)addr;
 
     if (!bonsai->desc->init) {
+		/* 1. initialize index layer */
         index_layer_init(index_name, &bonsai->i_layer, kv_init, 
 			kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
-		
+
+		/* 2. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);
 		if (error)
 			goto out;
-		
+
+		/* 3. initialize data layer */
         error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
@@ -230,7 +240,10 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
         bonsai_recover();
     }
 
-	bonsai_thread_init();
+	/* 4. initialize pflush thread */
+	bonsai_pflushd_thread_init();
+
+	printf("bonsai is initialized successfully!\n");
 
 out:
 	return error;

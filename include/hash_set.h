@@ -21,16 +21,16 @@ struct bucket_list {
  * a continuous memory area contains SEGMENT_SIZE of pointers 
  * (point to bucket_list structure) 
  */
-typedef struct bucket_list* segment_t[SEGMENT_SIZE] ;  
+typedef struct bucket_list* segment_t[SEGMENT_SIZE];  
 
 struct hash_set {
     segment_t* main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
     float load_factor;   /* expect value of the length of each bucket list */
+	int set_size;  /* how many items in the hash_set */
     unsigned long capacity; /* how many buckets in the hash_set, capacity <= MAX_NUM_BUCKETS */
-    int set_size;  /* how many items in the hash_set */
 };
 
-extern void hs_init(struct hash_set * hs, int tid);
+extern void hs_init(struct hash_set * hs);
 extern int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* addr);
 extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 

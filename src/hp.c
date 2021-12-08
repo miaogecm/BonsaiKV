@@ -39,7 +39,7 @@ struct hp_item* hp_item_setup(struct linked_list* ll, int tid) {
     while (1) {
         hp_H = ll->count_of_hp;  //How many hps are there in the system.
         //every time there comes a new thread, increase HP_K hps in the system.
-        old_H = cmpxchg(&ll->count_of_hp, hp_H, hp_H + HP_K);  
+        old_H = cmpxchg(&ll->count_of_hp, hp_H, hp_H + HP_K);
         if (old_H == hp_H) 
             break;  //success to increment hp_list->d_count.
     }
@@ -51,6 +51,19 @@ struct hp_item* hp_item_setup(struct linked_list* ll, int tid) {
     ll->HP[tid] = hp;
 
     return hp;
+}
+
+/*
+ * hp_setdown - Call from the ll_destroy() when the hp facility in the linked_list is no more used.
+ * @ll:setdown hp of which linked list.
+ */
+void hp_setdown(struct linked_list* ll) {
+	int i;
+
+    //walk through the hp_list and free all the hp_items.
+    for (i = 0; i < MAX_NUM_THREADS; i++) {
+        hp_retire_hp_item(ll, i);
+    }
 }
 
 void hp_save_addr(struct hp_item* hp, int index, hp_t hp_addr) {
@@ -83,20 +96,6 @@ void hp_clear_all_addr(struct hp_item* hp) {
     hp->hp1 = 0;
 }
 
-/*
- * hp_setdown - Call from the ll_destroy() when the hp facility in the linked_list is no more used.
- * @ll:setdown hp of which linked list.
- */
-void hp_setdown(struct linked_list* ll) {
-	int i;
-
-    //walk through the hp_list and free all the hp_items.
-    for (i = 0; i < MAX_NUM_THREADS; i++) {
-        hp_retire_hp_item(ll, i);
-    }
-}
-
-
 void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr) {
 	struct hp_rnode *rnode;
 
@@ -120,7 +119,6 @@ void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr) {
 void hp_retire_hp_item(struct linked_list* ll, int tid) {
     struct hp_item* hp = ll->HP[tid];
 	struct hp_rnode *rnode, *old_rnode;
-	int node_count;
     
 	if (hp == NULL) 
 		return;
@@ -129,7 +127,6 @@ void hp_retire_hp_item(struct linked_list* ll, int tid) {
     rnode = hp->d_list;
     rnode = rnode->next;
     while (rnode) {
-        xadd(&node_count, -1);
         free((void *)rnode->address);  //free the linked_list node.
         old_rnode = rnode;
         rnode = rnode->next;
@@ -143,7 +140,7 @@ void hp_retire_hp_item(struct linked_list* ll, int tid) {
 
 
 /*
- * 4 steps，至少释放R-N个节点（R即d_R，为每一个thread的待释放节点buffer尺寸；N为KP，即P个线程，每个线程K个hps
+ * hp_scan
  */
 void hp_scan(struct linked_list* ll, struct hp_item* hp) {
     unsigned int plist_len = HP_K * MAX_NUM_THREADS;

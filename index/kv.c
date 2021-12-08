@@ -6,12 +6,15 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 #include <stdlib.h>
+#include <stdio.h>
+#include <pthread.h>
 
 #include "common.h"
 
 #include "kv.h"
 
-#define N	10
+#define N			10
+#define NUM_THREAD	1
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -29,9 +32,11 @@ extern void bonsai_deinit();
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
 
-extern int thread_epoch_init();
+extern void bonsai_user_thread_init();
+extern void bonsai_user_thread_exit();
 
 struct toy_kv *toy;
+pthread_t tids[NUM_THREAD];
 
 void* kv_init() {
 	toy = malloc(sizeof(struct toy_kv));
@@ -44,9 +49,9 @@ void* kv_init() {
 
 void kv_destory(void* index_struct) {
 	struct kv_node* knode, *tmp;
-	struct toy_kv *toy = (struct toy_kv*)index_struct;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
-	list_for_each_entry_safe(knode, tmp, &toy->head, list) {
+	list_for_each_entry_safe(knode, tmp, &__toy->head, list) {
 		list_del(&knode->list);
 		free(knode);
 	}
@@ -56,15 +61,15 @@ void kv_destory(void* index_struct) {
 
 int kv_insert(void* index_struct, pkey_t key, pval_t value) {
 	struct kv_node* knode;
-	struct toy_kv *toy = (struct toy_kv*)index_struct;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
 	knode = malloc(sizeof(knode));
 	knode->kv.k = key;
 	knode->kv.v = value;
 
-	write_lock(&toy->lock);
-	list_add(&knode->list, &toy->head);
-	write_unlock(&toy->lock);
+	write_lock(&__toy->lock);
+	list_add(&knode->list, &__toy->head);
+	write_unlock(&__toy->lock);
 
 	return 0;
 }
@@ -75,40 +80,40 @@ int kv_update(void* index_struct, pkey_t key, pval_t value) {
 }
 
 int kv_remove(void* index_struct, pkey_t key) {
-	struct toy_kv *toy = (struct toy_kv*)index_struct;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
 
-	read_lock(&toy->lock);
-	list_for_each_entry(knode, &toy->head, list) {
+	read_lock(&__toy->lock);
+	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k == key)
 			goto out;
 	}
-	read_unlock(&toy->lock);
+	read_unlock(&__toy->lock);
 	return -ENOENT;
 
 out:
-	read_unlock(&toy->lock);
+	read_unlock(&__toy->lock);
 
-	write_lock(&toy->lock);
+	write_lock(&__toy->lock);
 	list_del(&knode->list);
-	write_unlock(&toy->lock);
+	write_unlock(&__toy->lock);
 	free(knode);
 
 	return 0;
 }
 
 void* kv_lookup(void* index_struct, pkey_t key) {
-	struct toy_kv *toy = (struct toy_kv*)index_struct;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
 
-	read_lock(&toy->lock);
-	list_for_each_entry(knode, &toy->head, list) {
+	read_lock(&__toy->lock);
+	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
-			read_unlock(&toy->lock);
+			read_unlock(&__toy->lock);
 			return &knode->kv.v;
 		}
 	}
-	read_unlock(&toy->lock);
+	read_unlock(&__toy->lock);
 
 	return NULL;
 }
@@ -119,21 +124,46 @@ int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
 	return 0;
 }
 
-int main() {
+void* thread_fun(void* arg) {
 	unsigned long i;
+	long id = (long)arg;
 
-	bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
-				kv_remove, kv_lookup, kv_scan);
+	printf("user thread[%ld] start\n", id);
+	
+	bonsai_user_thread_init();
 
 	for (i = 0; i < N; i ++) {
 		bonsai_insert((pkey_t)i, (pval_t)i);
+		printf("bonsai_insert: <%lu, %lu>\n", i, i);
 	}
 
 	for (i = 0; i < N; i ++) {
 		bonsai_remove((pkey_t)i);
+		printf("bonsai_remove: <%lu>\n", i);
+	}
+
+	bonsai_user_thread_exit();
+
+	return NULL;
+}
+
+int main() {
+	long i;
+
+	if (bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
+				kv_remove, kv_lookup, kv_scan) < 0)
+		goto out;
+
+	for (i = 0; i < NUM_THREAD; i++) {
+		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
+	}
+
+	for (i = 0; i < NUM_THREAD; i++) {
+		pthread_join(tids[i], NULL);
 	}
 
 	bonsai_deinit();
-	
+
+out:
 	return 0;
 }

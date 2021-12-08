@@ -25,7 +25,7 @@ struct hp_item {
 	int d_count;   /* how many hp_rnodes in the d_list */
 } __attribute__((aligned(sizeof(long))));
 
-struct link_list;
+struct linked_list;
 extern struct hp_item* hp_item_setup(struct linked_list* ll, int tid);
 extern void hp_setdown(struct linked_list* ll);
 extern void hp_save_addr(struct hp_item* hp, int index, hp_t hp_addr);

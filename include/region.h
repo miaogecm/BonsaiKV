@@ -9,6 +9,7 @@ extern "C" {
 
 #include "spinlock.h"
 #include "common.h"
+#include "arch.h"
 
 #define LOG_REGION_SIZE		1024*1024*32UL /* 32 MB */
 #define DATA_REGION_SIZE	1024*1024*32UL /* 32 MB */
@@ -18,13 +19,13 @@ struct log_page_desc {
 	__le64 p_num_blk; /* how many log block in this page */
 	__le64 p_prev; /* previous log page */ 
 	__le64 p_next; /* next log page */ 
-};
+}__packed;
 
 struct log_region_desc {
 	__le64 r_off; /* region offset */
 	__le64 r_size; /* region size */	
 	__le64 r_oplog_top; /* oplog top */
-};
+}__packed;
 
 struct log_region {
 	spinlock_t lock;
@@ -33,6 +34,7 @@ struct log_region {
 
 	unsigned long start; /* memory-mapped address */
 	struct log_region_desc *desc;
+	
 	struct log_page_desc* free;
 	struct log_page_desc* inuse;
 };
@@ -41,9 +43,9 @@ struct data_region {
 	PMEMobjpool* pop;
 };
 
-#define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)addr & PAGE_MASK)
+#define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)(addr) & PAGE_MASK)
 
-#define LOG_REGION_ADDR_TO_OFF(region, addr) ((unsigned long)addr - region->start)
+#define LOG_REGION_ADDR_TO_OFF(region, addr) ((unsigned long)(addr) - region->start)
 #define LOG_REGION_OFF_TO_ADDR(region, off) (region->start + off)
 
 struct log_layer;

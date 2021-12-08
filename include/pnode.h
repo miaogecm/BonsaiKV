@@ -35,7 +35,7 @@ struct pnode {
 
 	/* 12th cache line */	
 	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
-}____cacheline_aligned;
+}__packed;
 
 static int key_cmp(pkey_t a, pkey_t b) {
     if (a < b) return -1;

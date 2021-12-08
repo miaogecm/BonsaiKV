@@ -30,39 +30,47 @@ struct oplog_blk* alloc_oplog_block(int cpu) {
 	struct log_region* region = &layer->region[cpu];
 	struct log_region_desc* desc = region->desc;
 	struct log_page_desc* page;
-	struct oplog_blk *block, *old_block;
+	struct oplog_blk *new_block, *old_block;
 	__le64 old_val, new_val;
+	size_t size = sizeof(struct oplog_blk);
 
 again:
-	old_val = desc->r_oplog_top, new_val = old_val + sizeof(struct oplog_blk);
+	old_val = desc->r_oplog_top, new_val = old_val + size;
 	
-	if(cmpxchg(&desc->r_oplog_top, old_val, new_val)) {	
-		if (unlikely(old_val | PAGE_MASK)) {
-			/* we reach a page end */
-			page = alloc_log_page(region);
-			desc->r_oplog_top = LOG_REGION_ADDR_TO_OFF(region, page);
-			goto again;
-		}
-		page = LOG_PAGE_DESC(old_val);
-		page->p_num_blk ++;
-	} else
+	if (unlikely(!(old_val & ~PAGE_MASK))) {
+		/* we reach a page end or it is first time to allocate an oplog block */
+		page = alloc_log_page(region);
+		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + size;
+	} else {
+		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
+		page = LOG_PAGE_DESC(old_block);
+	}
+
+	if (cmpxchg(&desc->r_oplog_top, old_val, new_val) != old_val)
 		goto again;
 
-	block = (struct oplog_blk*)(region->start + old_val);
-	old_block = (struct oplog_blk*)old_val;
+	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
+	new_block->flush = 0;
+	new_block->cnt = 0;
+	new_block->cpu = cpu;
 
-	memset(block, 0, sizeof(struct oplog_blk));
-	block->cpu = cpu;
-	old_block->next = LOG_REGION_ADDR_TO_OFF(region, block);
+	if (likely(old_val)) {
+		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
+		old_block->next = LOG_REGION_ADDR_TO_OFF(region, new_block);
+		bonsai_clflush((void*)old_block->next, sizeof(__le64), 0);
+	}
 
-	return block;
+	page->p_num_blk ++;
+	bonsai_clflush((void*)page->p_num_blk, sizeof(__le64), 1);
+
+	return new_block;
 }
 
 struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, optype_t type, int cpu) {
 	struct oplog_blk* block = region->curr_blk;
 	struct oplog* log;
 
-	if (unlikely(block->cnt == NUM_OPLOG_PER_BLK || block->flush)) {
+	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK || block->flush)) {		
 		block = alloc_oplog_block(cpu);
 		region->curr_blk = block;
 	}
@@ -72,12 +80,12 @@ struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, opt
 	return log;
 }
 
-struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, struct mptable* mptable, struct pnode* pnode) {
+struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, 
+			int cpu, struct mptable* mptable, struct pnode* pnode) {
 	struct log_layer* layer = LOG(bonsai);
 	unsigned int epoch = layer->epoch;
 	struct log_region *region;
 	struct oplog* log;
-	int cpu = get_cpu();
 	
 	region = &layer->region[cpu];
 	log = alloc_oplog(region, key, val, op, cpu);
@@ -88,7 +96,7 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, s
 	log->o_stamp = cpu_to_le64(ordo_new_clock(0));
 	log->o_addr = log->o_flag ? (__le64)pnode : (__le64)mptable;
 	log->o_kv.k = key;
-	log->o_kv.v = (pkey_t) val;
+	log->o_kv.v = val;
 
 	if (unlikely(epoch != layer->epoch)) {
 		/* an epoch passed */
@@ -102,6 +110,8 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, s
 		region->curr_blk->flush = cpu_to_le8(1);
 		bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
 	}
+
+	printf("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
 
 	return log;
 }

@@ -10,11 +10,11 @@ extern "C" {
  */
 #define ____ptr_aligned __attribute__((aligned(sizeof(void *))))
 
-#define PAGE_SIZE 4096
 #define CACHELINE_SIZE 64
 
 #define PAGE_SHIFT	12
-#define PAGE_MASK	(1 << 12)
+#define PAGE_SIZE	(1UL << PAGE_SHIFT)
+#define PAGE_MASK 	(~(PAGE_SIZE-1))
 
 #define L1_CACHE_BYTES 64
 #define ____cacheline_aligned __attribute__((aligned(L1_CACHE_BYTES)))
@@ -84,10 +84,10 @@ static inline uint64_t __attribute__((__always_inline__)) read_tscp(void)
 	return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
-// static inline void clflush(volatile void *p)
-// {
-// 	asm volatile("clflush (%0)" ::"r"(p));
-// }
+static inline void clflush(volatile void *p)
+{
+ 	asm volatile("clflush (%0)" ::"r"(p));
+}
 
 static inline void clflushopt(volatile void *p)
 {
@@ -128,17 +128,26 @@ static inline unsigned int max_cpu_freq(void)
 
 #define cache_prefetchw_low(__ptr) __builtin_prefetch((void *)__ptr, 1, 0)
 
+#define _mm_clflush(addr)\
+	asm volatile("clflush %0" : "+m" (*(volatile char *)(addr)))
+
 #define _mm_clflushopt(addr)\
-    asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char*)(addr)))
+	asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char *)(addr)))
+
+#define _mm_clwb(addr)\
+	asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(addr)))
+
 
 static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
+#if 0
     uint32_t i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE)
-        _mm_clflushopt(buf + i);    
+        _mm_clflush(buf + i);
 
 	if (fence)
 		smp_mb();
+#endif
 }
 
 #ifdef __cplusplus

@@ -58,9 +58,20 @@ static int register_alarm(signal_handler_t handler) {
 	if (sigaction(SIGALRM, &sa, NULL) == -1) {
 		err = -ESIGNO;
 	}
+
+	return err;
 }
 
-int thread_epoch_init() {
+void thread_block_alarm() {
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGALRM);
+
+	pthread_sigmask(SIG_BLOCK, &set, NULL);
+}
+
+int thread_set_alarm() {
 	return register_alarm(thread_alarm_handler);
 }
 

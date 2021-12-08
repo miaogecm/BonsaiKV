@@ -6,7 +6,6 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 #define _GNU_SOURCE
-#include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -16,6 +15,10 @@
 #include "common.h"
 #include "bonsai.h"
 #include "oplog.h"
+#include "hp.h"
+#include "hash_set.h"
+#include "mptable.h"
+#include "epoch.h"
 
 __thread struct thread_info* __this;
 
@@ -23,16 +26,12 @@ static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
 static atomic_t STATUS;
+static atomic_t tids;
 
 extern struct bonsai_info* bonsai;
 
-static void thread_block_alarm() {
-	sigset_t set;
-
-	sigemptyset(&set);
-	sigaddset(&set, SIGALRM);
-
-	pthread_sigmask(SIG_BLOCK, &set, NULL);
+inline int get_tid() {
+	return __this->t_id;
 }
 
 static void init_workqueue(struct thread_info* thread, struct workqueue_struct* wq) {
@@ -128,12 +127,52 @@ static void pflush_master(struct thread_info* this) {
 	}
 }
 
-int bonsai_thread_init() {
+void bonsai_user_thread_init() {
+	struct thread_info* thread;
+
+	thread = malloc(sizeof(struct thread_info));
+	thread->t_id = atomic_add_return(1, &tids);
+
+	thread_set_alarm();
+
+	__this = thread;
+}
+
+void bonsai_user_thread_exit() {
+	struct thread_info* thread = __this;
+	struct log_layer* layer = LOG(bonsai);
+	struct numa_table* table;
+	struct hash_set* hs;
+	segment_t* segments;
+	struct bucket_list** buckets;
+	int node, j;
+	unsigned int i;
+
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		spin_lock(&layer->lock);
+		list_for_each_entry(table, &layer->mptable_list, list) {
+			hs = &MPTABLE_NODE(table, node)->hs;
+			for (i = 0; i < hs->capacity; i ++) {
+				segments = hs->main_array[i];
+				buckets = (struct bucket_list**)segments;
+				for (j = 0; j < SEGMENT_SIZE; j ++)
+					hp_retire_hp_item(&buckets[j]->bucket_sentinel, thread->t_id);
+			}
+		}
+		spin_unlock(&layer->lock);
+	}
+
+	free(thread);
+}
+
+int bonsai_pflushd_thread_init() {
 	struct thread_info* thread;
 	int i;
 
 	pthread_mutex_init(&work_mutex, NULL);
 	pthread_cond_init(&work_cond, NULL);
+
+	atomic_set(&tids, 0);
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
@@ -154,7 +193,7 @@ int bonsai_thread_init() {
 	return 0;
 }
 
-int bonsai_thread_exit() {
+int bonsai_pflushd_thread_exit() {
 	int i;
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {

@@ -22,27 +22,16 @@ struct numa_table {
 
 #define MPTABLE_NODE(TABLE, NODE)	TABLE->tables[NODE]
 
-#define ENT_REMOVE	0x1
-
-static inline int point_to_nvm(void* addr) {
-	return 0;
-}
-
-static inline int addr_in_log(void* addr) {
-	return 0;
-}
-
-static inline int addr_in_pnode(void* addr) {
-	return 0;
-}
+extern int addr_in_log(unsigned long addr);
+extern int addr_in_pnode(unsigned long addr);
 
 struct log_layer;
 extern struct numa_table* numa_mptable_alloc(struct log_layer* layer);
 extern void numa_mptable_free(struct numa_table* tables);
 
-extern int mptable_insert(struct numa_table* tables, int numa_node, pkey_t key, pval_t value);
-extern int mptable_update(struct numa_table* tables, int num_node, pkey_t key, pval_t* address);
-extern int mptable_remove(struct numa_table* tables, int numa_node, pkey_t key);
+extern int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key, pval_t value);
+extern int mptable_update(struct numa_table* tables, int num_node, int cpu, pkey_t key, pval_t* address);
+extern int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key);
 extern pval_t mptable_lookup(struct numa_table* tables, pkey_t key, int cpu);
 
 extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);

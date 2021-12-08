@@ -39,6 +39,7 @@ struct index_layer {
 struct log_layer {
 	unsigned int epoch;
 	unsigned int nflush;
+	int pmem_fd[NUM_SOCKET];
 	char* pmem_addr[NUM_SOCKET];
 	struct log_region region[NUM_CPU];
 	spinlock_t lock;
@@ -61,7 +62,7 @@ struct bonsai_desc {
 	__le32 padding;
 	struct log_region_desc log_region[NUM_CPU];
 	char log_region_fpath[NUM_SOCKET][REGION_FPATH_LEN];
-}____cacheline_aligned;
+}__packed;
 
 struct bonsai_info {
 	/* 1. bonsai info */

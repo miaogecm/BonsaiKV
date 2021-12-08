@@ -394,8 +394,8 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 		remote_pnode = alloc_pnode(numa_node);
 		memcpy(&remote_pnode[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
-		if (!cmpxchg(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
-			free_pnode(pnode);
+		if (!cmpxchg2(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
+			free_pnode(pnode); /* fail */
 	} else {
 		memcpy(&remote_pnode->e[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
