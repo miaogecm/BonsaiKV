@@ -18,8 +18,8 @@
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* index_struct, pkey_t key, pval_t value);
-typedef int (*update_func_t)(void* index_struct, pkey_t key, pval_t value);
+typedef int (*insert_func_t)(void* index_struct, pkey_t key, void* value);
+typedef int (*update_func_t)(void* index_struct, pkey_t key, void* value);
 typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
@@ -59,22 +59,22 @@ void kv_destory(void* index_struct) {
 	free(toy);
 }
 
-int kv_insert(void* index_struct, pkey_t key, pval_t value) {
+int kv_insert(void* index_struct, pkey_t key, void* value) {
 	struct kv_node* knode;
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
 	knode = malloc(sizeof(knode));
 	knode->kv.k = key;
-	knode->kv.v = value;
+	knode->kv.v = (__le64)value;
 
-	write_lock(&__toy->lock);
+	//write_lock(&__toy->lock);
 	list_add(&knode->list, &__toy->head);
-	write_unlock(&__toy->lock);
+	//write_unlock(&__toy->lock);
 
 	return 0;
 }
 
-int kv_update(void* index_struct, pkey_t key, pval_t value) {
+int kv_update(void* index_struct, pkey_t key, void* value) {
 
 	return 0;
 }
@@ -110,7 +110,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
 			read_unlock(&__toy->lock);
-			return &knode->kv.v;
+			return (void*)knode->kv.v;
 		}
 	}
 	read_unlock(&__toy->lock);

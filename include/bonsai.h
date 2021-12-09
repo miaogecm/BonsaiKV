@@ -19,8 +19,8 @@ extern "C" {
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* index_struct, pkey_t key, pval_t value);
-typedef int (*update_func_t)(void* index_struct, pkey_t key, pval_t value);
+typedef int (*insert_func_t)(void* index_struct, pkey_t key, void* value);
+typedef int (*update_func_t)(void* index_struct, pkey_t key, void* value);
 typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);

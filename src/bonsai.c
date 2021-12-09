@@ -126,6 +126,7 @@ int bonsai_insert(pkey_t key, pval_t value) {
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
 		table = numa_mptable_alloc(l_layer);
+		i_layer->insert(i_layer->index_struct, key, (void*)table);
 	}
 	
 	return mptable_insert(table, numa_node, cpu, key, value);
@@ -152,9 +153,10 @@ int bonsai_remove(pkey_t key) {
 
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
 	if (unlikely(!table)) {
+		printf("bonsai_remove: no mapping table [%lu]\n", key);
 		return -ENOENT;
 	}
-
+	
 	return mptable_remove(table, numa_node, cpu, key);
 }
 

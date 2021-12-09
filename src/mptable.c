@@ -92,6 +92,8 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	int node;
 #endif
 
+	printf("mptable_insert: <%lu, %lu>\n", key, value);
+
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
 	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
@@ -148,6 +150,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	pval_t* addr;
 	int node;
 #endif
+
+	printf("mptable_remove: %lu\n", key);
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);

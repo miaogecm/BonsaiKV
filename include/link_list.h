@@ -16,7 +16,7 @@ typedef size_t markable_t;
 
 struct ll_node {
     pkey_t key;
-	pval_t val;
+	pval_t* val;
     markable_t next;
 };
 
@@ -39,7 +39,7 @@ extern void ll_init(struct linked_list* ll);
 extern void ll_destroy(struct linked_list* ll);
 
 extern struct ll_node* ll_find(struct linked_list* ll, int tid, pkey_t key, struct ll_node** pred, struct ll_node** succ);
-extern int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val);
+extern int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val);
 extern int ll_remove(struct linked_list* ll, int tid, pkey_t key);
 extern int ll_lookup(struct linked_list* ll, int tid, pkey_t key);
 extern void ll_print(struct linked_list* ll);

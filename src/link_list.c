@@ -86,7 +86,7 @@ retry:
     }
 }
 
-int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
+int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
 	struct ll_node *pred, *item, *succ;
     struct hp_item* hp = ll->HP[tid];
 	markable_t old_value;
@@ -100,11 +100,13 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
+			printf("ll_insert exist %016lx\n", key);
             return -EEXIST;
         }
-        item = (struct ll_node*) malloc (sizeof(struct ll_node));
+        item = (struct ll_node*) malloc(sizeof(struct ll_node));
     
         item->key = key;
+		item->val = val;
         item->next = (markable_t)succ;
     
         //[1]. pred must not be marked. [2]. pred--->succ should not be changed.
@@ -115,6 +117,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t val) {
             continue;
         }
         //CAS succeed!
+        printf("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif

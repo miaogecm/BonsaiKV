@@ -23,8 +23,8 @@
 #include "common.h"
 #include "atomic.h"
 
-#define MASK 	0x00FFFFFF  /* takes the lowest 3 bytes of the hashcode */
-#define HI_MASK 0x80000000  /* the MSB of an integer value */
+#define MASK 	0x00FFFFFFFFFFFFFF  /* takes the lowest 3 bytes of the hashcode */
+#define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
 
 #ifdef BONSAI_HASHSET_DEBUG
 static int hs_node_count = 0;
@@ -34,55 +34,52 @@ static int hs_remove_success_time = 0;
 static int hs_remove_fail_time = 0;
 #endif
 
-static void bucket_list_init(struct bucket_list** bucket, int key);
+static void bucket_list_init(struct bucket_list** bucket, int bucket_index);
 static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index);
 static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, struct bucket_list* new_bucket);
 static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index);
 static int get_parent_index(struct hash_set* hs, int bucket_index);
 
-static int reverse(int code) {
-    unsigned int i; 
-	int bit, result = 0;
+static pkey_t reverse(pkey_t code) {
+    pkey_t res = 0;
+	int i, size = sizeof(pkey_t) * 8;
 
-    for (i = 0; i < (sizeof(int) * 8); i++) {
-        bit = (code == (code >> 1) << 1) ? 0 : 1;
-        bit = bit << (sizeof(int) * 8 - i - 1);
-        result = result | bit;
-        code = code >> 1;
-    }
-    return result;
+    for (i = 0; i < size; ++i) {
+            res |= ((code >> i) & 1) << (size - 1 - i);
+        }
+    return res;
 }
 
-static inline int hash(int key) {
+static inline pkey_t hash(pkey_t key) {
     return key;
 }
 
 /*
  * make_ordinary_key: set MSB to 1, and reverse the key.
  */
-static int make_ordinary_key(int key) {
-    int code = hash(key) & MASK;
+static pkey_t make_ordinary_key(pkey_t key) {
+    pkey_t code = hash(key) & MASK;
     return reverse(code | HI_MASK);  //mark the MSB and reverse it.
 }
 
 /* 
  * make_sentinel_key: set MSB to 0, and reverse the key.
  */
-static int make_sentinel_key(int key) {
+static pkey_t make_sentinel_key(pkey_t key) {
     return reverse(key & MASK);
 }
 
 /*
  * is_sentinel_key: 1 if key is sentinel key, 0 if key is ordinary key.
  */
-static int is_sentinel_key(int key) {
+static int is_sentinel_key(pkey_t key) {
     if (key == ((key >> 1) << 1)) {
         return 1;
     }
     return 0;
 }
 
-static int get_origin_key(int key) {
+static pkey_t get_origin_key(pkey_t key) {
     key = (key >> 1) << 1;
     return reverse(key);
 }
@@ -177,7 +174,7 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
 /*
  * bucket_list_lookup: return 1 if contains, 0 otherwise.
  */
-int bucket_list_lookup(struct bucket_list* bucket, int tid, int key) {
+int bucket_list_lookup(struct bucket_list* bucket, int tid, pkey_t key) {
    return ll_lookup(&bucket->bucket_sentinel, tid, key);
 }
 
@@ -239,7 +236,7 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
         bucket = get_bucket_list(hs, bucket_index);
     }
 	
-    if (ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), *val) != 0) {
+    if (ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val) != 0) {
         //fail to insert the key into the hash_set
         printf("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
