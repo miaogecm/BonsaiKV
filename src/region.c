@@ -147,7 +147,8 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
     	}
 
     	/* memory map it */
-    	if ((pmemaddr = mmap(NULL, LOG_REGION_SIZE, PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, fd, 0)) == MAP_FAILED) {
+    	if ((pmemaddr = mmap(NULL, LOG_REGION_SIZE, 
+				PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, fd, 0)) == MAP_FAILED) {
        		perror("mmap");
         	goto out;
     	}
@@ -194,8 +195,9 @@ int data_region_init(struct data_layer *layer) {
 			return -EPMEMOBJ;
 		}
 		
-		if ((pop = pmemobj_create(data_region_fpath[node], POBJ_LAYOUT_NAME(bonsai##node),
-                              DATA_REGION_SIZE, 0666)) == NULL) {
+		if ((pop = pmemobj_create(data_region_fpath[node], 
+								POBJ_LAYOUT_NAME(bonsai##node),
+                              	DATA_REGION_SIZE, 0666)) == NULL) {
 			perror("fail to create object pooL");
 			return -EPMEMOBJ;
 		}

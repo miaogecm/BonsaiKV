@@ -4,11 +4,12 @@
 #include "common.h"
 #include "list.h"
 #include "rwlock.h"
+#include "arch.h"
 
 struct kv_node {
   pentry_t kv;
   struct list_head list;
-};
+}__packed;
 
 struct toy_kv {
 	rwlock_t lock;

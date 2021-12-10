@@ -67,6 +67,9 @@ static inline void workqueue_del(struct work_struct* work) {
 	free(work);
 }
 
+extern void bonsai_self_thread_init();
+extern void bonsai_self_thread_exit();
+
 extern int bonsai_pflushd_thread_init();
 extern int bonsai_pflushd_thread_exit();
 

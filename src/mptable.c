@@ -65,10 +65,11 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 	
 	for (node = 0; node < NUM_SOCKET; node ++)
 		tables->tables[node] = init_one_mptable(node);
+	
 	tables->pnode = NULL;
 
 	spin_lock(&layer->lock);
-	list_add_tail(&tables->list, &layer->mptable_list);
+	list_add_tail(&tables->list, &layer->numa_table_list);
 	spin_unlock(&layer->lock);
 
 	return tables;
@@ -92,8 +93,6 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	int node;
 #endif
 
-	printf("mptable_insert: <%lu, %lu>\n", key, value);
-
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
 	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
@@ -109,6 +108,8 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		}
 	}
 #endif
+
+	printf("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
 	return ret;
 }
@@ -139,6 +140,8 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	}
 #endif
 
+	printf("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
+
 	return 0;
 }
 
@@ -150,8 +153,6 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	pval_t* addr;
 	int node;
 #endif
-
-	printf("mptable_remove: %lu\n", key);
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
@@ -167,6 +168,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	}
 #endif
 
+	printf("mptable_remove: cpu[%d] %lu\n", cpu, key);
+
 	return -ENOENT;
 }
 
@@ -181,6 +184,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	int max_insert_index;
 	void* map_addrs[NUM_SOCKET];
 	struct pnode* pnode;
+
+	printf("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(mptables, node);
@@ -289,7 +294,7 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 
 void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr) {
 	struct mptable *table = tables->tables[numa_node];
-	int tid = get_tid();	
+	int tid = get_tid();
 
 	hs_insert(&table->hs, tid, key, addr);
 }
@@ -319,5 +324,5 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 
 	i_layer = INDEX(bonsai);
 	i_layer->insert(i_layer->index_struct, 
-		pnode->e[pnode->slot[0]].k, pnode->e[pnode->slot[0]].v);
+		pnode->e[pnode->slot[0]].k, &pnode->e[pnode->slot[0]].v);
 }

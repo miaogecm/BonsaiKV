@@ -67,9 +67,11 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	knode->kv.k = key;
 	knode->kv.v = (__le64)value;
 
-	//write_lock(&__toy->lock);
+	write_lock(&__toy->lock);
 	list_add(&knode->list, &__toy->head);
-	//write_unlock(&__toy->lock);
+	write_unlock(&__toy->lock);
+
+	printf("kv insert <%lu %016lx>\n", key, value);
 
 	return 0;
 }
@@ -99,6 +101,8 @@ out:
 	write_unlock(&__toy->lock);
 	free(knode);
 
+	printf("kv remove <%lu>\n", key);
+
 	return 0;
 }
 
@@ -110,6 +114,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
 			read_unlock(&__toy->lock);
+			printf("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
 			return (void*)knode->kv.v;
 		}
 	}
@@ -134,12 +139,12 @@ void* thread_fun(void* arg) {
 
 	for (i = 0; i < N; i ++) {
 		bonsai_insert((pkey_t)i, (pval_t)i);
-		printf("bonsai_insert: <%lu, %lu>\n", i, i);
+		printf("-------bonsai_insert: <%lu, %lu>-------\n", i, i);
 	}
 
 	for (i = 0; i < N; i ++) {
 		bonsai_remove((pkey_t)i);
-		printf("bonsai_remove: <%lu>\n", i);
+		printf("-------bonsai_remove: <%lu>-------\n", i);
 	}
 
 	bonsai_user_thread_exit();

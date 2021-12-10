@@ -179,7 +179,7 @@ static inline int atomic_inc_and_zero(atomic_t *v)
  */
 static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
 {
-    return cmpxchg2(&v->counter, old, new);
+    return cmpxchg(&v->counter, old, new);
 }
 
 /**

@@ -69,11 +69,6 @@ static inline __attribute_const__ __u64 __fswab64(__u64 val)
 	___constant_swab64(x) :			\
 	__fswab64(x))
 
-static inline unsigned long ext2_swab(const unsigned long y)
-{
-	return (unsigned long) __swab64((u64) y);
-}
-
 static unsigned long _find_next_bit(const unsigned long *addr,
 		unsigned long nbits, unsigned long start, unsigned long invert)
 {
@@ -111,22 +106,16 @@ static inline unsigned long find_next_zero_bit_le(const void *addr,
 	return find_next_zero_bit(addr, size, offset);
 }
 
-static inline unsigned long find_first_zero_bit_le(const unsigned long *addr, unsigned long size) {
-	unsigned long bitmap;
-	unsigned long mask = 0xff00000000000000;
-	int shift = 8, i, k = 0;
-	for (i = 0; i < 8; i++) {
-		bitmap = *addr & (mask >> (shift * i));
-		bitmap = bitmap >> (BITS_PER_LONG - shift * (i + 1));
-		k = 0;
-		while (k < 8) {
-			if (!(bitmap & (1 << k)))
-				return k + shift*i;
-			k++;
-		}
+unsigned long find_first_zero_bit(const unsigned long *addr, unsigned long size)
+{
+	unsigned long idx;
+
+	for (idx = 0; idx * BITS_PER_LONG < size; idx++) {
+		if (addr[idx] != ~0UL)
+			return min(idx * BITS_PER_LONG + ffz(addr[idx]), size);
 	}
 
-	return 0;
+	return size;
 }
 
 #define small_const_nbits(nbits) \

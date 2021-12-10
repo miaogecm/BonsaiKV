@@ -20,13 +20,13 @@
 #include "mptable.h"
 #include "epoch.h"
 
-__thread struct thread_info* __this;
+__thread struct thread_info* __this = NULL;
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
 static atomic_t STATUS;
-static atomic_t tids;
+static atomic_t tids = ATOMIC_INIT(0);
 
 extern struct bonsai_info* bonsai;
 
@@ -127,6 +127,22 @@ static void pflush_master(struct thread_info* this) {
 	}
 }
 
+void bonsai_self_thread_init() {
+	
+	bonsai->self = malloc(sizeof(struct thread_info));
+	bonsai->self->t_id = atomic_add_return(1, &tids);
+
+	__this = bonsai->self;
+}
+
+void bonsai_self_thread_exit() {
+	struct thread_info* thread = bonsai->self;
+	
+	thread_clean_hp_list(LOG(bonsai), thread);
+	
+	free(thread);
+}
+
 void bonsai_user_thread_init() {
 	struct thread_info* thread;
 
@@ -140,27 +156,8 @@ void bonsai_user_thread_init() {
 
 void bonsai_user_thread_exit() {
 	struct thread_info* thread = __this;
-	struct log_layer* layer = LOG(bonsai);
-	struct numa_table* table;
-	struct hash_set* hs;
-	segment_t* segments;
-	struct bucket_list** buckets;
-	int node, j;
-	unsigned int i;
 
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		spin_lock(&layer->lock);
-		list_for_each_entry(table, &layer->mptable_list, list) {
-			hs = &MPTABLE_NODE(table, node)->hs;
-			for (i = 0; i < hs->capacity; i ++) {
-				segments = hs->main_array[i];
-				buckets = (struct bucket_list**)segments;
-				for (j = 0; j < SEGMENT_SIZE; j ++)
-					hp_retire_hp_item(&buckets[j]->bucket_sentinel, thread->t_id);
-			}
-		}
-		spin_unlock(&layer->lock);
-	}
+	thread_clean_hp_list(LOG(bonsai), thread);
 
 	free(thread);
 }
@@ -171,8 +168,6 @@ int bonsai_pflushd_thread_init() {
 
 	pthread_mutex_init(&work_mutex, NULL);
 	pthread_cond_init(&work_cond, NULL);
-
-	atomic_set(&tids, 0);
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));

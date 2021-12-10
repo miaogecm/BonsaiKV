@@ -101,7 +101,9 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
 			printf("ll_insert exist %016lx\n", key);
-            return -EEXIST;
+			item->val = val;
+			return 0;
+            //return -EEXIST;
         }
         item = (struct ll_node*) malloc(sizeof(struct ll_node));
     

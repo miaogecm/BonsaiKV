@@ -18,6 +18,9 @@
 #include "hp.h"
 #include "arch.h"
 #include "atomic.h"
+#include "numa_config.h"
+#include "bonsai.h"
+#include "mptable.h"
 
 void hp_scan(struct linked_list* ll, struct hp_item* hp);
 
@@ -61,7 +64,7 @@ void hp_setdown(struct linked_list* ll) {
 	int i;
 
     //walk through the hp_list and free all the hp_items.
-    for (i = 0; i < MAX_NUM_THREADS; i++) {
+    for (i = 1; i < MAX_NUM_THREADS; i++) {
         hp_retire_hp_item(ll, i);
     }
 }
@@ -201,4 +204,40 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
     free(hp->d_list);
     hp->d_list = new_d_list;
     hp->d_count = new_d_count;
+}
+
+void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
+	#if 0
+	struct numa_table* table;
+	struct hash_set* hs;
+	segment_t* segments;
+	struct bucket_list** buckets;
+	int node, j;
+	unsigned int i;
+
+	printf("thread[%d] clean hp list\n", thread->t_id);
+	
+	spin_lock(&layer->lock);
+	list_for_each_entry(table, &layer->numa_table_list, list) {
+		printf("thread table %016lx\n", table);
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			hs = &MPTABLE_NODE(table, node)->hs;
+			printf("capacity %lu\n", hs->capacity);
+			for (i = 0; i < MAIN_ARRAY_LEN; i ++) {
+				segments = hs->main_array[i];
+				if (!segments) continue;
+				printf("main_array[%i] %016lx\n", i, segments);
+				buckets = (struct bucket_list**)segments;
+				for (j = 0; j < SEGMENT_SIZE; j ++) {
+					printf("buckets[%d] %016lx\n", j, buckets[j]);
+					if (!buckets[j]) continue;
+					hp_retire_hp_item(&buckets[j]->bucket_sentinel, thread->t_id);
+				}
+			}
+		}
+	}
+	spin_unlock(&layer->lock);
+
+	printf("thread[%d] finish clean hp list\n", thread->t_id);
+	#endif
 }

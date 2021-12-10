@@ -11,12 +11,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <assert.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h> 
 
 #include "bonsai.h"
 #include "numa_config.h"
+#include "hash_set.h"
 #include "mptable.h"
 #include "pnode.h"
 #include "epoch.h"
@@ -25,12 +28,26 @@
 #include "../index/kv.h"
 
 struct bonsai_info* bonsai;
-
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
+
+
+static void sentinel_node_init() {
+	struct numa_table* table;
+	int node = get_numa_node(get_cpu());
+	struct index_layer *i_layer = INDEX(bonsai);
+	
+	table = numa_mptable_alloc(&bonsai->l_layer);
+	i_layer->insert(i_layer->index_struct, ULONG_MAX, (void*)table);
+	
+	hs_insert(&MPTABLE_NODE(table, node)->hs, get_tid(), ULONG_MAX, NULL);
+	
+	pnode_insert(NULL, table, node, ULONG_MAX, ULONG_MAX);
+}
 
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
+	
 	layer->index_struct = init();
 
 	layer->insert = insert;
@@ -44,6 +61,8 @@ static void index_layer_init(char* index_name, struct index_layer* layer, init_f
 
 static void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
+
+	printf("index_layer_deinit\n");
 }
 
 static int log_layer_init(struct log_layer* layer) {
@@ -60,7 +79,7 @@ static int log_layer_init(struct log_layer* layer) {
 		goto out;
 
 	spin_lock_init(&layer->lock);
-	INIT_LIST_HEAD(&layer->mptable_list);
+	INIT_LIST_HEAD(&layer->numa_table_list);
 
 	for (i = 0; i < MAX_HASH_BUCKET; i ++) {
 		INIT_HLIST_HEAD(&layer->buckets[i].head);
@@ -79,14 +98,18 @@ static void log_layer_deinit(struct log_layer* layer) {
 
 	log_region_deinit(layer);
 
-	list_for_each_entry_safe(table, tmp, &layer->mptable_list, list) {
+	list_for_each_entry_safe(table, tmp, &layer->numa_table_list, list) {
 		list_del(&table->list);
 
-		for (node = 0; node < NUM_SOCKET; node ++)
+		for (node = 0; node < NUM_SOCKET; node ++) {
 			hs_destroy(&MPTABLE_NODE(table, node)->hs);
+			printf("hs_destroy\n");
+		}
 		
 		numa_mptable_free(table);
 	}
+
+	printf("log_layer_deinit\n");
 }
 
 static int data_layer_init(struct data_layer* layer) {
@@ -96,6 +119,7 @@ static int data_layer_init(struct data_layer* layer) {
 	if (ret)
 		goto out;
 
+	spin_lock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->pnode_list);
 
 	printf("data_layer_init\n");
@@ -105,29 +129,30 @@ out:
 }
 
 static void data_layer_deinit(struct data_layer* layer) {
-	struct pnode* pnode;
+	struct pnode* pnode, *tmp;
 	int i;
 
-	list_for_each_entry(pnode, &layer->pnode_list, list) {
+	list_for_each_entry_safe(pnode, tmp, &layer->pnode_list, list) {
 		free(pnode->slot_lock);
 		for (i = 0; i < NUM_BUCKET; i ++)
 			free(pnode->bucket_lock[i]);
+
+		list_del(&pnode->list);
 	}
 	
 	data_region_deinit(layer);
+
+	printf("data_layer_deinit\n");
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
 	struct index_layer* i_layer = INDEX(bonsai);
-	struct log_layer* l_layer = LOG(bonsai);
 
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	if (unlikely(!table)) {
-		table = numa_mptable_alloc(l_layer);
-		i_layer->insert(i_layer->index_struct, key, (void*)table);
-	}
+	
+	assert(table);
 	
 	return mptable_insert(table, numa_node, cpu, key, value);
 }
@@ -136,12 +161,10 @@ int bonsai_update(pkey_t key, pval_t value) {
 	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
 	struct index_layer* i_layer = INDEX(bonsai);
-	struct log_layer* l_layer = LOG(bonsai);
 
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	if (unlikely(!table)) {
-		table = numa_mptable_alloc(l_layer);
-	}
+
+	assert(table);
 
 	return mptable_update(table, numa_node, cpu, key, &value);
 }
@@ -152,10 +175,8 @@ int bonsai_remove(pkey_t key) {
 	struct index_layer* i_layer = INDEX(bonsai);
 
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	if (unlikely(!table)) {
-		printf("bonsai_remove: no mapping table [%lu]\n", key);
-		return -ENOENT;
-	}
+
+	assert(table);
 	
 	return mptable_remove(table, numa_node, cpu, key);
 }
@@ -166,9 +187,8 @@ pval_t bonsai_lookup(pkey_t key) {
 	int cpu = get_cpu();
 	
 	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	if (unlikely(!table)) {
-		return -ENOENT;
-	}
+
+	assert(table);
 
 	return mptable_lookup(table, key, cpu);
 }
@@ -181,6 +201,9 @@ int bonsai_scan(pkey_t low, pkey_t high) {
 }
 
 void bonsai_deinit() {
+	printf("bonsai deinit\n");
+	
+	bonsai_self_thread_exit();
 
 	bonsai_pflushd_thread_exit();
 	
@@ -236,6 +259,12 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
         error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
+
+		/* 4. initialize self */
+		bonsai_self_thread_init();
+		
+		/* 4. initialize sentinel node */
+		sentinel_node_init();
 
 		bonsai->desc->init = 1;
     } else {

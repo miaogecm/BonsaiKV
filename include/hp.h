@@ -26,6 +26,9 @@ struct hp_item {
 } __attribute__((aligned(sizeof(long))));
 
 struct linked_list;
+struct log_layer;
+struct thread_info;
+
 extern struct hp_item* hp_item_setup(struct linked_list* ll, int tid);
 extern void hp_setdown(struct linked_list* ll);
 extern void hp_save_addr(struct hp_item* hp, int index, hp_t hp_addr);
@@ -36,6 +39,8 @@ extern void hp_dump_statics(struct linked_list* ll);
 
 extern void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr);
 extern void hp_retire_hp_item(struct linked_list* ll, int tid);
+
+extern void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread);
 
 #ifdef __cplusplus
 }

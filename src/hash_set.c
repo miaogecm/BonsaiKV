@@ -106,7 +106,7 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            printf("allocate a new segment, main_array_index is %d.\n", main_array_index);
+            printf("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -161,7 +161,7 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            printf("allocate a new segment, main_array_index is %d.\n", main_array_index);
+            printf("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -257,16 +257,13 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
  
     //Do we need to resize the hash_set?
     if ((1.0) * set_size_now / capacity_now >= hs->load_factor) {
-        printf("need to resize!\n");
-        
         if (capacity_now * 2 <= MAIN_ARRAY_LEN * SEGMENT_SIZE) {
-            //sl_debug("try to resize!\n");
             old_capacity = cmpxchg(&hs->capacity, capacity_now, capacity_now * 2);
             if (old_capacity == capacity_now) {
-                printf("resize succeed!\n");
+                printf("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
             }
         } else {
-            printf("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
+            perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
         }
     }
     return 0;
@@ -410,11 +407,11 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 #endif
 
 void hs_destroy(struct hash_set* hs) { 
-    struct ll_node *p1, *p2;
     // First , get the first linked_list of bucket-0.
     struct bucket_list** buckets_0 = (struct bucket_list**)hs->main_array[0];
     struct linked_list* ll_curr = &(buckets_0[0]->bucket_sentinel);  // Now, ll_curr is the most left linked_list.
 	struct bucket_list* bucket;
+	struct ll_node *p1, *p2;
 	segment_t* segment_curr;
 	int bucket_index, i;
 
@@ -444,14 +441,14 @@ void hs_destroy(struct hash_set* hs) {
     }
 
     // Second, we have freed the whole linked_list, now we need to free all of the segments.
-    for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+    for (i = 0; i < MAIN_ARRAY_LEN; i ++) {
         segment_curr = hs->main_array[i];
         if (segment_curr == NULL) continue;
         free(segment_curr);
     }
 
     // Third, free the hash_set.
-    free(hs);
+    //free(hs);
 	
 #ifdef BONSAI_HASHSET_DEBUG
     printf("hs_add_success_time = %d, hs_add_fail_time = %d.\n hs_remove_success_time = %d, hs_remove_fail_time = %d.\n", 

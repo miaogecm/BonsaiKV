@@ -16,6 +16,7 @@
 #include "bonsai.h"
 #include "cpu.h"
 #include "arch.h"
+#include "bitmap.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -89,10 +90,12 @@ static void free_pnode(struct pnode* pnode) {
 
 static void insert_pnode(struct pnode* pnode, pkey_t key) {
 	struct pnode *pos, *prev = NULL;
+	struct data_layer* layer = DATA(bonsai);
+	struct list_head* head = &layer->pnode_list;
 	pkey_t max_key;
-	
-	spin_lock(&DATA(bonsai)->lock);
-	list_for_each_entry(pos, &DATA(bonsai)->pnode_list, list) {
+
+	spin_lock(&layer->lock);
+	list_for_each_entry(pos, head, list) {
 		max_key = pos->e[pnode->slot[0]].k;
 		if (max_key > key)
 			break;
@@ -100,39 +103,31 @@ static void insert_pnode(struct pnode* pnode, pkey_t key) {
 			prev = pos;
 	}
 
-	__list_add(&pnode->list, &prev->list, &pos->list);
-	spin_unlock(&DATA(bonsai)->lock);
+	if (!prev)
+		list_add(&pnode->list, head);
+	else
+		__list_add(&pnode->list, &prev->list, &pos->list);
+	spin_unlock(&layer->lock);
 }
 
 /*
- * find_unused_entry: return -1 if bitmap is full.
+ * find_unused_entry: return -1 if bucket is full.
  */
-static int find_unused_entry(uint64_t v) {
-	int n = 1;    
-	v = ~v;
+static int find_unused_entry(pkey_t key, uint64_t bitmap, int bucket_id) {
+	uint64_t mask, pos;
+	int offset;
 
-    if (!v) return -1;
-#if BUCKET_ENT_NUM >= 64
-    if (!(v & 0xffffffff)) {v >>= 32; n += 32};
-#endif
-#if BUCKET_ENT_NUM >= 32
-    if (!(v & 0xffff)) {v >>= 16; n += 16};
-#endif
-#if BUCKET_ENT_NUM >= 16
-    if (!(v & 0xff)) {v >>= 8; n += 8};
-#endif
-#if BUCKET_ENT_NUM >= 8
-    if (!(v & 0xf)) {v >>= 4; n += 4};
-#endif
-#if BUCKET_ENT_NUM >= 4
-    if (!(v & 0x3)) {v >>= 2; n += 2};
-#endif
-#if BUCKET_ENT_NUM >= 2
-    if (!(v & 0x1)) {v >>= 1; n += 1};
-#endif
+	bucket_id = BUCKET_HASH(key);
+	offset = NUM_ENT_PER_BUCKET * bucket_id;
+	mask = (1UL << (offset + NUM_ENT_PER_BUCKET)) - (1UL << offset);
+	bitmap = bitmap & mask | (~mask);
+	
+	if (bitmap == NUM_ENT_PER_PNODE)
+		return -1;
+	
+	pos = find_first_zero_bit(&bitmap, NUM_ENT_PER_PNODE);
 
-    n--;
-    return n;
+    return pos;
 }
 
 static int bucket_is_full(struct pnode* pnode, int bucket) {
@@ -193,15 +188,13 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
-    int offset, pos, i, n, bucket_full = 0;
-    uint64_t mask, bucket_id;
+    int bucket_id, pos, i, n, bucket_full = 0;
     uint64_t removed;
     struct pnode* new_pnode;
     pkey_t max_key;
 
-    bucket_id = BUCKET_HASH(key);
-    offset = NUM_BUCKET * bucket_id;
-
+	printf("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
+	
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
 		pnode = alloc_pnode(numa_node);
@@ -211,10 +204,11 @@ int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, p
 	}
 
 retry:
+	bucket_id = BUCKET_HASH(key);
     write_lock(pnode->bucket_lock[bucket_id]);
-    mask = (1ULL << (offset + NUM_BUCKET)) - (1ULL << offset);
-    pos = find_unused_entry(pnode->bitmap & mask);
+    pos = find_unused_entry(key, pnode->bitmap, bucket_id);
     if (pos != -1) {
+		/* bucket is not full */
         pentry_t entry = {key, value};
         pnode->e[pos] = entry;
 
@@ -224,6 +218,7 @@ retry:
         sort_in_pnode(pnode, pos, key, OP_INSERT);
         write_unlock(pnode->slot_lock);
 
+		set_bit(pos, &pnode->bitmap);
         write_unlock(pnode->bucket_lock[bucket_id]);
 		
 		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
@@ -289,6 +284,8 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
 	uint64_t mask;
+
+	printf("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
     bucket_id = BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -367,7 +364,9 @@ int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr)
  * @key: target key
  */
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
-	int bucket_id, i;	
+	int bucket_id, i;
+
+	printf("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
 
 	bucket_id = BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {

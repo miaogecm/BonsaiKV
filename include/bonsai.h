@@ -37,14 +37,18 @@ struct index_layer {
 };
 
 struct log_layer {
-	unsigned int epoch;
-	unsigned int nflush;
-	int pmem_fd[NUM_SOCKET];
-	char* pmem_addr[NUM_SOCKET];
-	struct log_region region[NUM_CPU];
+	unsigned int epoch; /* current epoch */
+	unsigned int nflush; /* how many flushes */
+	
+	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
+	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */
+
+	struct log_region region[NUM_CPU]; /* per-cpu log region */
+
 	spinlock_t lock;
-	struct list_head mptable_list;
-	struct hbucket buckets[MAX_HASH_BUCKET];
+	struct list_head numa_table_list;
+
+	struct hbucket buckets[MAX_HASH_BUCKET]; /* hash table used in log flush */
 };
 
 struct data_layer {
@@ -74,7 +78,9 @@ struct bonsai_info {
     struct log_layer 	l_layer;
     struct data_layer 	d_layer;
 
-	/* 3. thread info */	
+	/* 3. thread info */
+	struct thread_info* self;
+	
 	pthread_t 			tids[NUM_PFLUSH_THREAD];
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
 }____cacheline_aligned;
