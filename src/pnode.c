@@ -18,6 +18,10 @@
 #include "arch.h"
 #include "bitmap.h"
 
+POBJ_LAYOUT_BEGIN(BONSAI);
+POBJ_LAYOUT_TOID(BONSAI, struct pnode);
+POBJ_LAYOUT_END(BONSAI);
+
 extern struct bonsai_info *bonsai;
 
 static uint64_t hash(uint64_t x) {
@@ -28,10 +32,6 @@ static uint64_t hash(uint64_t x) {
 }
 
 #define BUCKET_HASH(x) (hash(x) % NUM_BUCKET)
-
-POBJ_LAYOUT_BEGIN(BONSAI);
-POBJ_LAYOUT_TOID(BONSAI, struct pnode);
-POBJ_LAYOUT_END(BONSAI);
 
 static struct pnode* alloc_pnode(int node) {
 	struct data_layer *layer = DATA(bonsai);
@@ -97,7 +97,7 @@ static void insert_pnode(struct pnode* pnode, pkey_t key) {
 	spin_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
 		max_key = pos->e[pnode->slot[0]].k;
-		if (max_key > key)
+		if (key_cmp(max_key, key))
 			break;
 		else
 			prev = pos;

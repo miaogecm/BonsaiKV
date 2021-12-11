@@ -21,9 +21,11 @@
 #include "bonsai.h"
 #include "region.h"
 #include "cpu.h"
+#include "pnode.h"
 #include "numa_config.h"
 
-#define TOID_OFFSET(o) ((o).oid.off)
+//#define TOID_OFFSET(o) ((o).oid.off)
+
 /*
 static char *log_region_fpath[NUM_SOCKET] = {
 	"/mnt/ext4/node0/region0",
@@ -196,7 +198,7 @@ int data_region_init(struct data_layer *layer) {
 		}
 		
 		if ((pop = pmemobj_create(data_region_fpath[node], 
-								POBJ_LAYOUT_NAME(bonsai##node),
+								POBJ_LAYOUT_NAME(BONSAI),
                               	DATA_REGION_SIZE, 0666)) == NULL) {
 			perror("fail to create object pooL");
 			return -EPMEMOBJ;
@@ -214,6 +216,7 @@ void data_region_deinit(struct data_layer *layer) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
+		printf("close %p\n", region->pop);
 		pmemobj_close(region->pop);
 	}
 }

@@ -103,7 +103,6 @@ static void log_layer_deinit(struct log_layer* layer) {
 
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			hs_destroy(&MPTABLE_NODE(table, node)->hs);
-			printf("hs_destroy\n");
 		}
 		
 		numa_mptable_free(table);
