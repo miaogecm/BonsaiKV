@@ -2,3 +2,4 @@
 *.o
 *.out
 .vscode
+.deps
