@@ -13,8 +13,13 @@
 
 #include "kv.h"
 
+#ifndef N
 #define N			10
+#endif
+
+#ifndef NUM_THREAD
 #define NUM_THREAD	1
+#endif
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
