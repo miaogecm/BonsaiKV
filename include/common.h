@@ -11,6 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
+#if 0
 typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
 
@@ -18,6 +19,18 @@ typedef uint8_t		__le8;
 typedef uint16_t	__le16;
 typedef uint32_t	__le32;
 typedef uint64_t	__le64;
+#else
+#include <linux/types.h>
+
+typedef uint64_t 	pkey_t;
+typedef uint64_t 	pval_t;
+
+
+typedef uint8_t		__le8;
+// typedef uint16_t	__le16;
+// typedef uint32_t	__le32;
+// typedef uint64_t	__le64;
+#endif
 
 #define cpu_to_le8(x)		(x)
 #define cpu_to_le16(x)		(x)
