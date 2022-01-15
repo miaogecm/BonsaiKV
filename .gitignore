@@ -4,3 +4,5 @@
 .vscode
 .deps
 log
+*.a
+kv
