@@ -1,4 +1,5 @@
 #!/bin/bash
 
 git pull
-./index/remake.sh
+cd ./index
+./remake.sh
