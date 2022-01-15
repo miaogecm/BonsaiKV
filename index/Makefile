@@ -9,6 +9,7 @@ CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
 CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value
 CFLAGS += -Wno-unused-function
 CFLAGS += ${THRDS} ${MAXN}
+CFLAGS += ${LOCAL}
 
 LDFLAGS += -pthread -lpmem -lpmemobj -lnuma
 

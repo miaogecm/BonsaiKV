@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd index
-./clean.sh
+sudo ./clean.sh
 cd ../src
 make clean
 make

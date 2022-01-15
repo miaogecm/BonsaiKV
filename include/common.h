@@ -11,7 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-#if 0
+#ifndef LOCAL
 typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
 
