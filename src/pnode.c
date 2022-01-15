@@ -42,6 +42,8 @@ static struct pnode* alloc_pnode(int node) {
 
 	pop = layer->region[node].pop;
     POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode), NULL, NULL);
+    // TODO 
+    // check if it is 64-alian
 #if 0
     /*i forget why ...*/
     POBJ_ZALLOC(pop[i], &toid, struct pnode, size + CACHELINE_SIZE);

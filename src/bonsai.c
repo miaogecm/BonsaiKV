@@ -194,9 +194,11 @@ pval_t bonsai_lookup(pkey_t key) {
 
 
 int bonsai_scan(pkey_t low, pkey_t high) {
-	struct index_layer* layer = INDEX(bonsai);
+	// TODO
 
-	return layer->scan(layer->index_struct, low, high);
+	// struct index_layer* layer = INDEX(bonsai);
+	
+	// return layer->scan(layer->index_struct, low, high);
 }
 
 void bonsai_deinit() {

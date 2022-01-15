@@ -96,9 +96,6 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
 	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
-	/*error:
-		update doesn't mean repeatable
-	*/
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(tables, node);
@@ -156,9 +153,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	pval_t* addr;
 	int node;
 #endif
-	/*error:
-		support update?
-	*/
+// TODO
+// remove need to check insert first
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
