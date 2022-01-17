@@ -7,7 +7,7 @@
  *	   	   Shenming Liu
  *
  * A lock-free extendible hash table implementation. 
- * Split-Ordered Lists: Lock-Free Extensible Hash Tables. Ori Shalev, Nir Shavit. Journal of the ACM, Vol.53, No.3, 2006, pp.379–405
+ * Split-Ordered Lists: Lock-Free Extensible Hash Tables. Ori Shalev, Nir Shavit. Journal of the ACM, Vol.53, No.3, 2006, pp.379ï¿½405
  *
  * A lock-free hash table consists of two
  * components: 
@@ -213,7 +213,7 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     bucket_list_init(&new_bucket, bucket_index);
 
     //FIXME:We want to insert the a allocated sentinel node into the parent bucket_list. But ll_insert() will also malloc a new memory area. It't duplicated.
-    if (ll_insert(&parent_bucket->bucket_sentinel, tid, make_sentinel_key(bucket_index), 0) == 0) {
+    if (ll_insert_node(&parent_bucket->bucket_sentinel, tid, &(new_bucket->bucket_sentinel.ll_head)) == 0) {
     //if (ll_insert_ready_made(&parent_bucket->bucket_sentinel, tid, &(new_bucket->bucket_sentinel.ll_head)) == 0) {
         //success!
         set_bucket_list(hs, tid, bucket_index, new_bucket);
@@ -229,27 +229,31 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);  //bucket will be initialized if needed in get_bucket_list()
 	unsigned long capacity_now, old_capacity;
 	int set_size_now;
+    int insert_ret;
 
-    if (bucket == NULL) {
+    while (bucket == NULL) {
         //FIXME: It seems that the bucket will not always be initialized as we expected.
         initialize_bucket(hs, tid, bucket_index);
         bucket = get_bucket_list(hs, bucket_index);
     }
 	
-    if (ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val) != 0) {
-        //fail to insert the key into the hash_set
-        printf("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
+    insert_ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val);
+    if (insert_ret != 0) {
+        // fail to insert the key into the hash_set
+        // printf("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&hs_add_fail_time, 1);
 #endif
-        return -1;
+        // return -1;
     }
 
     printf("thread [%d]: hs_insert(%lu) success!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_node_count, 1);
 #endif
-    set_size_now = xadd(&hs->set_size, 1);
+    if (insert_ret == -EEXIST) {
+        set_size_now = xadd(&hs->set_size, 1);
+    }
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_add_success_time, 1);
 #endif

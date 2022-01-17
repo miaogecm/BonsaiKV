@@ -7,11 +7,11 @@ extern "C" {
 
 #include "link_list.h"
 
-#define MAX_NUM_BUCKETS 		64  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
+#define MAX_NUM_BUCKETS 		1000000  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
 #define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
-#define LOAD_FACTOR_DEFAULT 	0.75
-#define MAIN_ARRAY_LEN 			16
-#define SEGMENT_SIZE 			4
+#define LOAD_FACTOR_DEFAULT     2
+#define MAIN_ARRAY_LEN 			3000
+#define SEGMENT_SIZE 			300
 
 struct bucket_list {
     struct linked_list bucket_sentinel;   /* head the bucket_list */
