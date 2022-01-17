@@ -18,6 +18,7 @@
 #include "common.h"
 #include "thread.h"
 #include "pnode.h"
+#include "mptable.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -81,7 +82,7 @@ struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, opt
 }
 
 struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, 
-			int cpu, struct mptable* mptable, struct pnode* pnode) {
+			int cpu, struct numa_table* table) {
 	struct log_layer* layer = LOG(bonsai);
 	unsigned int epoch = layer->epoch;
 	struct log_region *region;
@@ -92,9 +93,14 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node,
 	
 	log->o_type = cpu_to_le8(op);
 	log->o_numa_node = cpu_to_le8(numa_node);
+#if 0
 	log->o_flag = pnode ? cpu_to_le8(1) : cpu_to_le8(0);
+#endif
 	log->o_stamp = cpu_to_le64(ordo_new_clock(0));
+#if 0
 	log->o_addr = log->o_flag ? (__le64)pnode : (__le64)mptable;
+#endif
+	log->o_addr = (__le64)table;
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
@@ -172,27 +178,44 @@ static void worker_oplog_flush(void* arg) {
 	struct oplog_blk* block;
 	struct oplog* log;
 	merge_ent* entry;
-	unsigned int i;
+	struct mptable* master_table;
+	struct pnode* pnode;
+	unsigned int i, j;
 
 	for (i = fwork->min_index; i < fwork->max_index; i ++) {
 		bucket = &layer->buckets[i];
 		hlist_for_each_entry_safe(entry, node, tmp, &bucket->head, node) {
 			log = entry->log;
+			master_table = MPTABLE_NODE((struct mptable*)log->o_addr, 0);
+			pnode = master_table->pnode;
 			switch(log->o_type) {
 			case OP_INSERT:
-			if (log->o_flag)
-				pnode_insert((struct pnode*)log->o_addr, NULL, 
-						log->o_numa_node, log->o_kv.k, log->o_kv.v);
-			else
-				pnode_insert(NULL, (struct numa_table*)log->o_addr, 
-						log->o_numa_node, log->o_kv.k, log->o_kv.v);			
-			break;
+#if 0
+				if (log->o_flag)
+					pnode_insert((struct pnode*)log->o_addr, NULL, 
+							log->o_numa_node, log->o_kv.k, log->o_kv.v);
+				else
+					pnode_insert(NULL, (struct numa_table*)log->o_addr, 
+							log->o_numa_node, log->o_kv.k, log->o_kv.v);
+#endif			
+				pnode_insert(master_table, log->o_numa_node, log->o_kv.k, log->o_kv.v);
+				for (j = 1; j < NUM_SOCKET; j++) {
+					if (pnode->forward[j]) {
+						pnode_insert(MPTABLE_NODE((struct mptable*)log->o_addr, 1), j, log->o_kv.k, log->o_kv.v);
+					}
+				}
+				break;
 			case OP_REMOVE:
-			pnode_remove((struct pnode*)log->o_addr, log->o_kv.k);
-			break;
+				pnode_remove(master_table, log->o_kv.k);
+				for (j = 1; j < NUM_SOCKET; j++) {
+					if (pnode->forward[j]) {
+						pnode_remove(MPTABLE_NODE((struct mptable*)log->o_addr, 1), log->o_kv.k);
+					}
+				}
+				break;
 			default:
-			perror("bad operation type\n");
-			break;
+				perror("bad operation type\n");
+				break;
 			}
 			free(entry);
 

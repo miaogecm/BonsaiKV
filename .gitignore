@@ -6,3 +6,4 @@
 log
 *.a
 kv
+.DS_Store

@@ -32,7 +32,9 @@ typedef enum {
 struct oplog {
 	__le8 		o_type; /* OP_INSERT or OP_REMOVE */
 	__le8		o_numa_node; /* which numa node */
+#if 1
 	__le8		o_flag; /* 1: pnode, 0: numa_table */
+#endif
 	__le64 		o_stamp; /* time stamp */
 	__le64		o_addr; /* pnode or numa_table addr */
 	pentry_t 	o_kv; /* actual key-value pair */
@@ -61,7 +63,7 @@ struct log_region;
 extern struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, optype_t type, int cpu);
 
 extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, 
-			int cpu, struct mptable* mptable, struct pnode* pnode);
+			int cpu, struct numa_table* table);
 
 extern void oplog_flush();
 
