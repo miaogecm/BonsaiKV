@@ -36,9 +36,6 @@ int addr_in_log(unsigned long addr) {
 /* FIXME: we are unable to know whether @addr is in pnode because PMDK hides
  * the mapping address from users */
 int addr_in_pnode(unsigned long addr) {
-	if (addr_in_log(addr)) {
-		return 0;
-	}
 	if (addr)
 		return 1;
 
@@ -88,7 +85,7 @@ void numa_mptable_free(struct numa_table* tables) {
 }
 
 int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key, pval_t value) {
-	// struct mptable* table = MPTABLE_NODE(tables, numa_node);
+	struct mptable* table = MPTABLE_NODE(tables, numa_node);
 	struct oplog* log;
 	int ret = 0, tid = get_tid();
 #ifndef BONSAI_SUPPORT_UPDATE
@@ -97,7 +94,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #endif
 
 #ifdef BONSAI_SUPPORT_UPDATE
-	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, tables);
+	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
 	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
@@ -117,7 +114,6 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return ret;
 }
 
-#if 0
 int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key, pval_t* address) {
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
 	struct oplog* log;
@@ -148,40 +144,34 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 	return 0;
 }
-#endif
 
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
-	struct mptable* mptable;
-	int node, tid = get_tid();
+	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
+	int tid = get_tid();
 	struct oplog* log;
+#ifndef BONSAI_SUPPORT_UPDATE
 	pval_t* addr;
-	unsigned long max_op_t = 0;
-	int found_in_data_layer = 0;
-	int latest_op_type = -1;
-
+	int node;
+#endif
+// TODO
+// remove need to check insert first
+#ifdef BONSAI_SUPPORT_UPDATE
+	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
+	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+#else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
-		addr = hs_lookup(&mptable, tid, key);
+		addr = hs_lookup(&mptable->hs, tid, key);
 		if (addr) {
-			found_in_data_layer = 1;
-			if (addr_in_log((unsigned long)addr)) {
-				if (ordo_cmp_clock(log->o_stamp, max_op_t)) {
-					max_op_t = log->o_stamp;
-					latest_op_type = log->o_type;
-				}
-			}
+			log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
+			hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
 		}
 	}
-	if (latest_op_type == OP_REMOVE || latest_op_type == -1 && found_in_data_layer == 0) {
-		printf("mptable_remove failed: key<%lu> not exists\n", key);
-		return -ENOENT;
-	}
-	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, tables);
-	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+#endif
 
 	printf("mptable_remove: cpu[%d] %lu\n", cpu, key);
 
-	return 0;
+	return -ENOENT;
 }
 
 pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
@@ -222,7 +212,7 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 				n_remove++;
 				break;
 			}
-		} else if (addr) {
+		} else if (addr_in_pnode((unsigned long)addr)) {
 			/* case II: mapping table entry points to a pnode entry */
 			if (node == 0)
 				master_node_addr = addr;
@@ -237,39 +227,6 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 
 	printf("%p %p\n", master_node_addr, self_node_addr);
 
-	if (n_remove > 0) {
-		if (max_insert_t < max_remove_t) {
-			// case I: latest op is remove
-			return -ENOENT;
-		} else {
-			// case II: latest op is insert
-			log = insert_logs[max_insert_index];
-			return log->o_kv.v;
-		}
-	} else if (n_insert > 0){
-		// case II: latest op is insert
-		log = insert_logs[max_insert_index];
-		return log->o_kv.v;
-	} else {
-		if (map_addrs[numa_node]) {
-			// case III: no log existed, found value in self node (latest)
-			return (struct pentry_t*)map_addrs[numa_node]->v;
-		} else if (map_addrs[0]) {
-			/* case IV: no log existed, found value in master node
-				in this case, there doesn't exist self node; so we copy the master node
-			*/
-			table = MPTABLE_NODE(mptables, 0);
-			pnode = table->pnode;
-			pnode_numa_move(mptables, pnode, numa_node);
-			return (struct pentry_t*)map_addrs[0]->v;
-		}
-		else {
-			// case V: not found
-			return -ENOENT;
-		}
-	}
-
-#if 0
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		log = insert_logs[max_insert_index];
@@ -310,7 +267,7 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 					addr = pnode_numa_move(pnode, key, numa_node);
 					return *addr;
 				}
-			}
+			}			
 		}
 #else
 		numa_node = numa_node();
@@ -334,18 +291,16 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	}
 
 	return -ENOENT;
-#endif
 }
 
-void mptable_update_addr(struct mptable* table, pkey_t key, pval_t* addr) {
+void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr) {
+	struct mptable *table = tables->tables[numa_node];
 	int tid = get_tid();
 
 	hs_insert(&table->hs, tid, key, addr);
 }
 
-// todo
-// with pnode_split
-void mptable_split(struct mptable* src, struct pnode* pnode) {	
+void mptable_split(struct numa_table* src, struct pnode* pnode) {	
 	int tid = get_tid(), i, node, N = pnode->slot[0];
 	struct numa_table* tables;
 	struct mptable *table;

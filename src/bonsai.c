@@ -33,17 +33,15 @@ static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
 static void sentinel_node_init() {
 	struct numa_table* table;
-	struct mptable* mptable;
 	int node = get_numa_node(get_cpu());
 	struct index_layer *i_layer = INDEX(bonsai);
 	
 	table = numa_mptable_alloc(&bonsai->l_layer);
 	i_layer->insert(i_layer->index_struct, ULONG_MAX, (void*)table);
 	
-	mptable = &MPTABLE_NODE(table, node);
-	hs_insert(mptable->hs, get_tid(), ULONG_MAX, NULL);
+	hs_insert(&MPTABLE_NODE(table, node)->hs, get_tid(), ULONG_MAX, NULL);
 	
-	pnode_insert(mptable->pnode, mptable, node, ULONG_MAX, ULONG_MAX);
+	pnode_insert(NULL, table, node, ULONG_MAX, ULONG_MAX);
 }
 
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
@@ -195,21 +193,12 @@ pval_t bonsai_lookup(pkey_t key) {
 }
 
 
-int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
-	struct numa_table *first_table, *last_table;
-	struct index_layer* i_layer = INDEX(bonsai);
-	int cpu = get_cpu();
-	int arr_size = 0;
+int bonsai_scan(pkey_t low, pkey_t high) {
+	// TODO
 
-	oplog_flush();
-
-	first_table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, low);
-	assert(first_table);
-	last_table = (struct numa_table*)i_layer>lookup(i_layer->index_struct, high);
-	aseert(last_table);
-
-	arr_size = pnode_scan(first_table->pnode, last_table->pnode, low, high, val_arr);
-	return arr_size;
+	// struct index_layer* layer = INDEX(bonsai);
+	
+	// return layer->scan(layer->index_struct, low, high);
 }
 
 void bonsai_deinit() {

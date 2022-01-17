@@ -139,6 +139,7 @@ static inline unsigned int max_cpu_freq(void)
 
 
 static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
+#if 0
     uint32_t i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE)
@@ -146,6 +147,7 @@ static inline void bonsai_clflush(void* buf, uint32_t len, int fence) {
 
 	if (fence)
 		smp_mb();
+#endif
 }
 
 #ifdef __cplusplus

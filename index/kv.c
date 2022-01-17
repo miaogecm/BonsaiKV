@@ -36,8 +36,6 @@ extern void bonsai_deinit();
 
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
-extern int bonsai_lookup(pkey_t key);
-extern int bonsai_scan(pkey_t low, pkey_t high);
 
 extern void bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -83,12 +81,10 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	return 0;
 }
 
-#if 0
 int kv_update(void* index_struct, pkey_t key, void* value) {
 
 	return 0;
 }
-#endif
 
 int kv_remove(void* index_struct, pkey_t key) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
@@ -115,7 +111,6 @@ out:
 	return 0;
 }
 
-/*lower_bound*/
 void* kv_lookup(void* index_struct, pkey_t key) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
@@ -133,13 +128,11 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	return NULL;
 }
 
-#if 0
 int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
 	//struct toy_kv *toy = (struct toy_kv*)index_struct;
 
 	return 0;
 }
-#endif
 
 void* thread_fun(void* arg) {
 	unsigned long i;
@@ -149,21 +142,16 @@ void* thread_fun(void* arg) {
 	
 	bonsai_user_thread_init();
 
-	// bonsai_pflushd_thread_init();
-	
 	for (i = 0; i < N; i ++) {
 		bonsai_insert((pkey_t)i, (pval_t)i);
 		printf("-------bonsai_insert: <%lu, %lu>-------\n", i, i);
 	}
 
-	// for (i = 0; i < N; i ++) {
-	// 	bonsai_remove((pkey_t)i);
-	// 	printf("-------bonsai_remove: <%lu>-------\n", i);
-	// }
-
 	for (i = 0; i < N; i ++) {
-		bonsai_scan
+		bonsai_remove((pkey_t)i);
+		printf("-------bonsai_remove: <%lu>-------\n", i);
 	}
+
 	bonsai_user_thread_exit();
 
 	return NULL;

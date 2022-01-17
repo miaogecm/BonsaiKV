@@ -67,7 +67,7 @@ static struct pnode* alloc_pnode(int node) {
 
 	pnode->table = NULL;
 
-	memset(pnode->forward, 0, NUM_SOCKET * sizeof(__le64));
+	memset(pnode->forward, 0, NUM_SOCKET * NUM_BUCKET * sizeof(__le64));
 
     pmemobj_persist(pop, pnode, sizeof(struct pnode));
 
@@ -189,15 +189,14 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(struct mptable* table, int numa_node, pkey_t key, pval_t value) {
+int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
     int bucket_id, pos, i, n, bucket_full = 0;
     uint64_t removed;
-    struct pnode *pnode, *new_pnode;
+    struct pnode* new_pnode;
     pkey_t max_key;
 
 	printf("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
 	
-    pnode = table->pnode;
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
 		pnode = alloc_pnode(numa_node);
@@ -215,7 +214,7 @@ retry:
         pentry_t entry = {key, value};
         pnode->e[pos] = entry;
 
-        mptable_update_addr(pnode->table, key, &pnode->e[pos].v);
+        mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 
         write_lock(pnode->slot_lock);
         sort_in_pnode(pnode, pos, key, OP_INSERT);
@@ -323,39 +322,42 @@ find:
 
     return 0;
 }
-
-int pnode_scan(struct pnode* first_pnode, struct pnode* last_pnode, pkey_t low, pkey_t high, pval_t* val_arr) {
-    struct pnode* pnode;
+/*
+ * pnode_range: perform range query on [begin, end]
+ * @pnode: pnode whose max_key is the upper bound of key1, search from its prev
+ * @begin: begin_key
+ * @end: end_key
+ * @res_array: result_array
+ */
+int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr) {
+    struct pnode* prev_pnode;
+    int res_n = 0;
     uint8_t* slot;
-    int arr_size = 0;
     int i;
+  
+    prev_pnode = list_prev_entry(pnode, list);
+    if (prev_pnode != NULL)
+        pnode = prev_pnode;
 
     i = 0; slot = pnode->slot;
     while(i <= slot[0]) {
-        if (key_cmp(pnode->e[slot[i]].k, low) >= 0) 
+        if (key_cmp(pnode->e[slot[i]].k, begin) >= 0) 
             break;
         i++;
     }
 
-    while(pnode != last_pnode) {
+    while(pnode != NULL) {
         slot = pnode->slot;
         while(i <= slot[0]) {
-            res_arr[arr_size] = pnode->e[slot[i]];
-            arr_size++; i++;
+            if (key_cmp(pnode->e[pnode->slot[i]].k, end) > 0)
+                return res_n;
+            res_arr[res_n] = pnode->e[slot[i]];
+            res_n++; i++;
         }
         pnode = list_next_entry(pnode, list);
-        i = 0;
     }
 
-    while(i <= pnode->slot[0]) {
-        if (key_cmp(pnode->e[pnode->slot[i]].k, high) > 0) {
-            return arr_size;
-        }
-        res_arr[arr_size] = pnode->e[slot[i]];
-        arr_size++; i++;
-    }
-
-    return arr_size;
+    return res_n;
 }
 
 /*
@@ -377,32 +379,23 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 	return NULL;
 }
 
-void pnode_numa_move(struct numa_table* mptables ,struct pnode* pnode, int numa_node) {
-    struct mptable* table;
-    struct pnode *master_pnode, *slave_pnode;
-    
-    table = mptables->tables[0];
-    master_pnode = table->pnode;
-    if (pnode->forward[numa_node] == 0) {
-        slave_pnode = alloc_pnode(numa_node);
-        memcpy(&slave_pnode, &pnode, NUM_ENT_PER_PNODE * sizeof(pentry_t));
-        if (!cmpxchg2(&pnode->forward[numa_node], 0, 1)) {
-            free_pnode(pnode); /* fail */
-        }
-    }
-
-    bonsai_clflush(&slave_pnode, NUM_ENT_PER_PNODE * sizeof(pentry_t), 1);
-#if 0
+/*
+ * pnode_numa_move: move a bucket of entries to a remote NUMA node
+ * @pnode: persistent node
+ * @key: target key
+ * @numa_node: remote NUMA node
+ */
+pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	struct pnode* remote_pnode = NULL;
 	int bucket_id, i, offset;
-    
+
 	bucket_id = BUCKET_HASH(key);
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
-	if (pnode->forward[numa_node] == 0) {
+	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode(numa_node);
 		memcpy(&remote_pnode[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
-		if (!cmpxchg2(&pnode->forward[numa_node], 0, 1))
+		if (!cmpxchg2(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
 			free_pnode(pnode); /* fail */
 	} else {
 		memcpy(&remote_pnode->e[offset], &pnode->e[offset], 
@@ -418,5 +411,4 @@ void pnode_numa_move(struct numa_table* mptables ,struct pnode* pnode, int numa_
 	}
 	
 	return NULL;
-#endif
 }

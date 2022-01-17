@@ -30,12 +30,11 @@ struct pnode {
 
 	/* 11th cache line */
     __le8 				slot[NUM_ENT_PER_PNODE + 1];
-	// struct numa_table* 	table;
-    struct mptable*     table;
+	struct numa_table* 	table;
 	char				padding[23];
 
 	/* 12th cache line */	
-	__le64 				forward[NUM_SOCKET];	
+	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
 }__packed;
 
 static int key_cmp(pkey_t a, pkey_t b) {
@@ -44,11 +43,11 @@ static int key_cmp(pkey_t a, pkey_t b) {
     return 0;
 }
 
-extern int pnode_insert(struct mptable* table, int numa_node, pkey_t key, pval_t value);
+extern int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value);
 extern int pnode_remove(struct pnode* pnode, pkey_t key);
 extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 
-extern void pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
+extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
 
 extern int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr);
 

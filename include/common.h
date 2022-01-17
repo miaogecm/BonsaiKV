@@ -47,7 +47,7 @@ typedef struct pentry {
     __le64 v;
 } pentry_t;
 
-#ifndef ENOMEM
+#ifndef EEXIST
 #define ENOMEM		101 /* out-of memory */
 #endif
 #ifndef ENOENT
