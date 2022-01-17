@@ -223,9 +223,9 @@ retry:
 		set_bit(pos, &pnode->bitmap);
         write_unlock(pnode->bucket_lock[bucket_id]);
 		
-		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
-		bonsai_clflush(&pnode->e[pos], sizeof(pentry_t), 0);
-		bonsai_clflush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
+		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
+		bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
 
         return 0;
     }
@@ -266,10 +266,10 @@ retry:
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
 
-	bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
-	bonsai_clflush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 0);
-	bonsai_clflush(&new_pnode->bitmap, sizeof(__le64), 0);
-	bonsai_clflush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
+	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 0);
+	bonsai_flush(&new_pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
     if (bucket_full)
         pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
@@ -316,8 +316,8 @@ find:
 		numa_mptable_free(pnode->table);
 		i_layer->remove(i_layer->index_struct, pnode->e[pnode->slot[0]].k);
 	} else {
-		bonsai_clflush(&pnode->bitmap, sizeof(__le64), 0);
-		bonsai_clflush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
+		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
 	}
 
     return 0;
@@ -329,37 +329,37 @@ find:
  * @end: end_key
  * @res_array: result_array
  */
-int pnode_scan(struct pnode* first_node, pkey_t last_key, pval_t* val_arr) {
+int pnode_scan(struct pnode* first_node, pkey_t h_key, pval_t* val_arr) {
     struct pnode* pnode;
     int arr_size = 0;
     uint8_t* slot;
-    int i;
+    int index;
   
     pnode = first_node;
 
-    i = 1; slot = pnode->slot;
-    while(i <= slot[0]) {
-        if (key_cmp(pnode->e[slot[i]].k, last_key) >= 0) 
+    index = 1; slot = pnode->slot;
+    while(index <= slot[0]) {
+        if (key_cmp(pnode->e[slot[index]].k, h_key) >= 0)
             break;
-        i++;
+        index++;
     }
 
-    while(pnode->e[slot[1]].k >= last_key) {
+	while(key_cmp(pnode->e[slot[1]].k, h_key) >= 0) {
         slot = pnode->slot;
-        while(i <= slot[slot[0]]) {
-            val_arr[arr_size] = pnode->e[slot[i]].k;
-            arr_size++; i++;
+        while(index <= slot[slot[0]]) {
+            val_arr[arr_size] = pnode->e[slot[index]].k;
+            arr_size++; index++;
         }
         pnode = list_next_entry(pnode, list);
-        i = 1;
+        index = 1;
     }
 
     slot = pnode->slot;
-    while(i <= slot[0]) {
-        if (key_cmp(pnode->e[pnode->slot[i]].k, last_key) < 0)
+    while(index <= slot[0]) {
+        if (key_cmp(pnode->e[pnode->slot[index]].k, h_key) < 0)
             return arr_size;
-        val_arr[arr_size] = pnode->e[slot[i]].k;
-        arr_size++; i++;
+        val_arr[arr_size] = pnode->e[slot[index]].k;
+        arr_size++; index++;
     }
     
     return arr_size;
@@ -407,7 +407,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 	}
 
-	bonsai_clflush(&remote_pnode[offset], 
+	bonsai_flush(&remote_pnode[offset], 
         NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i++) {

@@ -34,7 +34,9 @@ struct log_region {
 
 	unsigned long start; /* memory-mapped address */
 	struct log_region_desc *desc;
-	
+
+	spinlock_t free_lock;
+	spinlock_t inuse_lock;
 	struct log_page_desc* free;
 	struct log_page_desc* inuse;
 };

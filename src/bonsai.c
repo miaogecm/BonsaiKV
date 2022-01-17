@@ -193,16 +193,15 @@ pval_t bonsai_lookup(pkey_t key) {
 }
 
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
-	struct numa_table *first_table;
+	struct numa_table *table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int arr_size = 0;
 
-	oplog_flush();
+	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, low);
 
-	first_table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, low);
-	assert(first_table);
+	assert(table);
 
-	arr_size = pnode_scan(first_table->pnode, high, val_arr);
+	arr_size = mptable_scan(table, high, low, val_arr);
 	
 	return arr_size;
 }

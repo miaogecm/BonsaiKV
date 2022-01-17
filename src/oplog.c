@@ -21,6 +21,12 @@
 
 extern struct bonsai_info *bonsai;
 
+typedef struct {
+	int cpu;
+	struct log_page_desc* page;
+	struct list_head list;
+} flush_page_struct;
+
 static int hash(pkey_t key) {
 	return (key % MAX_HASH_BUCKET);
 }
@@ -57,11 +63,11 @@ again:
 	if (likely(old_val)) {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		old_block->next = LOG_REGION_ADDR_TO_OFF(region, new_block);
-		bonsai_clflush((void*)old_block->next, sizeof(__le64), 0);
+		bonsai_flush((void*)old_block->next, sizeof(__le64), 0);
 	}
 
 	page->p_num_blk ++;
-	bonsai_clflush((void*)page->p_num_blk, sizeof(__le64), 1);
+	bonsai_flush((void*)page->p_num_blk, sizeof(__le64), 1);
 
 	return new_block;
 }
@@ -101,14 +107,14 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node,
 	if (unlikely(epoch != layer->epoch)) {
 		/* an epoch passed */
 		region->curr_blk->cnt--;
-		bonsai_clflush(&region->curr_blk->cnt, sizeof(__le64), 1);
+		bonsai_flush(&region->curr_blk->cnt, sizeof(__le64), 1);
 		return log;
 	}
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it */
 		region->curr_blk->flush = cpu_to_le8(1);
-		bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
+		bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
 	}
 
 	printf("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
@@ -202,8 +208,12 @@ static void worker_oplog_flush(void* arg) {
 			if (!ACCESS_ONCE(block->cnt)) {
 				page = LOG_PAGE_DESC(block);
 				asm volatile("lock; decl %0" : "+m" (page->p_num_blk));
-				if (!ACCESS_ONCE(page->p_num_blk))
-					free_log_page(&layer->region[block->cpu], page);
+				if (!ACCESS_ONCE(page->p_num_blk)) {
+					flush_page_struct *p = malloc(sizeof(flush_page_struct));
+					p->cpu = block->cpu;
+					p->page = page;
+					list_add(&p->list, fwork->flush_list);
+				}
 			}
 		}
 	}
@@ -211,11 +221,23 @@ static void worker_oplog_flush(void* arg) {
 	free(fwork);
 }
 
+static void free_pages(struct log_layer *layer, struct list_head* flush_list) {
+	flush_page_struct *p, *n;
+	
+	list_for_each_entry_safe(p, n, flush_list, list) {
+		free_log_page(&layer->region[p->cpu], p->page);
+		free(p);
+	}
+
+	free(flush_list);
+}
+
 /*
  * oplog_flush: perform a full operation log flush
  */
 void oplog_flush() {
-	struct log_layer *layer = LOG(bonsai);
+	struct log_layer *l_layer = LOG(bonsai);
+	struct data_layer *d_layer = DATA(bonsai);
 	struct log_region *region;
 	struct oplog_blk* first_blks[NUM_CPU];
 	struct oplog_blk* curr_blks[NUM_CPU];
@@ -223,12 +245,14 @@ void oplog_flush() {
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
 	struct work_struct* work;
+	struct list_head* flush_list;
+	struct pnode* pnode;
 	int i, j, cpu, cnt = 0, num_region_per_thread;
 	int num_bucket_per_thread;
 	
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
-		region = &layer->region[cpu];
+		region = &l_layer->region[cpu];
 		spin_lock(&region->lock);
 		curr_blks[cpu] = region->curr_blk;
 		first_blks[cpu] = region->first_blk;
@@ -255,7 +279,7 @@ void oplog_flush() {
 	mwork->count = 0;
 	while (cnt < NUM_CPU) {
 		mwork->count ++;
-		mwork->layer = layer;
+		mwork->layer = l_layer;
 		mwork->first_blks[j] = first_blks[cnt];
 		mwork->last_blks[j] = curr_blks[cnt];
 		j ++; cnt ++;
@@ -276,12 +300,15 @@ void oplog_flush() {
 
 	/* 3. flush all logs */
 	num_bucket_per_thread = MAX_HASH_BUCKET / NUM_PFLUSH_THREAD;
+	flush_list = malloc(sizeof(struct list_head));
+	INIT_LIST_HEAD(flush_list);
 	for (cnt = 0; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
 		fwork->id = cnt;
 		fwork->min_index = cnt * num_bucket_per_thread;
 		fwork->max_index = (cnt + 1) * num_bucket_per_thread;
-		fwork->layer = layer;
+		fwork->flush_list = flush_list;
+		fwork->layer = l_layer;
 
 		work = malloc(sizeof(struct work_struct));
 		INIT_LIST_HEAD(&work->list);
@@ -294,8 +321,15 @@ void oplog_flush() {
 
 	park_master();
 
-	/* 4. finish */
-	layer->nflush ++;
+	/* 4. traverse the pnode list */
+	list_for_each_entry(pnode, &d_layer->pnode_list, list)
+		pnode->stale = PNODE_DATA_CLEAN;
+
+	/* 5. free all pages */
+	free_pages(l_layer, flush_list);
+
+	/* 6. finish */
+	l_layer->nflush ++;
 	
-	printf("finish log checkpoint %d\n", layer->nflush);
+	printf("finish log checkpoint %d\n", l_layer->nflush);
 }

@@ -33,6 +33,7 @@ struct flush_work {
 	unsigned int id;
 	unsigned int min_index;
 	unsigned int max_index;
+	struct list_head* flush_list;
 	struct log_layer* layer;
 };
 

@@ -36,7 +36,7 @@ void thread_alarm_handler(int sig) {
 	
 	/* persist it */
 	region->curr_blk->flush = cpu_to_le8(1);
-	bonsai_clflush(region->curr_blk, sizeof(struct oplog_blk), 1);
+	bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
 }
 
 static int register_alarm(signal_handler_t handler) {
