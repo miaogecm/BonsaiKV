@@ -15,14 +15,21 @@ extern "C" {
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
 
+enum {
+	PNODE_DATA_CLEAN = 0,
+	PNODE_DATA_STALE,
+};
+
 /*
  * persistent node definition in data layer
  */
 struct pnode {
 	/* 1st cache line */
+	__le8				stale; /* indicate wether this pnode data is stale */
+	char				padding1[7];
     __le64 				bitmap;
     rwlock_t* 			slot_lock;
-    rwlock_t* 			bucket_lock[NUM_BUCKET];
+    struct numa_table* 	table;
 	struct list_head 	list;
 
 	/* 2rd - 10th cache line */
@@ -30,10 +37,12 @@ struct pnode {
 
 	/* 11th cache line */
     __le8 				slot[NUM_ENT_PER_PNODE + 1];
-	struct numa_table* 	table;
-	char				padding[23];
+	char				padding2[31];
 
-	/* 12th cache line */	
+	/* 12th cache line */
+	rwlock_t* 			bucket_lock[NUM_BUCKET];
+
+	/* 13th cache line */	
 	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
 }__packed;
 

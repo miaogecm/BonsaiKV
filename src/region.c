@@ -44,32 +44,39 @@ static char* data_region_fpath[NUM_SOCKET] = {
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
-	
+
+	spin_lock(&region->inuse_lock);
 	page = region->inuse;
 	region->inuse = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 	region->inuse->p_prev = 0;
+	spin_unlock(&region->inuse_lock);
 
 	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
 	page->p_prev = 0;
-	
+
+	spin_lock(&region->free_lock);
 	region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	region->free = page;
+	spin_unlock(&region->free_lock);
 
 	page->p_num_blk = 0;
 
-	bonsai_clflush(page, sizeof(struct log_page_desc), 1);
+	bonsai_flush(page, sizeof(struct log_page_desc), 1);
 }
 
 struct log_page_desc* alloc_log_page(struct log_region *region) {
 	struct log_page_desc* page;
-	
+
 	page = region->free;
 
+	spin_lock(&region->free_lock);
 	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 	region->free->p_prev = 0;
+	spin_unlock(&region->free_lock);
 
 	page->p_prev = 0;
-	
+
+	spin_lock(&region->inuse_lock);
 	if (likely(region->inuse)) {
 		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
 		region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
@@ -77,8 +84,9 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 		page->p_next = 0;
 		
 	region->inuse = page;
+	spin_unlock(&region->inuse_lock);
 
-	bonsai_clflush(page, sizeof(struct log_page_desc), 1);
+	bonsai_flush(page, sizeof(struct log_page_desc), 1);
 
 	return page;
 }
@@ -98,11 +106,13 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	desc->r_size = size;
 	desc->r_oplog_top = 0;
 
-	bonsai_clflush(desc, sizeof(struct log_region_desc), 1);
+	bonsai_flush(desc, sizeof(struct log_region_desc), 1);
 
 	memset((char*)paddr, 0, size);
 
 	spin_lock_init(&region->lock);
+	spin_lock_init(&region->free_lock);
+	spin_lock_init(&region->inuse_lock);
 	
 	region->first_blk = NULL;
 	region->curr_blk = NULL;

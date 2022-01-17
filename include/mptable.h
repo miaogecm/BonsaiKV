@@ -33,6 +33,7 @@ extern int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pke
 extern int mptable_update(struct numa_table* tables, int num_node, int cpu, pkey_t key, pval_t* address);
 extern int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key);
 extern pval_t mptable_lookup(struct numa_table* tables, pkey_t key, int cpu);
+extern int mptable_scan(struct numa_table* table, pkey_t high, pkey_t low, pval_t* val_arr);
 
 extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);
 
