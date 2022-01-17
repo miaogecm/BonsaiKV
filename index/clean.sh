@@ -1,7 +1,9 @@
 #!/bin/bash
 
-rm -r /mnt/ext4/*
+sudo rm -f ./core*
 
-mkdir /mnt/ext4/node0
+sudo rm -rf /mnt/ext4/*
 
-echo > /home/deadpool/log
+sudo mkdir /mnt/ext4/node0
+
+echo > ~/log

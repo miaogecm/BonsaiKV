@@ -21,7 +21,9 @@ extern "C" {
 #define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
 #define BITMAP_LAST_WORD_MASK(nbits) (~0UL >> (-(nbits) & (BITS_PER_LONG - 1)))
 
+#ifndef LOCAL
 typedef unsigned long __u64;
+#endif
 typedef unsigned long u64;
 
 static __always_inline unsigned long __ffs(unsigned long word)

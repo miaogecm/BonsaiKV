@@ -24,8 +24,6 @@
 #include "pnode.h"
 #include "numa_config.h"
 
-//#define TOID_OFFSET(o) ((o).oid.off)
-
 /*
 static char *log_region_fpath[NUM_SOCKET] = {
 	"/mnt/ext4/node0/region0",

@@ -42,6 +42,8 @@ static struct pnode* alloc_pnode(int node) {
 
 	pop = layer->region[node].pop;
     POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode), NULL, NULL);
+    // TODO 
+    // check if it is 64-alian
 #if 0
     /*i forget why ...*/
     POBJ_ZALLOC(pop[i], &toid, struct pnode, size + CACHELINE_SIZE);
@@ -327,35 +329,40 @@ find:
  * @end: end_key
  * @res_array: result_array
  */
-int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr) {
-    struct pnode* prev_pnode;
-    int res_n = 0;
+int pnode_scan(struct pnode* first_node, pkey_t last_key, pval_t* val_arr) {
+    struct pnode* pnode;
+    int arr_size = 0;
     uint8_t* slot;
     int i;
   
-    prev_pnode = list_prev_entry(pnode, list);
-    if (prev_pnode != NULL)
-        pnode = prev_pnode;
+    pnode = first_node;
 
-    i = 0; slot = pnode->slot;
+    i = 1; slot = pnode->slot;
     while(i <= slot[0]) {
-        if (key_cmp(pnode->e[slot[i]].k, begin) >= 0) 
+        if (key_cmp(pnode->e[slot[i]].k, last_key) >= 0) 
             break;
         i++;
     }
 
-    while(pnode != NULL) {
+    while(pnode->e[slot[1]].k >= last_key) {
         slot = pnode->slot;
-        while(i <= slot[0]) {
-            if (key_cmp(pnode->e[pnode->slot[i]].k, end) > 0)
-                return res_n;
-            res_arr[res_n] = pnode->e[slot[i]];
-            res_n++; i++;
+        while(i <= slot[slot[0]]) {
+            val_arr[arr_size] = pnode->e[slot[i]].k;
+            arr_size++; i++;
         }
         pnode = list_next_entry(pnode, list);
+        i = 1;
     }
 
-    return res_n;
+    slot = pnode->slot;
+    while(i <= slot[0]) {
+        if (key_cmp(pnode->e[pnode->slot[i]].k, last_key) < 0)
+            return arr_size;
+        val_arr[arr_size] = pnode->e[slot[i]].k;
+        arr_size++; i++;
+    }
+    
+    return arr_size;
 }
 
 /*

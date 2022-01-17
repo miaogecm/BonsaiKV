@@ -2,3 +2,8 @@
 *.o
 *.out
 .vscode
+.deps
+log
+*.a
+kv
+.DS_Store

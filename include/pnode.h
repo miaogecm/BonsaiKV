@@ -49,7 +49,7 @@ extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
 
-extern int pnode_scan(struct pnode* pnode, pkey_t begin, pkey_t end, pentry_t* res_arr);
+extern int pnode_scan(struct pnode* first_node, pkey_t last_key, pval_t* val_arr);
 
 #ifdef __cplusplus
 }

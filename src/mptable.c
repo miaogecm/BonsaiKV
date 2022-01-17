@@ -153,7 +153,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	pval_t* addr;
 	int node;
 #endif
-
+// TODO
+// remove need to check insert first
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
@@ -197,19 +198,19 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 			log = OPLOG(addr);
 			switch (log->o_type) {
 			case OP_INSERT:
-			if (ordo_cmp_clock(log->o_stamp, max_insert_t)) {
-				max_insert_t = log->o_stamp;
-				max_insert_index = node;
-			}
-			insert_logs[node] = log;
-			n_insert++;
-			break;
+				if (ordo_cmp_clock(log->o_stamp, max_insert_t)) {
+					max_insert_t = log->o_stamp;
+					max_insert_index = node;
+				}
+				insert_logs[node] = log;
+				n_insert++;
+				break;
 			case OP_REMOVE:
-			if (ordo_cmp_clock(log->o_stamp, max_remove_t)) {
-				max_remove_t = log->o_stamp;
-			}
-			n_remove++;
-			break;
+				if (ordo_cmp_clock(log->o_stamp, max_remove_t)) {
+					max_remove_t = log->o_stamp;
+				}
+				n_remove++;
+				break;
 			}
 		} else if (addr_in_pnode((unsigned long)addr)) {
 			/* case II: mapping table entry points to a pnode entry */
