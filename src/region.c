@@ -216,7 +216,6 @@ void data_region_deinit(struct data_layer *layer) {
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
-		printf("close %p\n", region->pop);
 		pmemobj_close(region->pop);
 	}
 }

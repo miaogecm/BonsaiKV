@@ -211,6 +211,9 @@ static void worker_oplog_flush(void* arg) {
 	free(fwork);
 }
 
+/*
+ * oplog_flush: perform a full operation log flush
+ */
 void oplog_flush() {
 	struct log_layer *layer = LOG(bonsai);
 	struct log_region *region;

@@ -256,12 +256,12 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 				return *addr;
 			} else {
 				if (map_addrs[0]) {
-					/* pull latest value */
+					/* FIXME: pull latest value */
 					table = MPTABLE_NODE(mptables, numa_node);
 					hs_insert(&table->hs, tid, key, map_addrs[0]);
 					return *(pval_t*)map_addrs[0];
 				} else {
-					/* migrate this value */
+					/* FIXME: migrate this value */
 					pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
 					addr = pnode_numa_move(pnode, key, numa_node);
 					return *addr;
