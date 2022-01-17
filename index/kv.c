@@ -129,7 +129,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 }
 
 int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
-	//struct toy_kv *toy = (struct toy_kv*)index_struct;
+	// bonsai_scan();
 
 	return 0;
 }
