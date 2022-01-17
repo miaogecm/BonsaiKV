@@ -195,7 +195,6 @@ pval_t bonsai_lookup(pkey_t key) {
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 	struct numa_table *first_table;
 	struct index_layer* i_layer = INDEX(bonsai);
-	int cpu = get_cpu();
 	int arr_size = 0;
 
 	oplog_flush();

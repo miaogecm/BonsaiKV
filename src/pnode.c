@@ -122,7 +122,7 @@ static int find_unused_entry(pkey_t key, uint64_t bitmap, int bucket_id) {
 	bucket_id = BUCKET_HASH(key);
 	offset = NUM_ENT_PER_BUCKET * bucket_id;
 	mask = (1UL << (offset + NUM_ENT_PER_BUCKET)) - (1UL << offset);
-	bitmap = bitmap & mask | (~mask);
+	bitmap = (bitmap & mask) | (~mask);
 	
 	if (bitmap == NUM_ENT_PER_PNODE)
 		return -1;
