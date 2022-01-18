@@ -30,6 +30,8 @@ struct hash_set {
     unsigned long capacity; /* how many buckets in the hash_set, capacity <= MAX_NUM_BUCKETS */
 };
 
+extern int is_sentinel_key(pkey_t key);
+
 extern void hs_init(struct hash_set * hs);
 extern int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* addr);
 extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);

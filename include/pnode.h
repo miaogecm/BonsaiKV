@@ -58,7 +58,7 @@ extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
 
-extern int pnode_scan(struct pnode* first_node, pkey_t last_key, pval_t* val_arr);
+extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t high, pval_t* result, pkey_t* curr);
 
 #ifdef __cplusplus
 }

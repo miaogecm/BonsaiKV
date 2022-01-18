@@ -143,7 +143,7 @@ static void worker_oplog_merge(void *arg) {
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(entry, node, &bucket->head, node) {
 #ifndef BONSAI_SUPPORT_UPDATE
-					if (key_cmp(merge_ent->log->o_kv.k, key)) {
+					if (!key_cmp(merge_ent->log->o_kv.k, key)) {
 						if (ordo_cmp_clock(merge_ent->log->o_stamp, log->o_stamp))
 							/* less than */
 							merge_ent->log = log;										

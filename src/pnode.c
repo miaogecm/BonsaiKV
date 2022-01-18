@@ -322,47 +322,29 @@ find:
 
     return 0;
 }
+
 /*
- * pnode_range: perform range query on [begin, end]
- * @pnode: pnode whose max_key is the upper bound of key1, search from its prev
- * @begin: begin_key
- * @end: end_key
- * @res_array: result_array
+ * scan_one_pnode: scan one pnode 
+ * @pnode: scanned pnode
+ * @n: index of result array
+ * @high: end key
+ * @result: result array
  */
-int pnode_scan(struct pnode* first_node, pkey_t h_key, pval_t* val_arr) {
-    struct pnode* pnode;
-    int arr_size = 0;
-    uint8_t* slot;
-    int index;
-  
-    pnode = first_node;
+int scan_one_pnode(struct pnode* pnode, int n, pkey_t high, pval_t* result, pkey_t* curr) {
+	uint8_t* slot;
+	int index = 1;
+	
+	slot = pnode->slot;
+	while(index <= slot[0]) {
+		if (key_cmp(pnode->e[slot[index]].k, high) <= 0) {
+			result[n++] = pnode->e[slot[index]].v;
+        	index++;
+		}
+	}
 
-    index = 1; slot = pnode->slot;
-    while(index <= slot[0]) {
-        if (key_cmp(pnode->e[slot[index]].k, h_key) >= 0)
-            break;
-        index++;
-    }
+	*curr = result[n];
 
-	while(key_cmp(pnode->e[slot[1]].k, h_key) >= 0) {
-        slot = pnode->slot;
-        while(index <= slot[slot[0]]) {
-            val_arr[arr_size] = pnode->e[slot[index]].k;
-            arr_size++; index++;
-        }
-        pnode = list_next_entry(pnode, list);
-        index = 1;
-    }
-
-    slot = pnode->slot;
-    while(index <= slot[0]) {
-        if (key_cmp(pnode->e[pnode->slot[index]].k, h_key) < 0)
-            return arr_size;
-        val_arr[arr_size] = pnode->e[slot[index]].k;
-        arr_size++; index++;
-    }
-    
-    return arr_size;
+	return n;
 }
 
 /*

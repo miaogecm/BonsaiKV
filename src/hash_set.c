@@ -72,7 +72,7 @@ static pkey_t make_sentinel_key(pkey_t key) {
 /*
  * is_sentinel_key: 1 if key is sentinel key, 0 if key is ordinary key.
  */
-static int is_sentinel_key(pkey_t key) {
+int is_sentinel_key(pkey_t key) {
     if (key == ((key >> 1) << 1)) {
         return 1;
     }

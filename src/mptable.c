@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <numa.h>
+#include <assert.h>
 
 #include "mptable.h"
 #include "oplog.h"
@@ -17,8 +18,15 @@
 #include "cpu.h"
 #include "region.h"
 #include "ordo.h"
+#include "hash_set.h"
 
 extern struct bonsai_info* bonsai;
+
+typedef struct {
+	int flag; /* 0:log; 1:pnode */
+	pentry_t* kv;
+	struct hlist_node node;
+} scan_merge_ent;
 
 int addr_in_log(unsigned long addr) {
 	struct log_layer* layer = LOG(bonsai);
@@ -329,10 +337,135 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 		pnode->e[pnode->slot[0]].k, &pnode->e[pnode->slot[0]].v);
 }
 
-int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* val_arr) {
-	int ret = 0;
+static int hash(pkey_t key) {
+	return (key % MAX_HASH_BUCKET);
+}
 
-	/* TODO: FIXME */
+static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t high) {
+	struct hbucket* bucket;
+	struct hlist_node* hnode;
+	scan_merge_ent* e;
+	struct oplog *l1, *l2;
+	pkey_t* key = (pkey_t*)((unsigned long)val - sizeof(pkey_t));
+	
+	bucket = &merge_buckets[hash(*key)];
+	hlist_for_each_entry(e, hnode, &bucket->head, node) {
+		/* reach the end */
+		if (key_cmp(e->kv->k, high) > 0)
+			return;
+
+		/* try to merge */
+		if (!key_cmp(e->kv->k, *key)) {
+			if (addr_in_log((unsigned long)val)) {
+				l1 = (struct oplog*)((unsigned long)val + sizeof(pval_t) - sizeof(struct oplog));
+				if (addr_in_log((unsigned long)e->kv)) {
+					l2 = (struct oplog*)((unsigned long)e->kv + sizeof(pentry_t) - sizeof(struct oplog));
+					if (ordo_cmp_clock(l1->o_stamp, l2->o_stamp) == ORDO_GREATER_THAN) {
+						e->kv = &l1->o_kv;
+						return;
+					}		
+				} else {
+					e->kv = &l1->o_kv;
+					return;
+				}
+			}
+		}
+	}
+	
+
+	e = malloc(sizeof(scan_merge_ent));
+	e->kv = (pentry_t*)((unsigned long)val - sizeof(pkey_t));
+	hlist_add_head(&e->node, &merge_buckets[hash(e->kv->k)].head);
+}
+
+int __compare(const void* a, const void* b) {
+	return key_cmp(((pentry_t*)a)->k, ((pentry_t*)b)->k);
+}
+
+#define MAX_LEN		512
+static int __mptable_scan(struct numa_table* table, int n, pkey_t high, pval_t* result, pkey_t* curr_key) {
+	struct hbucket merge_buckets[MAX_HASH_BUCKET];
+	struct bucket_list **buckets, *bucket;
+	struct hash_set* hs;
+	struct mptable *m;
+	segment_t* p_segment;
+	struct ll_node *head, *curr;
+	struct hlist_node* hnode;
+	int node, i, j;
+	struct oplog *l;
+	scan_merge_ent* e;
+	pentry_t* arr[MAX_LEN];
+
+	/* 1. scan mapping table, merge logs */
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		m =  table->tables[node];
+		hs = &m->hs;
+		
+		for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+			p_segment = hs->main_array[i];
+        	if (p_segment == NULL)
+            	continue;
+
+			for (j = 0; j < SEGMENT_SIZE; j++) {
+				buckets = (struct bucket_list**)p_segment;
+				bucket = buckets[j];
+				if (bucket == NULL) 
+                	continue;
+				
+            	head = &(bucket->bucket_sentinel.ll_head);
+				curr = GET_NODE(head->next);
+				while (curr) {
+                	if (is_sentinel_key(curr->key)) {
+                   	 	break;
+                	} else {
+						merge_one_log(merge_buckets, (void*)curr->val, high);
+                	}
+                	curr = GET_NODE(STRIP_MARK(curr->next));
+            	} 
+			}
+		}
+	}
+
+	/* 2. scan merge hash table and copy */
+	for (i = 0, j = 0; i < MAX_HASH_BUCKET; i ++) {
+		hlist_for_each_entry(e, hnode, &merge_buckets[i].head, node) {
+			if (addr_in_log((unsigned long)e->kv)) {
+				l = (struct oplog*)((unsigned long)e->kv + sizeof(pval_t) - sizeof(struct oplog));
+				if (l->o_type & OP_REMOVE)
+					continue;
+			}
+			arr[j++] = e->kv;
+		}
+	}
+
+	/* 3. sort */
+	qsort((void*)arr, (size_t)j, sizeof(pentry_t*), __compare);
+
+	/* 4. copy result */
+	for (i = 0; i < j; i ++)
+		result[n++] = arr[i]->v;
+
+	*curr_key = result[n];
+
+	return n;
+}
+
+int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* result) {
+	struct pnode* pnode;
+	pkey_t curr = low;
+	int n = 0, ret = 0;
+
+	assert(low < high);
+
+	pnode = table->pnode;
+	while (key_cmp(curr, high) <= 0) {
+		if (pnode->stale == PNODE_DATA_CLEAN) {
+			n = scan_one_pnode(pnode, n, high, result, &curr);	
+			pnode = list_next_entry(pnode, list);
+		} else {
+			n = __mptable_scan(table, n, high, result, &curr);
+		}	
+	}
 
 	return ret;
 }
