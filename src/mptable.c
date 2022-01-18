@@ -41,12 +41,16 @@ int addr_in_log(unsigned long addr) {
 	return 0;
 }
 
-/* FIXME: we are unable to know whether @addr is in pnode because PMDK hides
- * the mapping address from users */
 int addr_in_pnode(unsigned long addr) {
-	if (addr)
-		return 1;
+	struct data_layer* layer = DATA(bonsai);
+	int node;
 
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		if ((layer->region[node].start <= addr) &&
+			(addr <= layer->region[node].start + DATA_REGION_SIZE))
+			return 1;
+	}
+	
 	return 0;
 }
 

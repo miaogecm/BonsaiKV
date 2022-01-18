@@ -11,8 +11,8 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-#define LOG_REGION_SIZE		1 * 1024 * 1024 * 1ULL /* 1 GB */
-#define DATA_REGION_SIZE	1 * 1024 * 1024 * 10  /* 1 GB */
+#define LOG_REGION_SIZE		1 * 1024 * 1024 * 1024ULL /* 1 GB */
+#define DATA_REGION_SIZE	1 * 1024 * 1024 * 1024ULL  /* 1 GB */
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
@@ -43,6 +43,7 @@ struct log_region {
 
 struct data_region {
 	PMEMobjpool* pop;
+	unsigned long start; /* memory-mapped address */
 };
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)(addr) & PAGE_MASK)

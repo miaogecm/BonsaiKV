@@ -214,6 +214,7 @@ int data_region_init(struct data_layer *layer) {
 			return -EPMEMOBJ;
 		}
 		region->pop = pop;
+		region->start = (unsigned long)pop;
 
 		kv_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
 			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
