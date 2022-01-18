@@ -5,11 +5,13 @@
 extern "C" {
 #endif
 
+#define BONSAI_DEBUG
 #define BONSAI_SUPPORT_UPDATE
 //#define BONSAI_HASHSET_DEBUG
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #ifndef LOCAL
 typedef uint64_t 	pkey_t;

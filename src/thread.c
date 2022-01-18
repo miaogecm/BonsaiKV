@@ -26,7 +26,7 @@ static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
 static atomic_t STATUS;
-static atomic_t tids = ATOMIC_INIT(0);
+static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
 
@@ -157,7 +157,7 @@ void bonsai_user_thread_init() {
 void bonsai_user_thread_exit() {
 	struct thread_info* thread = __this;
 
-	thread_clean_hp_list(LOG(bonsai), thread);
+	//thread_clean_hp_list(LOG(bonsai), thread);
 
 	free(thread);
 }

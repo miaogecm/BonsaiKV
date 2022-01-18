@@ -162,6 +162,8 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
        		perror("mmap");
         	goto out;
     	}
+
+		kv_debug("node[%d] log region: [%016lx %016lx]\n", node, pmemaddr, pmemaddr + LOG_REGION_SIZE);
 		
 		layer->pmem_fd[node] = fd;
 		layer->pmem_addr[node] = pmemaddr;
@@ -195,7 +197,7 @@ int data_region_init(struct data_layer *layer) {
 	int node, sds_write_value = 0;
 	PMEMobjpool* pop;
 
-	pmemobj_ctl_set(NULL, "sds.at_create", &sds_write_value);
+	//pmemobj_ctl_set(NULL, "sds.at_create", &sds_write_value);
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
@@ -208,11 +210,13 @@ int data_region_init(struct data_layer *layer) {
 		if ((pop = pmemobj_create(data_region_fpath[node], 
 								POBJ_LAYOUT_NAME(BONSAI),
                               	DATA_REGION_SIZE, 0666)) == NULL) {
-			perror("fail to create object pooL");
+			perror("fail to create object pool");
 			return -EPMEMOBJ;
 		}
-
 		region->pop = pop;
+
+		kv_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
+			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 
 	return 0;

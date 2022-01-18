@@ -14,7 +14,7 @@
 #include "kv.h"
 
 #ifndef N
-#define N			11
+#define N			5
 #endif
 
 #ifndef NUM_THREAD
@@ -69,7 +69,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	struct kv_node* knode;
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
-	knode = malloc(sizeof(knode));
+	knode = malloc(sizeof(struct kv_node));
 	knode->kv.k = key;
 	knode->kv.v = (__le64)value;
 
@@ -139,7 +139,9 @@ void* thread_fun(void* arg) {
 
 	for (i = 0; i < N; i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
+		kv_debug("insert <%lu, %lu>\n", i, i);
 	}
+#if 0
 	for (i = 0; i < N; i ++) {
 		bonsai_lookup((pkey_t)i, &v);
 		assert(v == i);
@@ -152,7 +154,7 @@ void* thread_fun(void* arg) {
 		//i don' know why -enoent(-102) become -2, anyway
 		assert(bonsai_lookup((pkey_t)i, &v) == -2);
 	}
-
+#endif
 	bonsai_user_thread_exit();
 
 	return NULL;

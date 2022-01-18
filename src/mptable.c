@@ -71,8 +71,9 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 
 	tables = malloc(sizeof(struct numa_table));
 	
-	for (node = 0; node < NUM_SOCKET; node ++)
+	for (node = 0; node < NUM_SOCKET; node ++) {
 		tables->tables[node] = init_one_mptable(node);
+	}
 	
 	tables->pnode = NULL;
 
@@ -86,8 +87,9 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 void numa_mptable_free(struct numa_table* tables) {
 	int node;
 
-	for (node = 0; node < NUM_SOCKET; node ++)
+	for (node = 0; node < NUM_SOCKET; node ++) {
 		free_one_mptable(MPTABLE_NODE(tables, node));
+	}
 
 	free(tables);
 }

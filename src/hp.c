@@ -21,6 +21,7 @@
 #include "numa_config.h"
 #include "bonsai.h"
 #include "mptable.h"
+#include "common.h"
 
 void hp_scan(struct linked_list* ll, struct hp_item* hp);
 
@@ -64,7 +65,7 @@ void hp_setdown(struct linked_list* ll) {
 	int i;
 
     //walk through the hp_list and free all the hp_items.
-    for (i = 1; i < MAX_NUM_THREADS; i++) {
+    for (i = 0; i < MAX_NUM_THREADS; i++) {
         hp_retire_hp_item(ll, i);
     }
 }

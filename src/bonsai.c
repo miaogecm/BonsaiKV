@@ -30,7 +30,6 @@
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
-
 static void sentinel_node_init() {
 	struct numa_table* table;
 	int node = get_numa_node(get_cpu());
@@ -42,6 +41,8 @@ static void sentinel_node_init() {
 	hs_insert(&MPTABLE_NODE(table, node)->hs, get_tid(), ULONG_MAX, NULL);
 	
 	pnode_insert(NULL, table, node, ULONG_MAX, ULONG_MAX);
+
+	kv_debug("sentinel_node_init\n");
 }
 
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
@@ -94,6 +95,7 @@ out:
 
 static void log_layer_deinit(struct log_layer* layer) {
 	struct numa_table *table, *tmp;
+	struct mptable* m;
 	int node;
 
 	log_region_deinit(layer);
@@ -102,7 +104,8 @@ static void log_layer_deinit(struct log_layer* layer) {
 		list_del(&table->list);
 
 		for (node = 0; node < NUM_SOCKET; node ++) {
-			hs_destroy(&MPTABLE_NODE(table, node)->hs);
+			m = MPTABLE_NODE(table, node);
+			hs_destroy(&m->hs);
 		}
 		
 		numa_mptable_free(table);
@@ -211,7 +214,7 @@ void bonsai_deinit() {
 	
 	bonsai_self_thread_exit();
 
-	bonsai_pflushd_thread_exit();
+	//bonsai_pflushd_thread_exit();
 	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);
@@ -278,7 +281,7 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
     }
 
 	/* 4. initialize pflush thread */
-	// bonsai_pflushd_thread_init();
+	//bonsai_pflushd_thread_init();
 
 	kv_debug("bonsai is initialized successfully!\n");
 

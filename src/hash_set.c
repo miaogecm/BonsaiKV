@@ -250,12 +250,13 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
     }
 
     kv_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
+	
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_node_count, 1);
 #endif
-    if (insert_ret != -EEXIST) {
-        set_size_now = xadd(&hs->set_size, 1);
-    }
+
+	set_size_now = (insert_ret != -EEXIST) ? xadd(&hs->set_size, 1) : hs->set_size;
+
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_add_success_time, 1);
 #endif
@@ -452,9 +453,6 @@ void hs_destroy(struct hash_set* hs) {
         if (segment_curr == NULL) continue;
         free(segment_curr);
     }
-
-    // Third, free the hash_set.
-    //free(hs);
 	
 #ifdef BONSAI_HASHSET_DEBUG
     kv_debug("hs_add_success_time = %d, hs_add_fail_time = %d.\n hs_remove_success_time = %d, hs_remove_fail_time = %d.\n", 
