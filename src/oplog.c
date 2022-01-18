@@ -46,7 +46,7 @@ again:
 	if (unlikely(!(old_val & ~PAGE_MASK))) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
-		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + size;
+		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + size + sizeof(struct log_page_desc);
 	} else {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		page = LOG_PAGE_DESC(old_block);
