@@ -41,7 +41,7 @@ extern void ll_destroy(struct linked_list* ll);
 extern struct ll_node* ll_find(struct linked_list* ll, int tid, pkey_t key, struct ll_node** pred, struct ll_node** succ);
 extern int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val);
 extern int ll_remove(struct linked_list* ll, int tid, pkey_t key);
-extern int ll_lookup(struct linked_list* ll, int tid, pkey_t key);
+extern struct ll_node* ll_lookup(struct linked_list* ll, int tid, pkey_t key);
 extern void ll_print(struct linked_list* ll);
 extern int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node);
 #ifdef __cplusplus

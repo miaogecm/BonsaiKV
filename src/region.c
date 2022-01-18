@@ -174,7 +174,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 			init_per_cpu_log_region(region, desc, (unsigned long)pmemaddr, 
 				pmemaddr - layer->pmem_addr[node], size_per_cpu);
 
-			printf("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
+			kv_debug("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
 				cpu, (unsigned long)pmemaddr, (unsigned long)pmemaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;

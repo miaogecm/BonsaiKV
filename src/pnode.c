@@ -195,7 +195,7 @@ int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, p
     struct pnode* new_pnode;
     pkey_t max_key;
 
-	printf("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
+	kv_debug("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
 	
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
@@ -287,7 +287,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     int bucket_id, offset, i;
 	uint64_t mask;
 
-	printf("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
+	kv_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
     bucket_id = BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -373,7 +373,7 @@ int pnode_scan(struct pnode* first_node, pkey_t h_key, pval_t* val_arr) {
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 	int bucket_id, i;
 
-	printf("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
+	kv_debug("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
 
 	bucket_id = BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {

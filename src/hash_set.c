@@ -106,7 +106,7 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            printf("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
+            kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -161,7 +161,7 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            printf("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
+            kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -174,8 +174,10 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
 /*
  * bucket_list_lookup: return 1 if contains, 0 otherwise.
  */
-int bucket_list_lookup(struct bucket_list* bucket, int tid, pkey_t key) {
-   return ll_lookup(&bucket->bucket_sentinel, tid, key);
+pval_t* bucket_list_lookup(struct bucket_list* bucket, int tid, pkey_t key) {
+   struct ll_node* node;
+   node = ll_lookup(&bucket->bucket_sentinel, tid, key);
+   return node->val;
 }
 
 /*
@@ -240,18 +242,18 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
     insert_ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val);
     if (insert_ret != 0) {
         // fail to insert the key into the hash_set
-        // printf("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
+        // kv_debug("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&hs_add_fail_time, 1);
 #endif
         // return -1;
     }
 
-    printf("thread [%d]: hs_insert(%lu) success!\n", tid, key);
+    kv_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_node_count, 1);
 #endif
-    if (insert_ret == -EEXIST) {
+    if (insert_ret != -EEXIST) {
         set_size_now = xadd(&hs->set_size, 1);
     }
 #ifdef BONSAI_HASHSET_DEBUG
@@ -264,7 +266,7 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
         if (capacity_now * 2 <= MAIN_ARRAY_LEN * SEGMENT_SIZE) {
             old_capacity = cmpxchg(&hs->capacity, capacity_now, capacity_now * 2);
             if (old_capacity == capacity_now) {
-                printf("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
+                kv_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
             }
         } else {
             perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
@@ -291,7 +293,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
         bucket = get_bucket_list(hs, bucket_index);
     }
 
-    bucket_list_lookup(bucket, tid, make_ordinary_key(key));
+    addr = bucket_list_lookup(bucket, tid, make_ordinary_key(key));
 
 	return addr;
 }
@@ -312,7 +314,7 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     }
 
     //origin_sentinel_key = get_origin_key(bucket->bucket_sentinel.ll_head.key);
-    //sl_debug("key - %d 's sentinel origin key is %u.\n", key, origin_sentinel_key);
+    //kv_debug("key - %d 's sentinel origin key is %u.\n", key, origin_sentinel_key);
     // Second, remove the key from the bucket.
     // the node will be taken over by bucket->bucket_sentinel's HP facility. I think it isn't efficient but can work.
     ret = ll_remove(&bucket->bucket_sentinel, tid, make_ordinary_key(key));
@@ -321,7 +323,7 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&hs_remove_success_time, 1);
 #endif
-        //sl_debug("remove %d success!\n", key);
+        //kv_debug("remove %d success!\n", key);
     } 
 #ifdef BONSAI_HASHSET_DEBUG
 	else {
@@ -343,26 +345,26 @@ void hs_print(struct hash_set* hs, int tid) {
     while (curr) {
         xadd(&print_count, 1);
         if (is_sentinel_key(curr->key)) {
-            printf("[%d] -> ", get_origin_key(curr->key));
+            kv_debug("[%d] -> ", get_origin_key(curr->key));
         } else {
             if (!HAS_MARK(curr->next)) {
                 xadd(&ordinary_count, 1);
-                printf("(%d)%c -> ", get_origin_key(curr->key), (HAS_MARK(curr->next) ? '*' : ' '));
+                kv_debug("(%d)%c -> ", get_origin_key(curr->key), (HAS_MARK(curr->next) ? '*' : ' '));
             }
         }
         
         curr = GET_NODE(STRIP_MARK(curr->next));
     } 
-    printf("NULL.\n");
-    printf("hash_set : set_size = %d.\n", hs->set_size);
+    kv_debug("NULL.\n");
+    kv_debug("hash_set : set_size = %d.\n", hs->set_size);
     if (hs->set_size != ordinary_count) {
-        printf("FAIl! (hs->set_size != ordinary_count)\n");
+        kv_debug("FAIl! (hs->set_size != ordinary_count)\n");
     } else {
-        printf("SUCCESS! (hs->set_size == ordinary_count)\n");
+        kv_debug("SUCCESS! (hs->set_size == ordinary_count)\n");
     }
     
-    printf("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
-    printf("print_count = %d.\n", print_count);
+    kv_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
+    kv_debug("print_count = %d.\n", print_count);
     
 }
 
@@ -387,26 +389,26 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
             }
             //now traverse the bucket.
             head = &(bucket->bucket_sentinel.ll_head);
-            printf("[%d]%c -> ", get_origin_key(head->key), (HAS_MARK(head->next) ? '*' : ' '));
+            kv_debug("[%d]%c -> ", get_origin_key(head->key), (HAS_MARK(head->next) ? '*' : ' '));
 
             curr = GET_NODE(head->next);
             while (curr) {
                 if (is_sentinel_key(curr->key)) {
-                    printf("NULL\n");
+                    kv_debug("NULL\n");
                     break;
                 } else {
-                    printf("(%d)%c -> ", get_origin_key(curr->key), (HAS_MARK(curr->next) ? '*' : ' '));
+                    kv_debug("(%d)%c -> ", get_origin_key(curr->key), (HAS_MARK(curr->next) ? '*' : ' '));
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 
             if (curr == NULL) {
-                printf("NULL\n");
+                kv_debug("NULL\n");
             }
         }
     }
     
-    printf("hash_set : set_size = %d.\n", hs->set_size);
-    printf("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
+    kv_debug("hash_set : set_size = %d.\n", hs->set_size);
+    kv_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
 }
 #endif
 
@@ -455,8 +457,8 @@ void hs_destroy(struct hash_set* hs) {
     //free(hs);
 	
 #ifdef BONSAI_HASHSET_DEBUG
-    printf("hs_add_success_time = %d, hs_add_fail_time = %d.\n hs_remove_success_time = %d, hs_remove_fail_time = %d.\n", 
+    kv_debug("hs_add_success_time = %d, hs_add_fail_time = %d.\n hs_remove_success_time = %d, hs_remove_fail_time = %d.\n", 
 		hs_add_success_time, hs_add_fail_time, hs_remove_success_time, hs_remove_fail_time);
-    printf("hs_node_count = %d.\n", hs_node_count);
+    kv_debug("hs_node_count = %d.\n", hs_node_count);
 #endif
 }
