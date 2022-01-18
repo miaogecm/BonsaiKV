@@ -101,7 +101,7 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			// printf("ll_insert exist %016lx\n", key);
+			// kv_debug("ll_insert exist %016lx\n", key);
             return -EEXIST;
         }
         item = (struct ll_node*) malloc (sizeof(struct ll_node));
@@ -114,7 +114,7 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
             continue;
         }
         //CAS succeed!
-        // printf("ll_insert %016lx\n", key);
+        // kv_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
@@ -137,7 +137,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			printf("ll_insert exist %016lx\n", key);
+			kv_debug("ll_insert exist %016lx\n", key);
 			item->val = val;
             return -EEXIST;
         }
@@ -155,7 +155,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             continue;
         }
         //CAS succeed!
-        printf("ll_insert %016lx\n", key);
+        kv_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
@@ -198,7 +198,7 @@ int ll_remove(struct linked_list* ll, int tid, pkey_t key) {
     }
 }
 
-int ll_lookup(struct linked_list* ll, int tid, pkey_t key) {
+struct ll_node* ll_lookup(struct linked_list* ll, int tid, pkey_t key) {
     struct hp_item* hp = ll->HP[tid];
 	struct ll_node* curr;
 
@@ -209,10 +209,10 @@ int ll_lookup(struct linked_list* ll, int tid, pkey_t key) {
  
     if (curr && curr->key == key) {
         hp_clear_all_addr(hp);
-        return 1;
+        return curr;
     }
     hp_clear_all_addr(hp);
-    return 0;
+    return NULL;
 }
 
 #ifdef BONSAI_HASHSET_DEBUG
@@ -220,17 +220,17 @@ void ll_print(struct linked_list* ll) {
     struct ll_node* head = &(ll->ll_head);
     struct ll_node* curr = GET_NODE(head->next);
 
-    printf("[head] -> ");
+    kv_debug("[head] -> ");
     while (curr) {
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&print_count, 1);
 #endif
-        printf("[%lu]%c -> ", curr->key, (HAS_MARK(curr->next) ? '*' : ' '));
+        kv_debug("[%lu]%c -> ", curr->key, (HAS_MARK(curr->next) ? '*' : ' '));
         curr = GET_NODE(curr->next);
     } 
 
-    printf("NULL.\n");
-    printf("print_count = %d.\n", print_count);
+    kv_debug("NULL.\n");
+    kv_debug("print_count = %d.\n", print_count);
 }
 #endif
 
@@ -254,8 +254,8 @@ void ll_destroy(struct linked_list* ll) {
     free(head);
 	
 #ifdef BONSAI_HASHSET_DEBUG
-    printf("node_count = %d.\n", node_count);
-    printf("retire_count = %d.\n", retire_count);
+    kv_debug("node_count = %d.\n", node_count);
+    kv_debug("retire_count = %d.\n", retire_count);
 
     retire_count = 0;
     node_count = 0;

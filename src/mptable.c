@@ -118,7 +118,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #endif
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	printf("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
+	kv_debug("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
 	return ret;
 }
@@ -150,7 +150,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #endif
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	printf("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
+	kv_debug("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
 	return 0;
 }
@@ -180,12 +180,12 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	printf("mptable_remove: cpu[%d] %lu\n", cpu, key);
+	kv_debug("mptable_remove: cpu[%d] %lu\n", cpu, key);
 
 	return 0;
 }
 
-pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
+int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val) {
 	int node, tid = get_tid();
 	struct oplog* insert_logs[NUM_SOCKET];
 	struct oplog* log = NULL;
@@ -197,7 +197,7 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	void* map_addrs[NUM_SOCKET];
 	struct pnode* pnode;
 
-	printf("mptable_lookup: cpu[%d] %lu\n", cpu, key);
+	kv_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(mptables, node);
@@ -236,26 +236,30 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 		}
 	}
 
-	printf("%p %p\n", master_node_addr, self_node_addr);
+	kv_debug("%p %p\n", master_node_addr, self_node_addr);
 
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		log = insert_logs[max_insert_index];
 		if (n_remove >= n_insert) {
 			pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
-			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert)
-				return log->o_kv.v;
+			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert) {
+				*val = log->o_kv.v;
+				return 0;
+			}
 			else
 				return -ENOENT;
 		} else {
-			return log->o_kv.v;
+			*val = log->o_kv.v;
+			return 0;
 		}
 #else
 	if (n_remove) {
 		return -ENOENT;
 	} else {
 		log = insert_logs[max_insert_index];
-		return log->o_kv.v;
+		*val = log->o_kv.v;
+		return 0;
 	} 
 #endif
 	} else if (n_insert == 0) {
@@ -265,7 +269,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 		else {
 			addr = map_addrs[numa_node];
 			if (addr) {
-				return *addr;
+				*val = *addr;
+				return 0;
 			} else {
 				if (map_addrs[0]) {
 					/* pull latest value */
@@ -275,7 +280,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 					/* migrate this value */
 					pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
 					addr = pnode_numa_move(pnode, key, numa_node);
-					return *addr;
+					*val = *addr;
+					return 0;
 				}
 			}	
 		}
@@ -283,7 +289,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 		numa_node = numa_node();
 		addr = map_addrs[numa_node];
 		if (addr) {
-			return *addr;
+			*val = *addr;
+			return 0;
 		} else {
 			if (map_addrs[0]) {
 				/* pull latest value */
@@ -293,7 +300,8 @@ pval_t mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 				/* migrate this value */
 				pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
 				addr = pnode_numa_move(pnode, key, numa_node);
-				return *addr;
+				*val = *addr;
+				return 0;
 			}
 		}
 #endif

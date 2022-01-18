@@ -8,13 +8,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "common.h"
-
 #include "kv.h"
 
 #ifndef N
-#define N			10
+#define N			11
 #endif
 
 #ifndef NUM_THREAD
@@ -36,6 +36,7 @@ extern void bonsai_deinit();
 
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
+extern int bonsai_lookup(pkey_t key, pval_t* val);
 
 extern void bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -76,12 +77,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	list_add(&knode->list, &__toy->head);
 	write_unlock(&__toy->lock);
 
-	printf("kv insert <%lu %016lx>\n", key, value);
-
-	return 0;
-}
-
-int kv_update(void* index_struct, pkey_t key, void* value) {
+	kv_debug("kv insert <%lu %016lx>\n", key, value);
 
 	return 0;
 }
@@ -106,7 +102,7 @@ out:
 	write_unlock(&__toy->lock);
 	free(knode);
 
-	printf("kv remove <%lu>\n", key);
+	kv_debug("kv remove <%lu>\n", key);
 
 	return 0;
 }
@@ -119,7 +115,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
 			read_unlock(&__toy->lock);
-			printf("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
+			kv_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
 			return (void*)knode->kv.v;
 		}
 	}
@@ -129,27 +125,32 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 }
 
 int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
-	// bonsai_scan();
-
 	return 0;
 }
 
 void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
+	pval_t* v;
 
-	printf("user thread[%ld] start\n", id);
+	kv_debug("user thread[%ld] start\n", id);
 	
 	bonsai_user_thread_init();
 
 	for (i = 0; i < N; i ++) {
-		bonsai_insert((pkey_t)i, (pval_t)i);
-		printf("-------bonsai_insert: <%lu, %lu>-------\n", i, i);
+		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
+	}
+	for (i = 0; i < N; i ++) {
+		bonsai_lookup((pkey_t)i, &v);
+		assert(v == i);
 	}
 
 	for (i = 0; i < N; i ++) {
-		bonsai_remove((pkey_t)i);
-		printf("-------bonsai_remove: <%lu>-------\n", i);
+		assert(bonsai_remove((pkey_t)i) == 0);
+	}
+	for (i = 0; i < N; i ++) {
+		//i don' know why -enoent(-102) become -2, anyway
+		assert(bonsai_lookup((pkey_t)i, &v) == -2);
 	}
 
 	bonsai_user_thread_exit();

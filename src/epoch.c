@@ -27,7 +27,7 @@ static void main_alarm_handler(int sig) {
 	struct log_layer* layer = LOG(bonsai);
 	layer->epoch ++;
 
-	printf("bonsai epoch[%d]\n", layer->epoch);
+	kv_debug("bonsai epoch[%d]\n", layer->epoch);
 }
 
 void thread_alarm_handler(int sig) {

@@ -215,21 +215,21 @@ void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
 	int node, j;
 	unsigned int i;
 
-	printf("thread[%d] clean hp list\n", thread->t_id);
+	kv_debug("thread[%d] clean hp list\n", thread->t_id);
 	
 	spin_lock(&layer->lock);
 	list_for_each_entry(table, &layer->numa_table_list, list) {
-		printf("thread table %016lx\n", table);
+		kv_debug("thread table %016lx\n", table);
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			hs = &MPTABLE_NODE(table, node)->hs;
-			printf("capacity %lu\n", hs->capacity);
+			kv_debug("capacity %lu\n", hs->capacity);
 			for (i = 0; i < MAIN_ARRAY_LEN; i ++) {
 				segments = hs->main_array[i];
 				if (!segments) continue;
-				printf("main_array[%i] %016lx\n", i, segments);
+				kv_debug("main_array[%i] %016lx\n", i, segments);
 				buckets = (struct bucket_list**)segments;
 				for (j = 0; j < SEGMENT_SIZE; j ++) {
-					printf("buckets[%d] %016lx\n", j, buckets[j]);
+					kv_debug("buckets[%d] %016lx\n", j, buckets[j]);
 					if (!buckets[j]) continue;
 					hp_retire_hp_item(&buckets[j]->bucket_sentinel, thread->t_id);
 				}
@@ -238,6 +238,6 @@ void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
 	}
 	spin_unlock(&layer->lock);
 
-	printf("thread[%d] finish clean hp list\n", thread->t_id);
+	kv_debug("thread[%d] finish clean hp list\n", thread->t_id);
 	#endif
 }

@@ -83,7 +83,7 @@ static void worker_sleep() {
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
 
-	printf("worker thread[%d] start to work\n", __this->t_id);
+	kv_debug("worker thread[%d] start to work\n", __this->t_id);
 
 	if (likely(list_empty(&wq->head)))
 		return;
@@ -99,7 +99,7 @@ static void thread_work(struct workqueue_struct* wq) {
 static void pflush_worker(struct thread_info* this) {
 	__this = this;
 
-	printf("pflush thread[%d] start.\n", __this->t_id);
+	kv_debug("pflush thread[%d] start.\n", __this->t_id);
 
 	bind_to_cpu(__this->t_cpu);
 
@@ -115,7 +115,7 @@ static void pflush_worker(struct thread_info* this) {
 static void pflush_master(struct thread_info* this) {
 	__this = this;
 
-	printf("pflush thread[%d] start.\n", __this->t_id);
+	kv_debug("pflush thread[%d] start.\n", __this->t_id);
 
 	bind_to_cpu(__this->t_cpu);
 

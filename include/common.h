@@ -70,6 +70,12 @@ typedef struct pentry {
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
 #endif
 
+#ifdef BONSAI_DEBUG
+#define kv_debug(fmt, args ...)	 do {fprintf(stderr, fmt, ##args);} while (0)
+#else
+#define kv_debug(fmt, args ...) do{}while(0)
+#endif
+
 #ifdef __cplusplus
 }
 #endif

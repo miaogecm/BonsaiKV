@@ -49,7 +49,7 @@ struct oplog_blk {
 	__le64 next; /* next oplog block */
 }__packed;
 
-#define OPLOG(val) (struct oplog*)((unsigned long)val - 26)
+#define OPLOG(val) (struct oplog*)((unsigned long)val - 27)
 
 #define OPLOG_BLK_MASK	0x100
 #define OPLOG_BLK(addr)	(struct oplog_blk*)((unsigned long)addr & OPLOG_BLK_MASK)

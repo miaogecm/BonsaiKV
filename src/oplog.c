@@ -117,7 +117,7 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node,
 		bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
 	}
 
-	printf("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
+	kv_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
 
 	return log;
 }
@@ -331,5 +331,5 @@ void oplog_flush() {
 	/* 6. finish */
 	l_layer->nflush ++;
 	
-	printf("finish log checkpoint %d\n", l_layer->nflush);
+	kv_debug("finish log checkpoint %d\n", l_layer->nflush);
 }
