@@ -23,7 +23,7 @@
 pval_t val_arr[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	4
+#define NUM_THREAD	1
 #endif
 
 #define NUM_CPU		4
@@ -180,7 +180,7 @@ void* thread_fun(void* arg) {
 		assert(v == i);
 	}
 
-	for (int i = 0; i < 1; i++) {
+	for (int i = 0; i < 4; i++) {
 		int size;
 
 		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
@@ -215,7 +215,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(20);
+	// sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

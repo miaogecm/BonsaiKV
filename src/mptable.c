@@ -410,7 +410,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
-	struct hlist_node* hnode;
+	struct hlist_node *hnode, *n_hnode;
 	int node, i, j;
 	struct oplog *l;
 	scan_merge_ent* e;
@@ -450,13 +450,14 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 
 	/* 2. scan merge hash table and copy */
 	for (i = 0, j = 0; i < MAX_HASH_BUCKET; i ++) {
-		hlist_for_each_entry(e, hnode, &merge_buckets[i].head, node) {
+		hlist_for_each_entry_safe(e, hnode, n_hnode, &merge_buckets[i].head, node) {
 			if (addr_in_log((unsigned long)e->kv)) {
 				l = (struct oplog*)((unsigned long)e->kv + sizeof(pentry_t) - sizeof(struct oplog));
 				if (l->o_type & OP_REMOVE)
 					continue;
 			}
 			arr[j++] = e->kv;
+			free(e);
 		}
 	}
 
