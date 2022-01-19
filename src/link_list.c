@@ -104,7 +104,6 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
 			// kv_debug("ll_insert exist %016lx\n", key);
             return -EEXIST;
         }
-        item = (struct ll_node*) malloc (sizeof(struct ll_node));
         node->next = (markable_t)succ;
     
         //[1]. pred must not be marked. [2]. pred--->succ should not be changed.
@@ -137,7 +136,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			kv_debug("ll_insert exist %016lx\n", key);
+			//kv_debug("ll_insert exist %016lx\n", key);
 			item->val = val;
             return -EEXIST;
         }
@@ -155,7 +154,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             continue;
         }
         //CAS succeed!
-        kv_debug("ll_insert %016lx\n", key);
+        //kv_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif

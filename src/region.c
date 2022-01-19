@@ -98,8 +98,8 @@ static inline void init_log_page(struct log_page_desc* page, off_t page_off, int
 	page->p_next = last ? 0 : (page_off + PAGE_SIZE);
 }
 
-static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, 
-			unsigned long paddr, off_t offset, size_t size) {
+static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, unsigned long start,
+			unsigned long vaddr, off_t offset, size_t size) {
 	int i, num_page = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET / PAGE_SIZE;
 
 	desc->r_off = offset;
@@ -108,20 +108,21 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 
 	bonsai_flush(desc, sizeof(struct log_region_desc), 1);
 
-	memset((char*)paddr, 0, size);
+	memset((char*)vaddr, 0, size);
 
 	spin_lock_init(&region->lock);
 	spin_lock_init(&region->free_lock);
 	spin_lock_init(&region->inuse_lock);
 	
-	region->first_blk = NULL;
+	region->first_blk = (struct oplog_blk*)(vaddr + sizeof(struct log_page_desc));
 	region->curr_blk = NULL;
-	region->start = paddr;
-	region->free = (struct log_page_desc*)paddr;
+	region->vaddr = start;
+	region->start = vaddr;
+	region->free = (struct log_page_desc*)vaddr;
 	region->inuse = NULL;
 
-	for (i = 0; i < num_page; i++, paddr += PAGE_SIZE, offset += PAGE_SIZE) {
-		init_log_page((struct log_page_desc*)(paddr), offset, 
+	for (i = 0; i < num_page; i++, vaddr += PAGE_SIZE, offset += PAGE_SIZE) {
+		init_log_page((struct log_page_desc*)(vaddr), offset, 
 						(i == 0) ? 1 : 0,
 						(i == num_page - 1) ? 1 : 0);
 	}
@@ -141,7 +142,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region *region;
 	int node, cpu, fd, error = 0;
 	size_t size_per_cpu = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET;
-	char* pmemaddr;
+	char *vaddr, *start;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		/* create a pmem file */
@@ -157,25 +158,29 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
     	}
 
     	/* memory map it */
-    	if ((pmemaddr = mmap(NULL, LOG_REGION_SIZE, 
+    	if ((vaddr = mmap(NULL, LOG_REGION_SIZE, 
 				PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, fd, 0)) == MAP_FAILED) {
        		perror("mmap");
         	goto out;
     	}
 		
-		layer->pmem_fd[node] = fd;
-		layer->pmem_addr[node] = pmemaddr;
+		start = vaddr;
 		
-		for (cpu = 0; cpu < NUM_PHYSICAL_CPU_PER_SOCKET; cpu ++, pmemaddr += size_per_cpu) {
+		kv_debug("node[%d] log region: [%016lx %016lx]\n", node, vaddr, vaddr + LOG_REGION_SIZE);
+		
+		layer->pmem_fd[node] = fd;
+		layer->pmem_addr[node] = vaddr;
+		
+		for (cpu = 0; cpu < NUM_PHYSICAL_CPU_PER_SOCKET; cpu ++, vaddr += size_per_cpu) {
 			region = &layer->region[cpu];
 			
 			desc = &bonsai->log_region[OS_CPU_ID[node][cpu][0]];
 		
-			init_per_cpu_log_region(region, desc, (unsigned long)pmemaddr, 
-				pmemaddr - layer->pmem_addr[node], size_per_cpu);
+			init_per_cpu_log_region(region, desc, (unsigned long)start, (unsigned long)vaddr, 
+				vaddr - layer->pmem_addr[node], size_per_cpu);
 
 			kv_debug("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
-				cpu, (unsigned long)pmemaddr, (unsigned long)pmemaddr + size_per_cpu, size_per_cpu);
+				cpu, (unsigned long)vaddr, (unsigned long)vaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;
 		}
@@ -195,8 +200,6 @@ int data_region_init(struct data_layer *layer) {
 	int node, sds_write_value = 0;
 	PMEMobjpool* pop;
 
-	pmemobj_ctl_set(NULL, "sds.at_create", &sds_write_value);
-
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
 		
@@ -208,11 +211,14 @@ int data_region_init(struct data_layer *layer) {
 		if ((pop = pmemobj_create(data_region_fpath[node], 
 								POBJ_LAYOUT_NAME(BONSAI),
                               	DATA_REGION_SIZE, 0666)) == NULL) {
-			perror("fail to create object pooL");
+			perror("fail to create object pool");
 			return -EPMEMOBJ;
 		}
-
 		region->pop = pop;
+		region->start = (unsigned long)pop;
+
+		kv_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
+			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 
 	return 0;

@@ -41,12 +41,16 @@ int addr_in_log(unsigned long addr) {
 	return 0;
 }
 
-/* FIXME: we are unable to know whether @addr is in pnode because PMDK hides
- * the mapping address from users */
 int addr_in_pnode(unsigned long addr) {
-	if (addr)
-		return 1;
+	struct data_layer* layer = DATA(bonsai);
+	int node;
 
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		if ((layer->region[node].start <= addr) &&
+			(addr <= layer->region[node].start + DATA_REGION_SIZE))
+			return 1;
+	}
+	
 	return 0;
 }
 
@@ -71,8 +75,9 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 
 	tables = malloc(sizeof(struct numa_table));
 	
-	for (node = 0; node < NUM_SOCKET; node ++)
+	for (node = 0; node < NUM_SOCKET; node ++) {
 		tables->tables[node] = init_one_mptable(node);
+	}
 	
 	tables->pnode = NULL;
 
@@ -86,8 +91,9 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 void numa_mptable_free(struct numa_table* tables) {
 	int node;
 
-	for (node = 0; node < NUM_SOCKET; node ++)
+	for (node = 0; node < NUM_SOCKET; node ++) {
 		free_one_mptable(MPTABLE_NODE(tables, node));
+	}
 
 	free(tables);
 }
@@ -389,7 +395,7 @@ static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low
 	
 	e = malloc(sizeof(scan_merge_ent));
 	e->kv = (pentry_t*)((unsigned long)val - sizeof(pkey_t));
-	hlist_add_head(&e->node, &merge_buckets[hash(e->kv->k)].head);
+	hlist_add_head(&e->node, &merge_buckets[simple_hash(e->kv->k)].head);
 }
 
 int __compare(const void* a, const void* b) {

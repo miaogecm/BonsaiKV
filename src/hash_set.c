@@ -106,7 +106,8 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
+        	;
+            //kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -161,7 +162,8 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-            kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
+        	;
+            //kv_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
     
@@ -249,13 +251,14 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
         // return -1;
     }
 
-    kv_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
+    //kv_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
+	
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_node_count, 1);
 #endif
-    if (insert_ret != -EEXIST) {
-        set_size_now = xadd(&hs->set_size, 1);
-    }
+
+	set_size_now = (insert_ret != -EEXIST) ? xadd(&hs->set_size, 1) : hs->set_size;
+
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_add_success_time, 1);
 #endif
@@ -266,7 +269,8 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
         if (capacity_now * 2 <= MAIN_ARRAY_LEN * SEGMENT_SIZE) {
             old_capacity = cmpxchg(&hs->capacity, capacity_now, capacity_now * 2);
             if (old_capacity == capacity_now) {
-                kv_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
+				;
+                //kv_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
             }
         } else {
             perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
@@ -452,9 +456,6 @@ void hs_destroy(struct hash_set* hs) {
         if (segment_curr == NULL) continue;
         free(segment_curr);
     }
-
-    // Third, free the hash_set.
-    //free(hs);
 	
 #ifdef BONSAI_HASHSET_DEBUG
     kv_debug("hs_add_success_time = %d, hs_add_fail_time = %d.\n hs_remove_success_time = %d, hs_remove_fail_time = %d.\n", 

@@ -26,7 +26,7 @@ static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
 static atomic_t STATUS;
-static atomic_t tids = ATOMIC_INIT(0);
+static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
 
@@ -99,9 +99,9 @@ static void thread_work(struct workqueue_struct* wq) {
 static void pflush_worker(struct thread_info* this) {
 	__this = this;
 
-	kv_debug("pflush thread[%d] start.\n", __this->t_id);
-
 	bind_to_cpu(__this->t_cpu);
+
+	kv_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
 
 	thread_block_alarm();
 	
@@ -115,15 +115,17 @@ static void pflush_worker(struct thread_info* this) {
 static void pflush_master(struct thread_info* this) {
 	__this = this;
 
-	kv_debug("pflush thread[%d] start.\n", __this->t_id);
-
 	bind_to_cpu(__this->t_cpu);
+	
+	kv_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
 
 	thread_block_alarm();
 
-	for (;;) {		
-		sleep(5);
-		oplog_flush(bonsai);
+	for (;;) {
+		
+		sleep(1);
+		
+		//oplog_flush(bonsai);
 	}
 }
 
@@ -137,8 +139,6 @@ void bonsai_self_thread_init() {
 
 void bonsai_self_thread_exit() {
 	struct thread_info* thread = bonsai->self;
-	
-	thread_clean_hp_list(LOG(bonsai), thread);
 	
 	free(thread);
 }
@@ -156,8 +156,6 @@ void bonsai_user_thread_init() {
 
 void bonsai_user_thread_exit() {
 	struct thread_info* thread = __this;
-
-	thread_clean_hp_list(LOG(bonsai), thread);
 
 	free(thread);
 }

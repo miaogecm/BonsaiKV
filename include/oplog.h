@@ -10,8 +10,6 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-#define MAX_HASH_BUCKET		64
-
 typedef struct {
 	struct oplog* log;
 	struct hlist_node node;

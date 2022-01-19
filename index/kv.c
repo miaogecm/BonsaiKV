@@ -5,10 +5,13 @@
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <unistd.h>
 #include <assert.h>
+#include <sched.h>
 
 #include "common.h"
 #include "kv.h"
@@ -20,8 +23,10 @@
 pval_t val_arr[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	1
+#define NUM_THREAD	4
 #endif
+
+#define NUM_CPU		4
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -72,7 +77,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	struct kv_node* knode;
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
-	knode = malloc(sizeof(knode));
+	knode = malloc(sizeof(struct kv_node));
 	knode->kv.k = key;
 	knode->kv.v = (__le64)value;
 
@@ -118,7 +123,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
 			read_unlock(&__toy->lock);
-			kv_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
+			//kv_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
 			return (void*)knode->kv.v;
 		}
 	}
@@ -131,17 +136,44 @@ int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
 	return 0;
 }
 
+static inline int get_cpu() {
+	cpu_set_t mask;
+	int i;
+
+	if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1)
+		perror("sched_getaffinity fail\n");
+
+	for (i = 0; i < NUM_CPU; i++) {
+		if (CPU_ISSET(i, &mask))
+			return i;
+	}
+
+	return -1;
+}
+
+static inline void bind_to_cpu(int cpu) {
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(cpu, &mask);
+    if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
+        perror("bind cpu failed\n");
+    }
+}
+
 void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t* v;
 
-	kv_debug("user thread[%ld] start\n", id);
+	bind_to_cpu(id);
+
+	kv_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 	
 	bonsai_user_thread_init();
 
-	for (i = 0; i < N; i ++) {
+	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
+		kv_debug("insert <%lu, %lu>\n", i, i);
 	}
 	// for (i = 0; i < N; i ++) {
 	// 	bonsai_lookup((pkey_t)i, &v);
@@ -166,7 +198,7 @@ void* thread_fun(void* arg) {
 		}
 		printf("\n");
 	}
-
+#endif
 	bonsai_user_thread_exit();
 
 	return NULL;
@@ -179,9 +211,11 @@ int main() {
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;
 
-	for (i = 0; i < NUM_THREAD; i++) {
+	for (i = 3; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
+
+	sleep(20);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

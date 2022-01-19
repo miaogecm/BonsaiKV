@@ -21,6 +21,7 @@
 #include "numa_config.h"
 #include "bonsai.h"
 #include "mptable.h"
+#include "common.h"
 
 void hp_scan(struct linked_list* ll, struct hp_item* hp);
 
@@ -64,7 +65,7 @@ void hp_setdown(struct linked_list* ll) {
 	int i;
 
     //walk through the hp_list and free all the hp_items.
-    for (i = 1; i < MAX_NUM_THREADS; i++) {
+    for (i = 0; i < MAX_NUM_THREADS; i++) {
         hp_retire_hp_item(ll, i);
     }
 }
@@ -206,8 +207,8 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
     hp->d_count = new_d_count;
 }
 
+#if 0
 void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
-	#if 0
 	struct numa_table* table;
 	struct hash_set* hs;
 	segment_t* segments;
@@ -239,5 +240,5 @@ void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
 	spin_unlock(&layer->lock);
 
 	kv_debug("thread[%d] finish clean hp list\n", thread->t_id);
-	#endif
 }
+#endif
