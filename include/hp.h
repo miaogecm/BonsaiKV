@@ -40,8 +40,6 @@ extern void hp_dump_statics(struct linked_list* ll);
 extern void hp_retire_node(struct linked_list* ll, struct hp_item* hp, hp_t hp_addr);
 extern void hp_retire_hp_item(struct linked_list* ll, int tid);
 
-extern void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread);
-
 #ifdef __cplusplus
 }
 #endif

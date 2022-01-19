@@ -11,8 +11,8 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-#define LOG_REGION_SIZE		1 * 1024 * 1024 * 1024ULL /* 1 GB */
-#define DATA_REGION_SIZE	1 * 1024 * 1024 * 1024ULL  /* 1 GB */
+#define LOG_REGION_SIZE		1 * 1024 * 1024 * 48ULL /* 48 MB */
+#define DATA_REGION_SIZE	1 * 1024 * 1024 * 16ULL  /* 16 MB */
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
@@ -32,7 +32,8 @@ struct log_region {
 	struct oplog_blk* first_blk;
 	struct oplog_blk* curr_blk;
 
-	unsigned long start; /* memory-mapped address */
+	unsigned long vaddr; /* mapped address of all log region of this NUMA node */
+	unsigned long start; /* start address of this log region */
 	struct log_region_desc *desc;
 
 	spinlock_t free_lock;
@@ -48,8 +49,8 @@ struct data_region {
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)(addr) & PAGE_MASK)
 
-#define LOG_REGION_ADDR_TO_OFF(region, addr) ((unsigned long)(addr) - region->start)
-#define LOG_REGION_OFF_TO_ADDR(region, off) (region->start + off)
+#define LOG_REGION_ADDR_TO_OFF(region, addr) ((unsigned long)(addr) - region->vaddr)
+#define LOG_REGION_OFF_TO_ADDR(region, off) (region->vaddr + off)
 
 struct log_layer;
 struct data_layer;

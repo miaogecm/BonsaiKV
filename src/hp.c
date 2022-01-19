@@ -207,8 +207,8 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
     hp->d_count = new_d_count;
 }
 
+#if 0
 void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
-	#if 0
 	struct numa_table* table;
 	struct hash_set* hs;
 	segment_t* segments;
@@ -240,5 +240,5 @@ void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
 	spin_unlock(&layer->lock);
 
 	kv_debug("thread[%d] finish clean hp list\n", thread->t_id);
-	#endif
 }
+#endif

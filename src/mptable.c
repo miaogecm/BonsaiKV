@@ -351,10 +351,6 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 		pnode->e[pnode->slot[0]].k, &pnode->e[pnode->slot[0]].v);
 }
 
-static int hash(pkey_t key) {
-	return (key % MAX_HASH_BUCKET);
-}
-
 static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t high) {
 	struct hbucket* bucket;
 	struct hlist_node* hnode;
@@ -362,7 +358,7 @@ static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t hig
 	struct oplog *l1, *l2;
 	pkey_t* key = (pkey_t*)((unsigned long)val - sizeof(pkey_t));
 	
-	bucket = &merge_buckets[hash(*key)];
+	bucket = &merge_buckets[simple_hash(*key)];
 	hlist_for_each_entry(e, hnode, &bucket->head, node) {
 		/* reach the end */
 		if (key_cmp(e->kv->k, high) > 0)
@@ -389,7 +385,7 @@ static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t hig
 
 	e = malloc(sizeof(scan_merge_ent));
 	e->kv = (pentry_t*)((unsigned long)val - sizeof(pkey_t));
-	hlist_add_head(&e->node, &merge_buckets[hash(e->kv->k)].head);
+	hlist_add_head(&e->node, &merge_buckets[simple_hash(e->kv->k)].head);
 }
 
 int __compare(const void* a, const void* b) {

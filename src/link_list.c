@@ -136,7 +136,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			kv_debug("ll_insert exist %016lx\n", key);
+			//kv_debug("ll_insert exist %016lx\n", key);
 			item->val = val;
             return -EEXIST;
         }
@@ -154,7 +154,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             continue;
         }
         //CAS succeed!
-        kv_debug("ll_insert %016lx\n", key);
+        //kv_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
