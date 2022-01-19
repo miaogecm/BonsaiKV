@@ -41,7 +41,7 @@ again:
 	if (unlikely(!((old_val - sizeof(struct log_page_desc)) & ~PAGE_MASK))) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
-		bonsai_debug("new page: %lu %016lx\n", key, page);
+		printf("new page: %lu %016lx\n", key, page);
 
 		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct log_page_desc);
 	} else {
