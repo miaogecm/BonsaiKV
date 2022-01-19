@@ -83,7 +83,7 @@ static void worker_sleep() {
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
 
-	kv_debug("worker thread[%d] start to work\n", __this->t_id);
+	bonsai_debug("worker thread[%d] start to work\n", __this->t_id);
 
 	if (likely(list_empty(&wq->head)))
 		return;
@@ -101,7 +101,7 @@ static void pflush_worker(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu);
 
-	kv_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
+	bonsai_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
 
 	thread_block_alarm();
 	
@@ -117,7 +117,7 @@ static void pflush_master(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu);
 	
-	kv_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
+	bonsai_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, __this->t_cpu);
 
 	thread_block_alarm();
 
@@ -125,7 +125,7 @@ static void pflush_master(struct thread_info* this) {
 		
 		sleep(1);
 		
-		//oplog_flush(bonsai);
+		oplog_flush(bonsai);
 	}
 }
 

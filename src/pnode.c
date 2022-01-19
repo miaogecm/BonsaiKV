@@ -195,7 +195,7 @@ int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, p
     struct pnode* new_pnode;
     pkey_t max_key;
 
-	kv_debug("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
+	bonsai_debug("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
 	
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
@@ -287,7 +287,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     int bucket_id, offset, i;
 	uint64_t mask;
 
-	kv_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
+	bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
     bucket_id = BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -355,7 +355,7 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t high, pval_t* result, pkey
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 	int bucket_id, i;
 
-	kv_debug("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
+	bonsai_debug("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
 
 	bucket_id = BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {

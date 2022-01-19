@@ -166,7 +166,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 		
 		start = vaddr;
 		
-		kv_debug("node[%d] log region: [%016lx %016lx]\n", node, vaddr, vaddr + LOG_REGION_SIZE);
+		bonsai_debug("node[%d] log region: [%016lx %016lx]\n", node, vaddr, vaddr + LOG_REGION_SIZE);
 		
 		layer->pmem_fd[node] = fd;
 		layer->pmem_addr[node] = vaddr;
@@ -179,7 +179,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 			init_per_cpu_log_region(region, desc, (unsigned long)start, (unsigned long)vaddr, 
 				vaddr - layer->pmem_addr[node], size_per_cpu);
 
-			kv_debug("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
+			bonsai_debug("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
 				cpu, (unsigned long)vaddr, (unsigned long)vaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;
@@ -217,7 +217,7 @@ int data_region_init(struct data_layer *layer) {
 		region->pop = pop;
 		region->start = (unsigned long)pop;
 
-		kv_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
+		bonsai_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
 			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 

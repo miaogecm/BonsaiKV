@@ -42,7 +42,7 @@ static void sentinel_node_init() {
 	
 	pnode_insert(NULL, table, node, ULONG_MAX, ULONG_MAX);
 
-	kv_debug("sentinel_node_init\n");
+	bonsai_debug("sentinel_node_init\n");
 }
 
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
@@ -57,13 +57,13 @@ static void index_layer_init(char* index_name, struct index_layer* layer, init_f
 	layer->scan = scan;
 	layer->destory = destroy;
 
-	kv_debug("index_layer_init: %s\n", index_name);
+	bonsai_debug("index_layer_init: %s\n", index_name);
 }
 
 static void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
 
-	kv_debug("index_layer_deinit\n");
+	bonsai_debug("index_layer_deinit\n");
 }
 
 static int log_layer_init(struct log_layer* layer) {
@@ -87,7 +87,7 @@ static int log_layer_init(struct log_layer* layer) {
 		spin_lock_init(&layer->buckets[i].lock);
 	}
 
-	kv_debug("log_layer_init\n");
+	bonsai_debug("log_layer_init\n");
 
 out:
 	return err;
@@ -111,7 +111,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 		numa_mptable_free(table);
 	}
 
-	kv_debug("log_layer_deinit\n");
+	bonsai_debug("log_layer_deinit\n");
 }
 
 static int data_layer_init(struct data_layer* layer) {
@@ -124,7 +124,7 @@ static int data_layer_init(struct data_layer* layer) {
 	spin_lock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->pnode_list);
 
-	kv_debug("data_layer_init\n");
+	bonsai_debug("data_layer_init\n");
 
 out:
 	return ret;
@@ -144,7 +144,7 @@ static void data_layer_deinit(struct data_layer* layer) {
 	
 	data_region_deinit(layer);
 
-	kv_debug("data_layer_deinit\n");
+	bonsai_debug("data_layer_deinit\n");
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
@@ -210,11 +210,11 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 }
 
 void bonsai_deinit() {
-	kv_debug("bonsai deinit\n");
+	bonsai_debug("bonsai deinit\n");
 	
 	bonsai_self_thread_exit();
 
-	//bonsai_pflushd_thread_exit();
+	bonsai_pflushd_thread_exit();
 	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);
@@ -281,9 +281,9 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
     }
 
 	/* 4. initialize pflush thread */
-	//bonsai_pflushd_thread_init();
+	bonsai_pflushd_thread_init();
 
-	kv_debug("bonsai is initialized successfully!\n");
+	bonsai_debug("bonsai is initialized successfully!\n");
 
 out:
 	return error;

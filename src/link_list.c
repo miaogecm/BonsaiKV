@@ -101,7 +101,7 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			// kv_debug("ll_insert exist %016lx\n", key);
+			// bonsai_debug("ll_insert exist %016lx\n", key);
             return -EEXIST;
         }
         node->next = (markable_t)succ;
@@ -113,7 +113,7 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
             continue;
         }
         //CAS succeed!
-        // kv_debug("ll_insert %016lx\n", key);
+        // bonsai_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
@@ -136,7 +136,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			//kv_debug("ll_insert exist %016lx\n", key);
+			//bonsai_debug("ll_insert exist %016lx\n", key);
 			item->val = val;
             return -EEXIST;
         }
@@ -154,7 +154,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             continue;
         }
         //CAS succeed!
-        //kv_debug("ll_insert %016lx\n", key);
+        //bonsai_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
@@ -219,17 +219,17 @@ void ll_print(struct linked_list* ll) {
     struct ll_node* head = &(ll->ll_head);
     struct ll_node* curr = GET_NODE(head->next);
 
-    kv_debug("[head] -> ");
+    bonsai_debug("[head] -> ");
     while (curr) {
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&print_count, 1);
 #endif
-        kv_debug("[%lu]%c -> ", curr->key, (HAS_MARK(curr->next) ? '*' : ' '));
+        bonsai_debug("[%lu]%c -> ", curr->key, (HAS_MARK(curr->next) ? '*' : ' '));
         curr = GET_NODE(curr->next);
     } 
 
-    kv_debug("NULL.\n");
-    kv_debug("print_count = %d.\n", print_count);
+    bonsai_debug("NULL.\n");
+    bonsai_debug("print_count = %d.\n", print_count);
 }
 #endif
 
@@ -253,8 +253,8 @@ void ll_destroy(struct linked_list* ll) {
     free(head);
 	
 #ifdef BONSAI_HASHSET_DEBUG
-    kv_debug("node_count = %d.\n", node_count);
-    kv_debug("retire_count = %d.\n", retire_count);
+    bonsai_debug("node_count = %d.\n", node_count);
+    bonsai_debug("retire_count = %d.\n", retire_count);
 
     retire_count = 0;
     node_count = 0;

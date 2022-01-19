@@ -73,9 +73,9 @@ typedef struct pentry {
 #endif
 
 #ifdef BONSAI_DEBUG
-#define kv_debug(fmt, args ...)	 do {fprintf(stderr, fmt, ##args);} while (0)
+#define bonsai_debug(fmt, args ...)	 do {fprintf(stderr, fmt, ##args);} while (0)
 #else
-#define kv_debug(fmt, args ...) do{}while(0)
+#define bonsai_debug(fmt, args ...) do{}while(0)
 #endif
 
 #ifdef __cplusplus
