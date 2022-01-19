@@ -198,7 +198,7 @@ void* thread_fun(void* arg) {
 		}
 		printf("\n");
 	}
-#endif
+
 	bonsai_user_thread_exit();
 
 	return NULL;
@@ -223,7 +223,7 @@ int main() {
 
 	thread_fun(1);
 	
-	// bonsai_deinit();
+	bonsai_deinit();
 
 out:
 	return 0;
