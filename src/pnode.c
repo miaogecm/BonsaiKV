@@ -25,6 +25,8 @@ POBJ_LAYOUT_END(BONSAI);
 
 extern struct bonsai_info *bonsai;
 
+void print_pnode(struct pnode* pnode);
+
 static uint64_t hash(uint64_t x) {
     x = (x ^ (x >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
     x = (x ^ (x >> 27)) * UINT64_C(0x94d049bb133111eb);
@@ -100,7 +102,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t key) {
 	spin_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
 		max_key = pos->e[pnode->slot[0]].k;
-		if (key_cmp(max_key, key))
+		if (key_cmp(max_key, key) > 0)
 			break;
 		else
 			prev = pos;
@@ -193,18 +195,6 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
     }
 }
 
-static void print_pnode(struct pnode* pnode) {
-	int i;
-	
-	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
-	for (i = 0; i < pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
-	bonsai_debug("\n");
-	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
-	bonsai_debug("\n");
-}
-
 /*
  * pnode_insert: insert a kv-pair into a pnode
  * @pnode: persistent node
@@ -234,8 +224,6 @@ retry:
 	bucket_id = PNODE_BUCKET_HASH(key);
     write_lock(pnode->bucket_lock[bucket_id]);
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
-
-	//bonsai_debug("bucket_id: %d pos: %d bitmap: %016lx\n", bucket_id, pos, pnode->bitmap);
 	
     if (pos != -1) {
 		/* bucket is not full */
@@ -277,15 +265,15 @@ retry:
 
 	print_pnode(pnode);
 
-    for (i = d; i <= n; i++) {
-    	removed |= 1ULL << pnode->slot[i];
+    for (i = d; i < n; i++) {
+    	removed |= (1ULL << pnode->slot[i]);
         new_pnode->e[i - d] = pnode->e[pnode->slot[i]];
 		new_pnode->slot[i - d + 1] = i - d;
     }
-    new_pnode->slot[0] = d;
-   	new_pnode->bitmap = ~((1ULL << d) - 1);
+    new_pnode->slot[0] = n - d;
+   	new_pnode->bitmap = (n % 2) ? ((1ULL << (d + 1)) - 1) : ((1ULL << d) - 1);
 
-	pnode->slot[0] = n - d;
+	pnode->slot[0] = d;
     pnode->bitmap &= ~removed;
 
 	print_pnode(pnode);
@@ -296,7 +284,8 @@ retry:
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode);
 
-    max_key = pnode->e[pnode->slot[0]].k;
+ 	max_key = pnode->e[pnode->slot[0]].k;
+	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
 
@@ -306,6 +295,9 @@ retry:
 	bonsai_flush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
     pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
+
+	bonsai_debug("split done\n");
+
     goto retry;
 }
 
@@ -369,7 +361,8 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
 	
 	slot = pnode->slot;
 	while(index <= slot[0]) {
-		if (likely(key_cmp(pnode->e[slot[index]].k, high) <= 0 && key_cmp(pnode->e[slot[index]].k, low) >= 0)) {
+		if (likely(key_cmp(pnode->e[slot[index]].k, high) <= 0 
+				&& key_cmp(pnode->e[slot[index]].k, low) >= 0)) {
 			result[n++] = pnode->e[slot[index]].v;
 			max_key = max_key < pnode->e[slot[index]].k ? pnode->e[slot[index]].k : max_key;
         	index++;
@@ -393,7 +386,7 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 
 	bucket_id = PNODE_BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
-		if (key_cmp(pnode->e[bucket_id + i].k, key))
+		if (!key_cmp(pnode->e[bucket_id + i].k, key))
 			return &pnode->e[bucket_id + i].v;
 	}	
 
@@ -432,4 +425,25 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	}
 	
 	return NULL;
+}
+
+void print_pnode(struct pnode* pnode) {
+	int i;
+	
+	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i <= pnode->slot[0]; i ++)
+		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
+	bonsai_debug("\n");
+	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
+		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
+	bonsai_debug("\n");
+}
+
+void dump_pnodes() {
+	struct data_layer *layer = DATA(bonsai);
+	struct pnode* pnode;
+
+	list_for_each_entry(pnode, &layer->pnode_list, list) {
+		print_pnode(pnode);
+	}
 }
