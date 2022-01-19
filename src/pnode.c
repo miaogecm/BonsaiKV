@@ -226,14 +226,17 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
     struct pnode *new_pnode;
 	uint64_t removed;
     pkey_t max_key;
-
-	bonsai_debug("thread[%d] pnode_insert: pnode %016lx <%lu %lu>\n", get_tid(), pnode, key, value);
 	
 	pnode = pnode_find_lowbound(pnode, key);
 
+	bonsai_debug("thread[%d] pnode_find_lowbound: pnode max %lu <%lu %lu>\n", 
+		get_tid(), pnode->e[pnode->slot[pnode->slot[0]]], key, value);
+
 retry:
 	bucket_id = PNODE_BUCKET_HASH(key);
-    write_lock(pnode->bucket_lock[bucket_id]);
+	
+	write_lock(pnode->bucket_lock[bucket_id]);
+	
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
 	
     if (pos != -1) {
@@ -248,7 +251,7 @@ retry:
         write_unlock(pnode->slot_lock);
 
 		set_bit(pos, &pnode->bitmap);
-		bonsai_debug("thread[%d] pnode insert %016lx <%lu %lu>\n", get_tid(), pnode->bitmap, key, value);
+		bonsai_debug("thread[%d] bitmap %016lx <%lu %lu> bucket %d\n", get_tid(), pnode->bitmap, key, value, bucket_id);
         write_unlock(pnode->bucket_lock[bucket_id]);
 		
 		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
@@ -259,13 +262,9 @@ retry:
     }
 	write_unlock(pnode->bucket_lock[bucket_id]);
 
-	bonsai_debug("thread[%d]-------------------split node------------------\n", get_tid());
-
 	/* split the node */
     for (i = 0; i < NUM_BUCKET; i ++)
         write_lock(pnode->bucket_lock[i]);
-
-	bonsai_debug("-------------------split node2------------------\n");
 
 	if (unlikely(!bucket_is_full(pnode->bitmap, bucket_id))) {
 		/* re-check bucket because someone may remove an entry from the bucket */
@@ -478,8 +477,6 @@ void sentinel_node_init() {
 	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
 	bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
-
-	write_unlock(pnode->bucket_lock[bucket_id]);
 
 	/* INDEX Layer: insert into index layer */
 	i_layer->insert(i_layer->index_struct, key, (void*)table);
