@@ -163,23 +163,34 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
-	int insert_flag = 0, tid = get_tid();
+	int tid = get_tid();
 	struct oplog* log;
 	pval_t* addr;
 	int node;
+	unsigned long max_op_t = 0;
+	int latest_op_type = -1, found_in_pnode = 0;
+	
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
 		addr = hs_lookup(&mptable->hs, tid, key);
 		if (addr) {
-			// todo
-			// check latest is insert
-			insert_flag = 1;
+			if (addr_in_log(addr)) {
+				log = OPLOG(addr);
+				if (ordo_cmp_clock(log->o_stamp, max_op_t)) {
+					max_op_t = log->o_stamp;
+					latest_op_type = log->o_type;
+				}
+			}
+			else if (addr_in_pnode(addr)) {
+				found_in_pnode = 1;
+			}
 		}
 	}
 
-	if (!insert_flag)
+	if (latest_op_type == OP_REMOVE || (max_op_t == 0 && !found_in_pnode)) {
 		return -ENOENT;
+	}
 
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
@@ -247,7 +258,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		log = insert_logs[max_insert_index];
-		if (n_remove >= n_insert) {
+		if (ordo_cmp_clock(max_insert_t, max_remove_t)) {
 			pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
 			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert) {
 				*val = log->o_kv.v;
@@ -260,7 +271,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 			return 0;
 		}
 #else
-	if (n_remove) {
+	if (ordo_cmp_clock(max_remove_t, max_insert_t)) {
 		return -ENOENT;
 	} else {
 		log = insert_logs[max_insert_index];

@@ -179,6 +179,9 @@ static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, stru
 pval_t* bucket_list_lookup(struct bucket_list* bucket, int tid, pkey_t key) {
    struct ll_node* node;
    node = ll_lookup(&bucket->bucket_sentinel, tid, key);
+   if (node == NULL) {
+       return NULL;
+   }
    return node->val;
 }
 
