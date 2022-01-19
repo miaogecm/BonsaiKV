@@ -204,7 +204,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 
 	assert(table);
 
-	arr_size = mptable_scan(table, high, low, val_arr);
+	arr_size = mptable_scan(table, low, high, val_arr);
 	
 	return arr_size;
 }

@@ -20,6 +20,8 @@
 #define N			1
 #endif
 
+pval_t val_arr[N];
+
 #ifndef NUM_THREAD
 #define NUM_THREAD	4
 #endif
@@ -42,6 +44,7 @@ extern void bonsai_deinit();
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t* val);
+extern int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr);
 
 extern void bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -172,18 +175,28 @@ void* thread_fun(void* arg) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 		bonsai_debug("insert <%lu, %lu>\n", i, i);
 	}
-#if 0
-	for (i = 0; i < N; i ++) {
-		bonsai_lookup((pkey_t)i, &v);
-		assert(v == i);
-	}
+	// for (i = 0; i < N; i ++) {
+	// 	bonsai_lookup((pkey_t)i, &v);
+	// 	assert(v == i);
+	// }
 
-	for (i = 0; i < N; i ++) {
-		assert(bonsai_remove((pkey_t)i) == 0);
-	}
-	for (i = 0; i < N; i ++) {
-		//i don' know why -enoent(-102) become -2, anyway
-		assert(bonsai_lookup((pkey_t)i, &v) == -2);
+	// for (i = 0; i < N; i ++) {
+	// 	assert(bonsai_remove((pkey_t)i) == 0);
+	// }
+	// for (i = 0; i < N; i ++) {
+	// 	//i don' know why -enoent(-102) become -2, anyway
+	// 	assert(bonsai_lookup((pkey_t)i, &v) == -2);
+	// }
+
+	for (int i = 0; i < 1; i++) {
+		int size;
+
+		printf("scan [%lu %lu]:\n", (pval_t)50, (pkey_t)100);
+		size = bonsai_scan((pkey_t)50, (pkey_t)100, val_arr);
+		for (int j = 0; j < size; j++) {
+			printf("%lu ", val_arr[j]);
+		}
+		printf("\n");
 	}
 #endif
 	bonsai_user_thread_exit();
@@ -208,7 +221,9 @@ int main() {
 		pthread_join(tids[i], NULL);
 	}
 
-	bonsai_deinit();
+	thread_fun(1);
+	
+	// bonsai_deinit();
 
 out:
 	return 0;
