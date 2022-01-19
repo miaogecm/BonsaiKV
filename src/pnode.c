@@ -330,19 +330,21 @@ find:
  * @high: end key
  * @result: result array
  */
-int scan_one_pnode(struct pnode* pnode, int n, pkey_t high, pval_t* result, pkey_t* curr) {
+int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr) {
 	uint8_t* slot;
+	pval_t max_key = 0;
 	int index = 1;
 	
 	slot = pnode->slot;
 	while(index <= slot[0]) {
-		if (key_cmp(pnode->e[slot[index]].k, high) <= 0) {
+		if (likely(key_cmp(pnode->e[slot[index]].k, high) <= 0 && key_cmp(pnode->e[slot[index]].k, low) >= 0)) {
 			result[n++] = pnode->e[slot[index]].v;
+			max_key = max_key < pnode->e[slot[index]].k ? pnode->e[slot[index]].k : max_key;
         	index++;
 		}
 	}
 
-	*curr = result[n];
+	*curr = max_key;
 
 	return n;
 }

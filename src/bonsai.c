@@ -201,7 +201,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 
 	assert(table);
 
-	arr_size = mptable_scan(table, high, low, val_arr);
+	arr_size = mptable_scan(table, low, high, val_arr);
 	
 	return arr_size;
 }
@@ -278,7 +278,7 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
     }
 
 	/* 4. initialize pflush thread */
-	// bonsai_pflushd_thread_init();
+	bonsai_pflushd_thread_init();
 
 	kv_debug("bonsai is initialized successfully!\n");
 
