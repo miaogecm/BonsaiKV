@@ -53,7 +53,9 @@ static int key_cmp(pkey_t a, pkey_t b) {
     return 0;
 }
 
-extern int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value);
+extern void sentinel_node_init();
+
+extern int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value);
 extern int pnode_remove(struct pnode* pnode, pkey_t key);
 extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 

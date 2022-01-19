@@ -16,6 +16,7 @@ extern "C" {
 #include "hash_set.h"
 #include "oplog.h"
 #include "arch.h"
+#include "rwlock.h"
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -56,7 +57,7 @@ struct log_layer {
 struct data_layer {
 	struct data_region region[NUM_SOCKET];
 
-	spinlock_t lock;
+	rwlock_t lock;
 	struct list_head pnode_list;
 };
 

@@ -11,7 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <limits.h>
 #include <assert.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -29,13 +28,6 @@
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
-
-static void sentinel_node_init() {
-	
-	pnode_insert(ULONG_MAX, ULONG_MAX);
-
-	bonsai_debug("sentinel_node_init\n");
-}
 
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, remove_func_t remove, 

@@ -32,7 +32,7 @@ struct oplog {
 	__le8		o_numa_node; /* which numa node */
 	__le8		o_flag; /* 1: pnode, 0: numa_table */
 	__le64 		o_stamp; /* time stamp */
-	__le64		o_addr; /* pnode or numa_table addr */
+	__le64		o_addr; /* pnode or numa_table address */
 	pentry_t 	o_kv; /* actual key-value pair */
 }__packed;
 

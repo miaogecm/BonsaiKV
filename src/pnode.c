@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 #include <libpmemobj.h>
 
 #include "pnode.h"
@@ -198,12 +199,11 @@ static void pnode_sort_slot(struct pnode* pnode, int pos_e, pkey_t key, optype_t
 /*
  * pnode_find_lowbound: find first pnode whose maximum key is equal or greater than @key
  */
-static struct pnode* pnode_find_lowbound(pkey_t key) {
+static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 	struct data_layer *layer = DATA(bonsai);
-	struct pnode* pnode;
 
 	read_lock(&layer->lock);
-	list_for_each_entry(pnode, &layer->pnode_list, list) {
+	list_for_each_entry_continue(pnode, &layer->pnode_list, list) {
 		if (key_cmp(pnode->e[pnode->slot[0] - 1].k, key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
@@ -223,30 +223,13 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(int numa_node, pkey_t key, pval_t value) {
-	struct index_layer *i_layer;
+int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
     int bucket_id, pos, i, j, n, d;
-    struct pnode *pnode, *new_pnode;
-	struct numa_table* table;
+    struct pnode *new_pnode;
 	uint64_t removed;
     pkey_t max_key;
 	
-	pnode = pnode_find_lowbound(key);
-
-	if (unlikely(!pnode)) {
-		/* allocate a new pnode */
-		pnode = alloc_pnode(numa_node);
-
-		table = numa_mptable_alloc(&bonsai->l_layer);
-		i_layer = INDEX(bonsai);
-		i_layer->insert(i_layer->index_struct, ULONG_MAX, (void*)table);
-	
-		hs_insert(&MPTABLE_NODE(table, numa_node)->hs, get_tid(), ULONG_MAX, NULL);
-		
-		table->pnode = pnode;
-		pnode->table = table;
-		insert_pnode_list(pnode, key);
-	}
+	pnode = pnode_find_lowbound(pnode, key);
 
 	bonsai_debug("pnode_insert: pnode %016lx <%lu %lu>\n", pnode, key, value);
 
@@ -334,13 +317,12 @@ retry:
  * @pnode: the pnode
  * @key: key to be removed
  */
-int pnode_remove(pkey_t key) {
+int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
-	struct pnode* pnode;
 	uint64_t mask;
 
-	pnode = pnode_find_lowbound(key);
+	pnode = pnode_find_lowbound(pnode, key);
 
 	bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
@@ -362,7 +344,7 @@ find:
 	write_unlock(pnode->bucket_lock[bucket_id]);
 
     write_lock(pnode->slot_lock);
-    sort_in_pnode(pnode, i, key, OP_REMOVE);
+    pnode_sort_slot(pnode, i, key, OP_REMOVE);
     write_unlock(pnode->slot_lock);
 
 	if (unlikely(!pnode->slot[0])) {
@@ -456,6 +438,31 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	}
 	
 	return NULL;
+}
+
+void sentinel_node_init() {
+	struct index_layer *i_layer = INDEX(bonsai);
+	struct numa_table* table;
+	int numa_node = get_numa_node(get_cpu());
+	pkey_t key = ULONG_MAX;
+	pval_t val = ULONG_MAX;
+	struct pnode* pnode;
+		
+	/* LOG Layer: allocate a mapping table */
+	table = numa_mptable_alloc(&bonsai->l_layer);
+	hs_insert(&MPTABLE_NODE(table, numa_node)->hs, get_tid(), key, NULL);
+
+	/* DATA Layer: allocate a persistent node */
+	pnode = alloc_pnode(numa_node);
+	insert_pnode_list(pnode, key);
+	table->pnode = pnode;
+	pnode->table = table;
+	pnode_insert(pnode, numa_node, key, val);
+
+	/* INDEX Layer: insert into index layer */
+	i_layer->insert(i_layer->index_struct, key, (void*)table);
+
+	bonsai_debug("sentinel_node_init\n");
 }
 
 void print_pnode(struct pnode* pnode) {
