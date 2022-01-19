@@ -251,8 +251,6 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 	}
 
     bonsai = malloc(sizeof(struct bonsai_info));
-	//gdb
-	printf("bosnai: %016lx\n", bonsai);
 
 	bonsai->fd = fd;
 	bonsai->desc = (struct bonsai_desc*)addr;

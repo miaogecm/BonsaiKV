@@ -62,7 +62,7 @@ extern void log_region_deinit(struct log_layer* layer);
 extern int data_region_init(struct data_layer *layer);
 extern void data_region_deinit(struct data_layer *layer);
 
-extern struct oplog_blk* alloc_oplog_block(int cpu);
+extern struct oplog_blk* alloc_oplog_block(int cpu, pkey_t key);
 
 extern struct log_page_desc* alloc_log_page(struct log_region *region);
 extern void free_log_page(struct log_region *region, struct log_page_desc* page);

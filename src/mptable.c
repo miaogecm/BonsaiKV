@@ -172,8 +172,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		mptable = MPTABLE_NODE(tables, node);
 		addr = hs_lookup(&mptable->hs, tid, key);
 		if (addr) {
-			log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
-			hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+			// todo
+			// check latest is insert
 			insert_flag = 1;
 		}
 	}
@@ -360,8 +360,8 @@ static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low
 	struct hlist_node* hnode;
 	scan_merge_ent* e;
 	struct oplog *l1, *l2;
-	pkey_t* key = (pkey_t*)((unsigned long)val - sizeof(pkey_t));
-
+	pkey_t* key = (pkey_t*)((unsigned long)val - sizeof(pval_t));
+	
 	*max_key = key_cmp(*max_key, *key) < 0 ? *key: *max_key;
 
 	if (unlikely(key_cmp(*key, high) > 0 || key_cmp(*key, low) < 0)) {
@@ -402,7 +402,7 @@ int __compare(const void* a, const void* b) {
 	return key_cmp((*(pentry_t**)a)->k, (*(pentry_t**)b)->k);
 }
 
-#define MAX_LEN		512
+#define MAX_LEN		100001
 static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
 	struct hbucket merge_buckets[MAX_HASH_BUCKET];
 	struct bucket_list **buckets, *bucket;
