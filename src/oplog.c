@@ -38,11 +38,10 @@ struct oplog_blk* alloc_oplog_block(int cpu, pkey_t key) {
 again:
 	old_val = desc->r_oplog_top; new_val = old_val + sizeof(struct oplog_blk);
 
-	if (unlikely(!(old_val & ~PAGE_MASK))) {
+	if (unlikely(!(new_val & ~PAGE_MASK) || !old_val)) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
-		bonsai_debug("new page: %lu %016lx\n", key, page);
-		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + 2 * sizeof(struct oplog_blk);
+		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct oplog_blk);
 	} else {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		page = LOG_PAGE_DESC(old_block);
@@ -51,7 +50,7 @@ again:
 	if (cmpxchg(&desc->r_oplog_top, old_val, new_val) != old_val)
 		goto again;
 
-	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val - sizeof(struct oplog_blk));
+	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
 	new_block->flush = 0;
 	new_block->cnt = 0;
 	new_block->cpu = cpu;
@@ -139,6 +138,7 @@ static void worker_oplog_merge(void *arg) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
 				bucket = &layer->buckets[simple_hash(key)];
+				//bonsai_debug("thread[%d] merge <%lu, %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
 					if (!key_cmp(e->log->o_kv.k, key)) {
@@ -249,6 +249,7 @@ void oplog_flush() {
 		spin_lock(&region->lock);
 		first_blks[cpu] = region->first_blk;
 		curr_blks[cpu] = region->curr_blk;
+		bonsai_debug("%016lx %016lx\n", first_blks[cpu], curr_blks[cpu]);
 		region->first_blk = region->curr_blk;
 		spin_unlock(&region->lock);
 	}

@@ -94,16 +94,14 @@ static void free_pnode(struct pnode* pnode) {
 	POBJ_FREE(&toid);
 }
 
-static void insert_pnode_list(struct pnode* pnode, pkey_t key) {
+static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 	struct pnode *pos, *prev = NULL;
 	struct data_layer* layer = DATA(bonsai);
 	struct list_head* head = &layer->pnode_list;
-	pkey_t max_key;
 
 	write_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
-		max_key = pos->e[pnode->slot[0]].k;
-		if (key_cmp(max_key, key) > 0)
+		if (key_cmp(pos->e[pnode->slot[pnode->slot[0]]].k, max_key) > 0)
 			break;
 		else
 			prev = pos;
@@ -204,7 +202,8 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 
 	read_lock(&layer->lock);
 	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
-		if (key_cmp(pnode->e[pnode->slot[0]].k, key) >= 0) {
+		print_pnode(pnode);
+		if (key_cmp(pnode->e[pnode->slot[pnode->slot[0]]].k, key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
 		}
@@ -292,7 +291,7 @@ retry:
 	//print_pnode(pnode);
 	//print_pnode(new_pnode);
 
-	insert_pnode_list(new_pnode, pnode->e[new_pnode->slot[0]].k);
+	insert_pnode_list(new_pnode, new_pnode->e[new_pnode->slot[new_pnode->slot[0]]].k);
 
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode);
@@ -490,11 +489,13 @@ void print_pnode(struct pnode* pnode) {
 	int i;
 	
 	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	
 	for (i = 0; i <= pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
+		bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
 	bonsai_debug("\n");
+	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
+		bonsai_debug("key[%d]: %lu; ", i, pnode->e[i].k);
 	bonsai_debug("\n");
 }
 

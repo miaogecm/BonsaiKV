@@ -341,24 +341,25 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
+	uint8_t* slot = pnode->slot;
 	
 	tables = numa_mptable_alloc(LOG(bonsai));
 
 	for (i = 1; i <= N; i ++) {
-		key = pnode->e[pnode->slot[i]].k;
+		key = pnode->e[slot[i]].k;
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			table = MPTABLE_NODE(src, node);
 			if ((addr = hs_lookup(&table->hs, tid, key)) != NULL) {
 				if (addr_in_pnode((unsigned long)addr)) {
 					hs_remove(&table->hs, tid, key);
-					hs_insert(&tables->tables[node]->hs, tid, key, &pnode->e[pnode->slot[0]].v);
+					hs_insert(&tables->tables[node]->hs, tid, key, &pnode->e[slot[slot[0]]].v);
 					//bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
 				}
 			}		
 		}
 	}
 
-	i_layer->insert(i_layer->index_struct, pnode->e[pnode->slot[0]].k, tables);
+	i_layer->insert(i_layer->index_struct, pnode->e[slot[slot[0]]].k, tables);
 }
 
 static int hash(pkey_t key) {
