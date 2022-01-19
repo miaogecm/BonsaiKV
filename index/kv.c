@@ -12,21 +12,24 @@
 #include <unistd.h>
 #include <assert.h>
 #include <sched.h>
+#include <time.h>
 
 #include "common.h"
 #include "kv.h"
+
+// #define RAND
 
 #ifndef N
 #define N			101
 #endif
 
-pval_t val_arr[N];
+pkey_t a[4 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	4
+#define NUM_THREAD	1
 #endif
 
-#define NUM_CPU		4
+#define NUM_CPU		8
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -163,7 +166,8 @@ static inline void bind_to_cpu(int cpu) {
 void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
-	pval_t* v;
+	pval_t v;
+	pval_t val_arr[N];
 
 	bind_to_cpu(id);
 
@@ -176,18 +180,28 @@ void* thread_fun(void* arg) {
 	}
 #if 0
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		bonsai_lookup((pkey_t)i, &v);
-		assert(v == i);
+		bonsai_lookup((pkey_t)a[i], &v);
+		assert(v == a[i]);
 	}
 
 	for (int i = 0; i < 1; i++) {
 		int size;
 
-		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
+		// printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id), val_arr);
+		printf("size: %d\n", size);
+		// assert(size == N);
+#if 1
+		unsigned long ex = 0;
 		for (int j = 0; j < size; j++) {
-			printf("%lu ", val_arr[j]);
+			if (val_arr[j] != (pval_t)j + ex) {
+				printf("%lu \n", j + ex);
+				ex++;
+			}
 		}
+#else
+		printf("%lu ", val_arr[j]);
+#endif
 		printf("\n");
 	}
 
@@ -204,9 +218,27 @@ void* thread_fun(void* arg) {
 	return NULL;
 }
 
+void gen_data() {
+	unsigned long i;
+
+	for (i = 0; i < NUM_THREAD * N; i++) {
+		a[i] = (pkey_t)i;
+	}
+#ifdef RAND
+	srand(time(0));
+	for (i = 1; i < NUM_THREAD * N; i++) {
+        int swap_pos = rand() % (NUM_THREAD * N - i) + i;
+        pkey_t temp = a[i];
+        a[i] = a[swap_pos];
+        a[swap_pos] = temp;
+    }
+#endif
+}
+
 int main() {
 	long i;
 
+	gen_data();
 	if (bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;

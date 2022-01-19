@@ -27,7 +27,7 @@ typedef struct {
 	struct list_head list;
 } flush_page_struct;
 
-struct oplog_blk* alloc_oplog_block(int cpu) {
+struct oplog_blk* alloc_oplog_block(int cpu, pkey_t key) {
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region* region = &layer->region[cpu];
 	struct log_region_desc* desc = region->desc;
@@ -37,10 +37,12 @@ struct oplog_blk* alloc_oplog_block(int cpu) {
 
 again:
 	old_val = desc->r_oplog_top, new_val = old_val + sizeof(struct oplog_blk);
-	
-	if (unlikely(!(old_val & ~PAGE_MASK))) {
+
+	if (unlikely(!((old_val - sizeof(struct log_page_desc)) & ~PAGE_MASK))) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
+		bonsai_debug("new page: %lu %016lx\n", key, page);
+
 		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct log_page_desc);
 	} else {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
@@ -72,7 +74,7 @@ struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, opt
 	struct oplog* log;
 
 	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK || block->flush)) {		
-		block = alloc_oplog_block(cpu);
+		block = alloc_oplog_block(cpu, key);
 		region->curr_blk = block;
 	}
 
