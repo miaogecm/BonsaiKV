@@ -247,7 +247,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(20);
+	sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

@@ -202,7 +202,6 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 
 	read_lock(&layer->lock);
 	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
-		print_pnode(pnode);
 		if (key_cmp(pnode->e[pnode->slot[pnode->slot[0]]].k, key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
@@ -502,6 +501,8 @@ void print_pnode(struct pnode* pnode) {
 void dump_pnodes() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
+
+	bonsai_debug("====================================================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
