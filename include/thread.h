@@ -11,26 +11,24 @@ extern "C" {
 #include "numa_config.h"
 #include "list.h"
 
-#define NUM_PFLUSH_THREAD	4
+#define NUM_PFLUSH_THREAD	5
 
 struct log_layer;
 struct oplog_blk;
 
 enum {
 	WORKER_SLEEP = 0,
-	WORKER_RUNNING = NUM_PFLUSH_THREAD,
+	WORKER_RUNNING = NUM_PFLUSH_THREAD - 1,
 };
 
 struct merge_work {
-	unsigned int id;
 	unsigned int count;
 	struct log_layer* layer;
-	struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_THREAD];
-	struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_THREAD];
+	struct oplog_blk* first_blks[NUM_CPU/(NUM_PFLUSH_THREAD - 1)];
+	struct oplog_blk* last_blks[NUM_CPU/(NUM_PFLUSH_THREAD - 1)];
 };
 
 struct flush_work {
-	unsigned int id;
 	unsigned int min_index;
 	unsigned int max_index;
 	struct list_head* flush_list;

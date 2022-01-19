@@ -14,6 +14,7 @@ extern "C" {
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
+#define PNODE_BITMAP_FULL			(~(1UL<<64))
 
 enum {
 	PNODE_DATA_CLEAN = 0,
@@ -36,7 +37,7 @@ struct pnode {
     pentry_t 			e[NUM_ENT_PER_PNODE];
 
 	/* 11th cache line */
-    __le8 				slot[NUM_ENT_PER_PNODE + 1];
+    __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many entries */
 	char				padding2[31];
 
 	/* 12th cache line */

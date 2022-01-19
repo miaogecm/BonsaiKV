@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <libpmemobj.h>
 
 #include "pnode.h"
@@ -31,7 +32,7 @@ static uint64_t hash(uint64_t x) {
     return x;
 }
 
-#define BUCKET_HASH(x) (hash(x) % NUM_BUCKET)
+#define PNODE_BUCKET_HASH(x) (hash(x) % NUM_BUCKET)
 
 static struct pnode* alloc_pnode(int node) {
 	struct data_layer *layer = DATA(bonsai);
@@ -90,7 +91,7 @@ static void free_pnode(struct pnode* pnode) {
 	POBJ_FREE(&toid);
 }
 
-static void insert_pnode(struct pnode* pnode, pkey_t key) {
+static void insert_pnode_list(struct pnode* pnode, pkey_t key) {
 	struct pnode *pos, *prev = NULL;
 	struct data_layer* layer = DATA(bonsai);
 	struct list_head* head = &layer->pnode_list;
@@ -119,21 +120,33 @@ static int find_unused_entry(pkey_t key, uint64_t bitmap, int bucket_id) {
 	uint64_t mask, pos;
 	int offset;
 
-	bucket_id = BUCKET_HASH(key);
 	offset = NUM_ENT_PER_BUCKET * bucket_id;
 	mask = (1UL << (offset + NUM_ENT_PER_BUCKET)) - (1UL << offset);
 	bitmap = (bitmap & mask) | (~mask);
 	
-	if (bitmap == NUM_ENT_PER_PNODE)
+	if (bitmap == PNODE_BITMAP_FULL)
 		return -1;
-	
+
 	pos = find_first_zero_bit(&bitmap, NUM_ENT_PER_PNODE);
 
     return pos;
 }
 
-static int bucket_is_full(struct pnode* pnode, int bucket) {
-	return 1;
+/*
+ * bucket_is_full: return 1 if bucket is full
+ */
+static int bucket_is_full(uint64_t bitmap, int bucket_id) {
+	uint64_t mask, pos;
+	int offset;
+
+	offset = NUM_ENT_PER_BUCKET * bucket_id;
+	mask = (1UL << (offset + NUM_ENT_PER_BUCKET)) - (1UL << offset);
+	bitmap = (bitmap & mask) | (~mask);
+
+	if (bitmap == PNODE_BITMAP_FULL)
+		return 1;
+
+	return 0;
 }
 
 static int lower_bound(struct pnode* pnode, pkey_t key) {
@@ -190,7 +203,7 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
-    int bucket_id, pos, i, n, bucket_full = 0;
+    int bucket_id, pos, i, j, n;
     uint64_t removed;
     struct pnode* new_pnode;
     pkey_t max_key;
@@ -202,17 +215,20 @@ int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, p
 		pnode = alloc_pnode(numa_node);
 		table->pnode = pnode;
 		pnode->table = table;
-		insert_pnode(pnode, key);
+		insert_pnode_list(pnode, key);
 	}
 
 retry:
-	bucket_id = BUCKET_HASH(key);
+	bucket_id = PNODE_BUCKET_HASH(key);
     write_lock(pnode->bucket_lock[bucket_id]);
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
+
+	//bonsai_debug("bucket_id: %d pos: %d bitmap: %016lx\n", bucket_id, pos, pnode->bitmap);
+	
     if (pos != -1) {
 		/* bucket is not full */
-        pentry_t entry = {key, value};
-        pnode->e[pos] = entry;
+		pentry_t e = {key, value};
+        pnode->e[pos] = e;
 
         mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 
@@ -232,35 +248,60 @@ retry:
 	write_unlock(pnode->bucket_lock[bucket_id]);
 
 	/* split the node */
-	bucket_full = 0;
-    for (i = 0; i < NUM_BUCKET; i ++) {
+    for (i = 0; i < NUM_BUCKET; i ++)
         write_lock(pnode->bucket_lock[i]);
-        if (bucket_is_full(pnode, i)) {
-            bucket_full = 1;
-        }
+
+	if (!bucket_is_full(pnode->bitmap, bucket_id)) {
+		/* re-check bucket because someone may remove an entry from the bucket */
+		for (i = NUM_BUCKET - 1; i >= 0; i --) 
+        	write_unlock(pnode->bucket_lock[i]);
+		goto retry;
+	}
+
+    new_pnode = alloc_pnode(numa_node);
+    memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
+    n = pnode->slot[0];
+    removed = 0;
+
+	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i < pnode->slot[0]; i ++)
+		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
+	bonsai_debug("\n");
+	for (i = 0; i < pnode->slot[0]; i ++)
+		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
+	bonsai_debug("\n");
+
+    for (i = n / 2 + 1; i <= n; i++) {
+    	removed |= 1ULL << pnode->slot[i];
+        new_pnode->e[i - n/2] = pnode->e[pnode->slot[i]];
+		new_pnode->slot[i - n/2] = i - n/2;
     }
+    new_pnode->slot[0] = n / 2;
+   	new_pnode->bitmap = removed;
 
-    if (bucket_full) {
-        new_pnode = alloc_pnode(numa_node);
-        memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
-        n = pnode->slot[0];
-        removed = 0;
+    pnode->bitmap &= ~removed;
+    pnode->slot[0] = n / 2 + 1;
 
-        for (i = n / 2 + 1; i <= n; i++) {
-            removed |= 1ULL << pnode->slot[i];
-            new_pnode->slot[i - n/2] = pnode->slot[i];
-        }
-        new_pnode->slot[0] = n - n / 2;
-        new_pnode->bitmap = removed;
+	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i < pnode->slot[0]; i ++)
+		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
+	bonsai_debug("\n");
+	for (i = 0; i < pnode->slot[0]; i ++)
+		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
+	bonsai_debug("\n");
 
-        pnode->bitmap &= ~removed;
-        pnode->slot[0] = n/2;
+	bonsai_debug("new pnode bitmap: %016lx slot[0]: %d\n", new_pnode->bitmap, new_pnode->slot[0]);
+	for (i = 0; i < new_pnode->slot[0]; i ++)
+		bonsai_debug("slot[%d]: %d ", i, new_pnode->slot[i]);
+	bonsai_debug("\n");
+	for (i = 0; i < new_pnode->slot[0]; i ++)
+		bonsai_debug("key[%d]: %lu ", i, new_pnode->e[i].k);
+	bonsai_debug("\n");
 
-		insert_pnode(new_pnode, pnode->e[pnode->slot[0]].k);
+	insert_pnode_list(new_pnode, pnode->e[new_pnode->slot[0]].k);
 
-		/* split the mapping table */
-        mptable_split(pnode->table, new_pnode);
-    }
+	/* split the mapping table */
+    mptable_split(pnode->table, new_pnode);
 
     max_key = pnode->e[pnode->slot[0]].k;
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
@@ -271,9 +312,7 @@ retry:
 	bonsai_flush(&new_pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
-    if (bucket_full)
-        pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
-
+    pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
     goto retry;
 }
 
@@ -289,7 +328,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 
 	bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
-    bucket_id = BUCKET_HASH(key);
+    bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
 
 	mask = (1ULL << (offset + NUM_ENT_PER_BUCKET)) - (1ULL << offset);
@@ -359,7 +398,7 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 
 	bonsai_debug("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
 
-	bucket_id = BUCKET_HASH(key);
+	bucket_id = PNODE_BUCKET_HASH(key);
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
 		if (key_cmp(pnode->e[bucket_id + i].k, key))
 			return &pnode->e[bucket_id + i].v;
@@ -378,7 +417,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	struct pnode* remote_pnode = NULL;
 	int bucket_id, i, offset;
 
-	bucket_id = BUCKET_HASH(key);
+	bucket_id = PNODE_BUCKET_HASH(key);
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
 	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode(numa_node);

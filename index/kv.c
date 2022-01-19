@@ -20,7 +20,7 @@
 // #define RAND
 
 #ifndef N
-#define N			1001
+#define N			101
 #endif
 
 pkey_t a[4 * N];
@@ -176,9 +176,9 @@ void* thread_fun(void* arg) {
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_insert((pkey_t)a[i], (pval_t)a[i]) == 0);
-		bonsai_debug("insert <%lu, %lu>\n", i, i);
+		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
+#if 0
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		bonsai_lookup((pkey_t)a[i], &v);
 		assert(v == a[i]);
@@ -212,7 +212,7 @@ void* thread_fun(void* arg) {
 		//i don' know why -enoent(-102) become -2, anyway
 		assert(bonsai_lookup((pkey_t)i, &v) == -2);
 	}
-
+#endif
 	bonsai_user_thread_exit();
 
 	return NULL;
@@ -247,13 +247,11 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	// sleep(10);
+	sleep(50);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
-
-	// thread_fun(0);
 	
 	bonsai_deinit();
 
