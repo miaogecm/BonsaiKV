@@ -358,7 +358,7 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 		}
 	}
 
-	i_layer->insert(i_layer->index_struct, pnode->e[pnode->slot[0] - 1].k, tables);
+	i_layer->insert(i_layer->index_struct, pnode->e[pnode->slot[0]].k, tables);
 }
 
 static int hash(pkey_t key) {

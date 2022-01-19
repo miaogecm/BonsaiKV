@@ -203,8 +203,8 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 	struct data_layer *layer = DATA(bonsai);
 
 	read_lock(&layer->lock);
-	list_for_each_entry_continue(pnode, &layer->pnode_list, list) {
-		if (key_cmp(pnode->e[pnode->slot[0] - 1].k, key) >= 0) {
+	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
+		if (key_cmp(pnode->e[pnode->slot[0]].k, key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
 		}
@@ -447,6 +447,8 @@ void sentinel_node_init() {
 	pkey_t key = ULONG_MAX;
 	pval_t val = ULONG_MAX;
 	struct pnode* pnode;
+	int bucket_id, pos;
+	pentry_t e = {key, val};
 		
 	/* LOG Layer: allocate a mapping table */
 	table = numa_mptable_alloc(&bonsai->l_layer);
@@ -457,7 +459,26 @@ void sentinel_node_init() {
 	insert_pnode_list(pnode, key);
 	table->pnode = pnode;
 	pnode->table = table;
-	pnode_insert(pnode, numa_node, key, val);
+
+	bucket_id = PNODE_BUCKET_HASH(key);
+    write_lock(pnode->bucket_lock[bucket_id]);
+    pos = find_unused_entry(key, pnode->bitmap, bucket_id);
+    pnode->e[pos] = e;
+
+    mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+
+    write_lock(pnode->slot_lock);
+    pnode_sort_slot(pnode, pos, key, OP_INSERT);
+    write_unlock(pnode->slot_lock);
+
+	set_bit(pos, &pnode->bitmap);
+    write_unlock(pnode->bucket_lock[bucket_id]);
+		
+	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
+	bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
+
+	write_unlock(pnode->bucket_lock[bucket_id]);
 
 	/* INDEX Layer: insert into index layer */
 	i_layer->insert(i_layer->index_struct, key, (void*)table);
