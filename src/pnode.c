@@ -278,13 +278,12 @@ retry:
     n = pnode->slot[0]; d = n / 2;
     removed = 0;
 
-    for (i = d; i < n; i++) {
+    for (i = 1; i <= d; i++) {
     	removed |= (1ULL << pnode->slot[i]);
-        new_pnode->e[i - d] = pnode->e[pnode->slot[i]];
-		new_pnode->slot[i - d + 1] = i - d;
+		new_pnode->slot[n + 1 - d] = pnode->slot[n + 1 - i];
     }
     new_pnode->slot[0] = n - d;
-   	new_pnode->bitmap = (n % 2) ? ((1ULL << (d + 1)) - 1) : ((1ULL << d) - 1);
+   	new_pnode->bitmap = removed;
 
 	pnode->slot[0] = d;
     pnode->bitmap &= ~removed;
