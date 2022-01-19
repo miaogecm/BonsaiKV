@@ -49,7 +49,7 @@ struct oplog_blk {
 
 #define OPLOG(val) (struct oplog*)((unsigned long)val - 27)
 
-#define OPLOG_BLK_MASK	0x100
+#define OPLOG_BLK_MASK	0xFFFFFFFFFFFFFF00
 #define OPLOG_BLK(addr)	(struct oplog_blk*)((unsigned long)addr & OPLOG_BLK_MASK)
 
 struct pnode;

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-// #define BONSAI_DEBUG
+ #define BONSAI_DEBUG
 #define BONSAI_SUPPORT_UPDATE
 //#define BONSAI_HASHSET_DEBUG
 
@@ -73,7 +73,7 @@ typedef struct pentry {
 #endif
 
 #ifdef BONSAI_DEBUG
-#define bonsai_debug(fmt, args ...)	 do {fprintf(stderr, fmt, ##args);} while (0)
+#define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0)
 #else
 #define bonsai_debug(fmt, args ...) do{}while(0)
 #endif

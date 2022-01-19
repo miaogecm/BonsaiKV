@@ -133,11 +133,11 @@ static void worker_oplog_merge(void *arg) {
 	
 	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
 		do {
-			bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
+			//bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
-				bonsai_debug("thread[%d] merge log <%lu %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
+				//bonsai_debug("thread[%d] merge log <%lu %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
 				bucket = &layer->buckets[simple_hash(key)];
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
@@ -159,7 +159,7 @@ static void worker_oplog_merge(void *arg) {
 			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
 		} while (block != mwork->last_blks[i]);
 	}
-
+	
 	free(mwork);
 }
 
@@ -171,15 +171,15 @@ static void worker_oplog_flush(void* arg) {
 	struct hlist_node *node, *tmp;
 	struct oplog_blk* block;
 	struct oplog* log;
-	merge_ent* entry;
+	merge_ent* e;
 	unsigned int i;
 
-	bonsai_debug("thread[%d] flush [%u %u] bucket\n", __this->t_id, fwork->min_index, fwork->max_index);
+	bonsai_debug("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
-	for (i = fwork->min_index; i < fwork->max_index; i ++) {
+	for (i = fwork->min_index; i <= fwork->max_index; i ++) {
 		bucket = &layer->buckets[i];
-		hlist_for_each_entry_safe(entry, node, tmp, &bucket->head, node) {
-			log = entry->log;
+		hlist_for_each_entry_safe(e, node, tmp, &bucket->head, node) {
+			log = e->log;
 			switch(log->o_type) {
 			case OP_INSERT:
 			if (log->o_flag)
@@ -196,7 +196,7 @@ static void worker_oplog_flush(void* arg) {
 			perror("bad operation type\n");
 			break;
 			}
-			free(entry);
+			free(e);
 
 			block = OPLOG_BLK(log);
 			asm volatile("lock; decl %0" : "+m" (block->cnt));
@@ -259,10 +259,11 @@ void oplog_flush() {
 	}
 
 	/* 2. merge all logs */
-	num_region_per_thread = NUM_CPU / NUM_PFLUSH_THREAD;
-	for (i = 0, j = 0; i < NUM_PFLUSH_THREAD - 1; i ++) {
+	num_region_per_thread = NUM_CPU / (NUM_PFLUSH_THREAD - 1);
+	for (i = 1, j = 0; i < NUM_PFLUSH_THREAD; i ++) {
 		mwork = malloc(sizeof(struct merge_work));
 		mwork->count = num_region_per_thread;
+		mwork->layer = l_layer;
 		while (j < num_region_per_thread) {
 			mwork->first_blks[j] = first_blks[cnt];
 			mwork->last_blks[j] = curr_blks[cnt];
@@ -271,17 +272,6 @@ void oplog_flush() {
 		j = 0;
 		mworks[i] = mwork;
 	}
-	mwork = malloc(sizeof(struct merge_work));
-	mwork->count = 0;
-	j = 0;
-	while (cnt < NUM_CPU) {
-		mwork->count ++;
-		mwork->layer = l_layer;
-		mwork->first_blks[j] = first_blks[cnt];
-		mwork->last_blks[j] = curr_blks[cnt];
-		j ++; cnt ++;
-	}
-	mworks[i] = mwork;
 
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		work = malloc(sizeof(struct work_struct));
@@ -296,13 +286,13 @@ void oplog_flush() {
 	park_master();
 
 	/* 3. flush all logs */
-	num_bucket_per_thread = MAX_HASH_BUCKET / NUM_PFLUSH_THREAD;
+	num_bucket_per_thread = NUM_CPU / (NUM_PFLUSH_THREAD - 1);
 	flush_list = malloc(sizeof(struct list_head));
 	INIT_LIST_HEAD(flush_list);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
 		fwork->min_index = (cnt - 1) * num_bucket_per_thread;
-		fwork->max_index = cnt * num_bucket_per_thread;
+		fwork->max_index = cnt * num_bucket_per_thread - 1;
 		fwork->flush_list = flush_list;
 		fwork->layer = l_layer;
 
