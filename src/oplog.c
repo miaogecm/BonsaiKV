@@ -41,7 +41,8 @@ again:
 	if (unlikely(!(old_val & ~PAGE_MASK))) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
-		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct oplog_blk);
+		bonsai_debug("new page: %lu %016lx\n", key, page);
+		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + 2 * sizeof(struct oplog_blk);
 	} else {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		page = LOG_PAGE_DESC(old_block);
@@ -50,7 +51,7 @@ again:
 	if (cmpxchg(&desc->r_oplog_top, old_val, new_val) != old_val)
 		goto again;
 
-	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
+	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val - sizeof(struct oplog_blk));
 	new_block->flush = 0;
 	new_block->cnt = 0;
 	new_block->cpu = cpu;
