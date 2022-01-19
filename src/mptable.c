@@ -258,7 +258,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		log = insert_logs[max_insert_index];
-		if (n_remove >= n_insert) {
+		if (ordo_cmp_clock(max_insert_t, max_remove_t)) {
 			pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
 			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert) {
 				*val = log->o_kv.v;
@@ -271,7 +271,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 			return 0;
 		}
 #else
-	if (n_remove) {
+	if (ordo_cmp_clock(max_remove_t, max_insert_t)) {
 		return -ENOENT;
 	} else {
 		log = insert_logs[max_insert_index];
