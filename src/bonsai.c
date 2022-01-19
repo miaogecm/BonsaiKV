@@ -31,16 +31,8 @@ struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
 static void sentinel_node_init() {
-	struct numa_table* table;
-	int node = get_numa_node(get_cpu());
-	struct index_layer *i_layer = INDEX(bonsai);
 	
-	table = numa_mptable_alloc(&bonsai->l_layer);
-	i_layer->insert(i_layer->index_struct, ULONG_MAX, (void*)table);
-	
-	hs_insert(&MPTABLE_NODE(table, node)->hs, get_tid(), ULONG_MAX, NULL);
-	
-	pnode_insert(NULL, table, node, ULONG_MAX, ULONG_MAX);
+	pnode_insert(ULONG_MAX, ULONG_MAX);
 
 	bonsai_debug("sentinel_node_init\n");
 }
@@ -121,7 +113,7 @@ static int data_layer_init(struct data_layer* layer) {
 	if (ret)
 		goto out;
 
-	spin_lock_init(&layer->lock);
+	rwlock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->pnode_list);
 
 	bonsai_debug("data_layer_init\n");

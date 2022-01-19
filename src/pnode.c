@@ -99,7 +99,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t key) {
 	struct list_head* head = &layer->pnode_list;
 	pkey_t max_key;
 
-	spin_lock(&layer->lock);
+	write_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
 		max_key = pos->e[pnode->slot[0]].k;
 		if (key_cmp(max_key, key) > 0)
@@ -112,7 +112,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t key) {
 		list_add(&pnode->list, head);
 	else
 		__list_add(&pnode->list, &prev->list, &pos->list);
-	spin_unlock(&layer->lock);
+	write_unlock(&layer->lock);
 }
 
 /*
@@ -175,7 +175,7 @@ static int lower_bound(struct pnode* pnode, pkey_t key) {
     return l;
 }
 
-static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t op) {
+static void pnode_sort_slot(struct pnode* pnode, int pos_e, pkey_t key, optype_t op) {
     uint8_t* slot;
     int pos, i;
 
@@ -196,6 +196,25 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
 }
 
 /*
+ * pnode_find_lowbound: find first pnode whose maximum key is equal or greater than @key
+ */
+static struct pnode* pnode_find_lowbound(pkey_t key) {
+	struct data_layer *layer = DATA(bonsai);
+	struct pnode* pnode;
+
+	read_lock(&layer->lock);
+	list_for_each_entry(pnode, &layer->pnode_list, list) {
+		if (key_cmp(pnode->e[pnode->slot[0] - 1].k, key) >= 0) {
+			read_unlock(&layer->lock);
+			return pnode;
+		}
+	}
+	read_unlock(&layer->lock);
+
+	return NULL;
+}
+
+/*
  * pnode_insert: insert a kv-pair into a pnode
  * @pnode: persistent node
  * @table: NUMA mapping table
@@ -204,21 +223,32 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
+int pnode_insert(int numa_node, pkey_t key, pval_t value) {
+	struct index_layer *i_layer;
     int bucket_id, pos, i, j, n, d;
-    uint64_t removed;
-    struct pnode* new_pnode;
+    struct pnode *pnode, *new_pnode;
+	struct numa_table* table;
+	uint64_t removed;
     pkey_t max_key;
-
-	bonsai_debug("pnode_insert: pnode %016lx table %016lx <%lu %lu>\n", pnode, table, key, value);
 	
+	pnode = pnode_find_lowbound(key);
+
 	if (unlikely(!pnode)) {
 		/* allocate a new pnode */
 		pnode = alloc_pnode(numa_node);
+
+		table = numa_mptable_alloc(&bonsai->l_layer);
+		i_layer = INDEX(bonsai);
+		i_layer->insert(i_layer->index_struct, ULONG_MAX, (void*)table);
+	
+		hs_insert(&MPTABLE_NODE(table, numa_node)->hs, get_tid(), ULONG_MAX, NULL);
+		
 		table->pnode = pnode;
 		pnode->table = table;
 		insert_pnode_list(pnode, key);
 	}
+
+	bonsai_debug("pnode_insert: pnode %016lx <%lu %lu>\n", pnode, key, value);
 
 retry:
 	bucket_id = PNODE_BUCKET_HASH(key);
@@ -233,7 +263,7 @@ retry:
         mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 
         write_lock(pnode->slot_lock);
-        sort_in_pnode(pnode, pos, key, OP_INSERT);
+        pnode_sort_slot(pnode, pos, key, OP_INSERT);
         write_unlock(pnode->slot_lock);
 
 		set_bit(pos, &pnode->bitmap);
@@ -263,7 +293,7 @@ retry:
     n = pnode->slot[0]; d = n / 2;
     removed = 0;
 
-	print_pnode(pnode);
+	//print_pnode(pnode);
 
     for (i = d; i < n; i++) {
     	removed |= (1ULL << pnode->slot[i]);
@@ -276,8 +306,8 @@ retry:
 	pnode->slot[0] = d;
     pnode->bitmap &= ~removed;
 
-	print_pnode(pnode);
-	print_pnode(new_pnode);
+	//print_pnode(pnode);
+	//print_pnode(new_pnode);
 
 	insert_pnode_list(new_pnode, pnode->e[new_pnode->slot[0]].k);
 
@@ -296,8 +326,6 @@ retry:
 
     pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
 
-	bonsai_debug("split done\n");
-
     goto retry;
 }
 
@@ -306,10 +334,13 @@ retry:
  * @pnode: the pnode
  * @key: key to be removed
  */
-int pnode_remove(struct pnode* pnode, pkey_t key) {
+int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
+	struct pnode* pnode;
 	uint64_t mask;
+
+	pnode = pnode_find_lowbound(key);
 
 	bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
@@ -443,7 +474,9 @@ void dump_pnodes() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
 
+	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		print_pnode(pnode);
 	}
+	read_unlock(&layer->lock);
 }

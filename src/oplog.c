@@ -134,11 +134,9 @@ static void worker_oplog_merge(void *arg) {
 	
 	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
 		do {
-			//bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
-				//bonsai_debug("thread[%d] merge log <%lu %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
 				bucket = &layer->buckets[simple_hash(key)];
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
@@ -169,7 +167,7 @@ static void worker_oplog_flush(void* arg) {
 	struct log_layer* layer = fwork->layer;
 	struct log_page_desc *page;
 	struct hbucket* bucket;
-	struct hlist_node *node, *tmp;
+	struct hlist_node *hnode, *tmp;
 	struct oplog_blk* block;
 	struct oplog* log;
 	merge_ent* e;
@@ -179,16 +177,11 @@ static void worker_oplog_flush(void* arg) {
 
 	for (i = fwork->min_index; i <= fwork->max_index; i ++) {
 		bucket = &layer->buckets[i];
-		hlist_for_each_entry_safe(e, node, tmp, &bucket->head, node) {
+		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
 			log = e->log;
 			switch(log->o_type) {
 			case OP_INSERT:
-			if (log->o_flag)
-				pnode_insert((struct pnode*)log->o_addr, NULL, 
-						log->o_numa_node, log->o_kv.k, log->o_kv.v);
-			else
-				pnode_insert(NULL, (struct numa_table*)log->o_addr, 
-						log->o_numa_node, log->o_kv.k, log->o_kv.v);			
+			pnode_insert(log->o_numa_node, log->o_kv.k, log->o_kv.v);		
 			break;
 			case OP_REMOVE:
 			pnode_remove((struct pnode*)log->o_addr, log->o_kv.k);

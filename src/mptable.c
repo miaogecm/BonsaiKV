@@ -352,7 +352,7 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 				if (addr_in_pnode((unsigned long)addr)) {
 					hs_remove(&table->hs, tid, key);
 					hs_insert(&tables->tables[node]->hs, tid, key, &pnode->e[pnode->slot[0]].v);
-					bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
+					//bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
 				}
 			}		
 		}
