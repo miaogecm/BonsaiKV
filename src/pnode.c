@@ -193,6 +193,18 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
     }
 }
 
+static void print_pnode(struct pnode* pnode) {
+	int i;
+	
+	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i < pnode->slot[0]; i ++)
+		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
+	bonsai_debug("\n");
+	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
+		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
+	bonsai_debug("\n");
+}
+
 /*
  * pnode_insert: insert a kv-pair into a pnode
  * @pnode: persistent node
@@ -203,7 +215,7 @@ static void sort_in_pnode(struct pnode* pnode, int pos_e, pkey_t key, optype_t o
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, struct numa_table* table, int numa_node, pkey_t key, pval_t value) {
-    int bucket_id, pos, i, j, n;
+    int bucket_id, pos, i, j, n, d;
     uint64_t removed;
     struct pnode* new_pnode;
     pkey_t max_key;
@@ -260,43 +272,24 @@ retry:
 
     new_pnode = alloc_pnode(numa_node);
     memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_BUCKET);
-    n = pnode->slot[0];
+    n = pnode->slot[0]; d = n / 2;
     removed = 0;
 
-	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
-	for (i = 0; i < pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
-	bonsai_debug("\n");
-	for (i = 0; i < pnode->slot[0]; i ++)
-		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
-	bonsai_debug("\n");
+	print_pnode(pnode);
 
-    for (i = n / 2 + 1; i <= n; i++) {
+    for (i = d; i <= n; i++) {
     	removed |= 1ULL << pnode->slot[i];
-        new_pnode->e[i - n/2] = pnode->e[pnode->slot[i]];
-		new_pnode->slot[i - n/2] = i - n/2;
+        new_pnode->e[i - d] = pnode->e[pnode->slot[i]];
+		new_pnode->slot[i - d + 1] = i - d;
     }
-    new_pnode->slot[0] = n / 2;
-   	new_pnode->bitmap = removed;
+    new_pnode->slot[0] = d;
+   	new_pnode->bitmap = ~((1ULL << d) - 1);
 
+	pnode->slot[0] = n - d;
     pnode->bitmap &= ~removed;
-    pnode->slot[0] = n / 2 + 1;
 
-	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
-	for (i = 0; i < pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
-	bonsai_debug("\n");
-	for (i = 0; i < pnode->slot[0]; i ++)
-		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
-	bonsai_debug("\n");
-
-	bonsai_debug("new pnode bitmap: %016lx slot[0]: %d\n", new_pnode->bitmap, new_pnode->slot[0]);
-	for (i = 0; i < new_pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d ", i, new_pnode->slot[i]);
-	bonsai_debug("\n");
-	for (i = 0; i < new_pnode->slot[0]; i ++)
-		bonsai_debug("key[%d]: %lu ", i, new_pnode->e[i].k);
-	bonsai_debug("\n");
+	print_pnode(pnode);
+	print_pnode(new_pnode);
 
 	insert_pnode_list(new_pnode, pnode->e[new_pnode->slot[0]].k);
 

@@ -134,7 +134,7 @@ static void worker_oplog_merge(void *arg) {
 	
 	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
 		do {
-			bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
+			//bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;

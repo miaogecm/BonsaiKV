@@ -20,13 +20,13 @@
 // #define RAND
 
 #ifndef N
-#define N			101
+#define N			100
 #endif
 
 pkey_t a[4 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	1
+#define NUM_THREAD	4
 #endif
 
 #define NUM_CPU		8
@@ -174,6 +174,7 @@ void* thread_fun(void* arg) {
 	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 	
 	bonsai_user_thread_init();
+	
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
@@ -191,7 +192,7 @@ void* thread_fun(void* arg) {
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id), val_arr);
 		printf("size: %d\n", size);
 		// assert(size == N);
-#if 1
+
 		unsigned long ex = 0;
 		for (int j = 0; j < size; j++) {
 			if (val_arr[j] != (pval_t)j + ex) {
@@ -199,15 +200,15 @@ void* thread_fun(void* arg) {
 				ex++;
 			}
 		}
-#else
 		printf("%lu ", val_arr[j]);
-#endif
 		printf("\n");
 	}
-
+#endif
+#if 0
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
+
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		//i don' know why -enoent(-102) become -2, anyway
 		assert(bonsai_lookup((pkey_t)i, &v) == -2);
@@ -238,7 +239,6 @@ void gen_data() {
 int main() {
 	long i;
 
-	gen_data();
 	if (bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;
