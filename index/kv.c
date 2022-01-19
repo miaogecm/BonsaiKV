@@ -17,7 +17,7 @@
 #include "kv.h"
 
 #ifndef N
-#define N			1000001
+#define N			1
 #endif
 
 pval_t val_arr[N];
@@ -85,7 +85,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	list_add(&knode->list, &__toy->head);
 	write_unlock(&__toy->lock);
 
-	kv_debug("kv insert <%lu %016lx>\n", key, value);
+	bonsai_debug("kv insert <%lu %016lx>\n", key, value);
 
 	return 0;
 }
@@ -110,7 +110,7 @@ out:
 	write_unlock(&__toy->lock);
 	free(knode);
 
-	kv_debug("kv remove <%lu>\n", key);
+	bonsai_debug("kv remove <%lu>\n", key);
 
 	return 0;
 }
@@ -123,7 +123,7 @@ void* kv_lookup(void* index_struct, pkey_t key) {
 	list_for_each_entry(knode, &__toy->head, list) {
 		if (knode->kv.k >= key) {
 			read_unlock(&__toy->lock);
-			//kv_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
+			//bonsai_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
 			return (void*)knode->kv.v;
 		}
 	}
@@ -167,13 +167,13 @@ void* thread_fun(void* arg) {
 
 	bind_to_cpu(id);
 
-	kv_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
+	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 	
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
-		kv_debug("insert <%lu, %lu>\n", i, i);
+		bonsai_debug("insert <%lu, %lu>\n", i, i);
 	}
 	// for (i = 0; i < N; i ++) {
 	// 	bonsai_lookup((pkey_t)i, &v);
@@ -211,7 +211,7 @@ int main() {
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;
 
-	for (i = 3; i < NUM_THREAD; i++) {
+	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 

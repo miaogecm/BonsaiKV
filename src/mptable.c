@@ -124,7 +124,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #endif
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	kv_debug("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
+	bonsai_debug("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
 	return ret;
 }
@@ -156,7 +156,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #endif
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	kv_debug("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
+	bonsai_debug("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
 	return 0;
 }
@@ -186,7 +186,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
-	kv_debug("mptable_remove: cpu[%d] %lu\n", cpu, key);
+	bonsai_debug("mptable_remove: cpu[%d] %lu\n", cpu, key);
 
 	return 0;
 }
@@ -203,7 +203,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	void* map_addrs[NUM_SOCKET];
 	struct pnode* pnode;
 
-	kv_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
+	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(mptables, node);
@@ -242,7 +242,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 		}
 	}
 
-	kv_debug("%p %p\n", master_node_addr, self_node_addr);
+	bonsai_debug("%p %p\n", master_node_addr, self_node_addr);
 
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
