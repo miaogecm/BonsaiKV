@@ -132,13 +132,14 @@ static void worker_oplog_merge(void *arg) {
 
 	bonsai_debug("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	
-	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
+	for (i = 0; i < mwork->count; i ++) {
+		block = mwork->first_blks[i];
 		do {
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
 				bucket = &layer->buckets[simple_hash(key)];
-				//bonsai_debug("thread[%d] merge <%lu, %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
+				bonsai_debug("thread[%d] merge <%lu, %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
 					if (!key_cmp(e->log->o_kv.k, key)) {
@@ -249,7 +250,6 @@ void oplog_flush() {
 		spin_lock(&region->lock);
 		first_blks[cpu] = region->first_blk;
 		curr_blks[cpu] = region->curr_blk;
-		bonsai_debug("%016lx %016lx\n", first_blks[cpu], curr_blks[cpu]);
 		region->first_blk = region->curr_blk;
 		spin_unlock(&region->lock);
 	}

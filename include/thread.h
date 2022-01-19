@@ -11,7 +11,7 @@ extern "C" {
 #include "numa_config.h"
 #include "list.h"
 
-#define NUM_PFLUSH_THREAD	5
+#define NUM_PFLUSH_THREAD	2
 
 struct log_layer;
 struct oplog_blk;
