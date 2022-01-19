@@ -279,13 +279,12 @@ retry:
     n = pnode->slot[0]; d = n / 2;
     removed = 0;
 
-    for (i = d; i < n; i++) {
+    for (i = 1; i <= d; i++) {
     	removed |= (1ULL << pnode->slot[i]);
-        new_pnode->e[i - d] = pnode->e[pnode->slot[i]];
-		new_pnode->slot[i - d + 1] = i - d;
+		new_pnode->slot[n + 1 - d] = pnode->slot[n + 1 - i];
     }
     new_pnode->slot[0] = n - d;
-   	new_pnode->bitmap = (n % 2) ? ((1ULL << (d + 1)) - 1) : ((1ULL << d) - 1);
+   	new_pnode->bitmap = removed;
 
 	pnode->slot[0] = d;
     pnode->bitmap &= ~removed;
@@ -478,8 +477,6 @@ void sentinel_node_init() {
 	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
 	bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
-
-	write_unlock(pnode->bucket_lock[bucket_id]);
 
 	/* INDEX Layer: insert into index layer */
 	i_layer->insert(i_layer->index_struct, key, (void*)table);

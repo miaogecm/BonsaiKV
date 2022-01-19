@@ -344,6 +344,8 @@ void mptable_split(struct numa_table* src, struct pnode* pnode) {
 	uint8_t* slot = pnode->slot;
 	
 	tables = numa_mptable_alloc(LOG(bonsai));
+	pnode->table = tables;
+	tables->pnode = pnode;
 
 	for (i = 1; i <= N; i ++) {
 		key = pnode->e[slot[i]].k;
