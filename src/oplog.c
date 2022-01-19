@@ -36,14 +36,12 @@ struct oplog_blk* alloc_oplog_block(int cpu, pkey_t key) {
 	__le64 old_val, new_val;
 
 again:
-	old_val = desc->r_oplog_top, new_val = old_val + sizeof(struct oplog_blk);
+	old_val = desc->r_oplog_top; new_val = old_val + sizeof(struct oplog_blk);
 
-	if (unlikely(!((old_val - sizeof(struct log_page_desc)) & ~PAGE_MASK))) {
+	if (unlikely(!(old_val & ~PAGE_MASK))) {
 		/* we reach a page end or it is first time to allocate an oplog block */
 		page = alloc_log_page(region);
-		bonsai_debug("new page: %lu %016lx\n", key, page);
-
-		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct log_page_desc);
+		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct oplog_blk);
 	} else {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		page = LOG_PAGE_DESC(old_block);
@@ -56,6 +54,7 @@ again:
 	new_block->flush = 0;
 	new_block->cnt = 0;
 	new_block->cpu = cpu;
+	new_block->next = 0;
 
 	if (likely(old_val)) {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
@@ -135,7 +134,7 @@ static void worker_oplog_merge(void *arg) {
 	
 	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
 		do {
-			//bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
+			bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
@@ -249,7 +248,7 @@ void oplog_flush() {
 	int num_bucket_per_thread;
 
 	bonsai_debug("oplog_flush\n");
-	
+
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];

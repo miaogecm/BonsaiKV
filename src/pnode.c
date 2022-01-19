@@ -263,11 +263,11 @@ retry:
     n = pnode->slot[0];
     removed = 0;
 
-	bonsai_debug("old pnode\n");
-	for (i = 0; i < n / 2 + 1; i ++)
+	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i < pnode->slot[0]; i ++)
 		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
 	bonsai_debug("\n");
-	for (i = 0; i < n / 2 + 1; i ++)
+	for (i = 0; i < pnode->slot[0]; i ++)
 		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
 	bonsai_debug("\n");
 
@@ -280,22 +280,22 @@ retry:
    	new_pnode->bitmap = removed;
 
     pnode->bitmap &= ~removed;
-    pnode->slot[0] = n/2;
+    pnode->slot[0] = n / 2 + 1;
 
-	bonsai_debug("old pnode\n");
-	for (i = 0; i < n / 2 + 1; i ++)
+	bonsai_debug("old pnode bitmap: %016lx slot[0]: %d\n", pnode->bitmap, pnode->slot[0]);
+	for (i = 0; i < pnode->slot[0]; i ++)
 		bonsai_debug("slot[%d]: %d ", i, pnode->slot[i]);
 	bonsai_debug("\n");
-	for (i = 0; i < n / 2 + 1; i ++)
+	for (i = 0; i < pnode->slot[0]; i ++)
 		bonsai_debug("key[%d]: %lu ", i, pnode->e[i].k);
 	bonsai_debug("\n");
 
-	bonsai_debug("new pnode\n");
-	for (i = 0; i < n / 2 + 1; i ++)
+	bonsai_debug("new pnode bitmap: %016lx slot[0]: %d\n", new_pnode->bitmap, new_pnode->slot[0]);
+	for (i = 0; i < new_pnode->slot[0]; i ++)
 		bonsai_debug("slot[%d]: %d ", i, new_pnode->slot[i]);
 	bonsai_debug("\n");
-	for (i = 0; i < n / 2 + 1; i ++)
-		bonsai_debug("key[%d]: %lu ", new_pnode->slot[i], new_pnode->e[new_pnode->slot[i]].k);
+	for (i = 0; i < new_pnode->slot[0]; i ++)
+		bonsai_debug("key[%d]: %lu ", i, new_pnode->e[i].k);
 	bonsai_debug("\n");
 
 	insert_pnode_list(new_pnode, pnode->e[new_pnode->slot[0]].k);

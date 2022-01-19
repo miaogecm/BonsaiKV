@@ -214,7 +214,7 @@ void bonsai_deinit() {
 	
 	bonsai_self_thread_exit();
 
-	// bonsai_pflushd_thread_exit();
+	bonsai_pflushd_thread_exit();
 	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);
@@ -281,8 +281,8 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
         bonsai_recover();
     }
 
-	/* 4. initialize pflush thread */
-	// bonsai_pflushd_thread_init();
+	/* 6. initialize pflush thread */
+	bonsai_pflushd_thread_init();
 
 	bonsai_debug("bonsai is initialized successfully!\n");
 

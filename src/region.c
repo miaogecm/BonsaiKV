@@ -104,7 +104,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 
 	desc->r_off = offset;
 	desc->r_size = size;
-	desc->r_oplog_top = sizeof(struct log_page_desc);
+	desc->r_oplog_top = 0;
 
 	bonsai_flush(desc, sizeof(struct log_region_desc), 1);
 
@@ -114,7 +114,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	spin_lock_init(&region->free_lock);
 	spin_lock_init(&region->inuse_lock);
 	
-	region->first_blk = (struct oplog_blk*)(vaddr + sizeof(struct log_page_desc));
+	region->first_blk = (struct oplog_blk*)(vaddr + sizeof(struct oplog_blk));
 	region->curr_blk = NULL;
 	region->vaddr = start;
 	region->start = vaddr;
