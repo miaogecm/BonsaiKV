@@ -17,7 +17,7 @@
 #include "kv.h"
 
 #ifndef N
-#define N			1
+#define N			100
 #endif
 
 pval_t val_arr[N];
@@ -175,18 +175,20 @@ void* thread_fun(void* arg) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 		bonsai_debug("insert <%lu, %lu>\n", i, i);
 	}
-	// for (i = 0; i < N; i ++) {
-	// 	bonsai_lookup((pkey_t)i, &v);
-	// 	assert(v == i);
-	// }
 
-	// for (i = 0; i < N; i ++) {
-	// 	assert(bonsai_remove((pkey_t)i) == 0);
-	// }
-	// for (i = 0; i < N; i ++) {
-	// 	//i don' know why -enoent(-102) become -2, anyway
-	// 	assert(bonsai_lookup((pkey_t)i, &v) == -2);
-	// }
+#if 0
+	for (i = 0; i < N; i ++) {
+	 	bonsai_lookup((pkey_t)i, &v);
+	 	assert(v == i);
+	}
+
+	for (i = 0; i < N; i ++) {
+	 	assert(bonsai_remove((pkey_t)i) == 0);
+	}
+	for (i = 0; i < N; i ++) {
+	 	//i don' know why -enoent(-102) become -2, anyway
+	 	assert(bonsai_lookup((pkey_t)i, &v) == -2);
+	}
 
 	for (int i = 0; i < 1; i++) {
 		int size;

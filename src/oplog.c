@@ -133,7 +133,7 @@ static void worker_oplog_merge(void *arg) {
 	
 	for (i = 0, block = mwork->first_blks[i]; i < mwork->count; i ++) {
 		do {
-			bonsai_debug("merge log block: %016lx count: %lu cpu: %d\n", block, block->cnt, block->cpu);
+			bonsai_debug("thread[%d] merge log block: %016lx count: %lu cpu: %d\n", __this->t_id, block, block->cnt, block->cpu);
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
@@ -254,7 +254,6 @@ void oplog_flush() {
 		spin_lock(&region->lock);
 		first_blks[cpu] = region->first_blk;
 		curr_blks[cpu] = region->curr_blk;
-		bonsai_debug("%016lx %016lx\n", region->first_blk, region->curr_blk);
 		region->first_blk = region->curr_blk;
 		spin_unlock(&region->lock);
 	}
@@ -263,7 +262,6 @@ void oplog_flush() {
 	num_region_per_thread = NUM_CPU / NUM_PFLUSH_THREAD;
 	for (i = 0, j = 0; i < NUM_PFLUSH_THREAD - 1; i ++) {
 		mwork = malloc(sizeof(struct merge_work));
-		mwork->id = i;
 		mwork->count = num_region_per_thread;
 		while (j < num_region_per_thread) {
 			mwork->first_blks[j] = first_blks[cnt];
@@ -274,7 +272,6 @@ void oplog_flush() {
 		mworks[i] = mwork;
 	}
 	mwork = malloc(sizeof(struct merge_work));
-	mwork->id = i;
 	mwork->count = 0;
 	j = 0;
 	while (cnt < NUM_CPU) {
@@ -286,12 +283,12 @@ void oplog_flush() {
 	}
 	mworks[i] = mwork;
 
-	for (cnt = 0; cnt < NUM_PFLUSH_THREAD - 1; cnt ++) {
+	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		work = malloc(sizeof(struct work_struct));
 		INIT_LIST_HEAD(&work->list);
 		work->func = worker_oplog_merge;
 		work->arg = (void*)(mworks[cnt]);
-		workqueue_add(&bonsai->pflushd[cnt + 1]->t_wq, work);
+		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 	}
 
 	wakeup_workers();
@@ -302,11 +299,10 @@ void oplog_flush() {
 	num_bucket_per_thread = MAX_HASH_BUCKET / NUM_PFLUSH_THREAD;
 	flush_list = malloc(sizeof(struct list_head));
 	INIT_LIST_HEAD(flush_list);
-	for (cnt = 0; cnt < NUM_PFLUSH_THREAD; cnt ++) {
+	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
-		fwork->id = cnt;
-		fwork->min_index = cnt * num_bucket_per_thread;
-		fwork->max_index = (cnt + 1) * num_bucket_per_thread;
+		fwork->min_index = (cnt - 1) * num_bucket_per_thread;
+		fwork->max_index = cnt * num_bucket_per_thread;
 		fwork->flush_list = flush_list;
 		fwork->layer = l_layer;
 
@@ -314,7 +310,7 @@ void oplog_flush() {
 		INIT_LIST_HEAD(&work->list);
 		work->func = worker_oplog_flush;
 		work->arg = (void*)fwork;
-		workqueue_add(&bonsai->pflushd[cnt + 1]->t_wq, work);
+		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 	}
 	
 	wakeup_workers();
