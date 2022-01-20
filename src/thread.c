@@ -82,6 +82,13 @@ static void worker_sleep() {
 	pthread_mutex_unlock(&work_mutex);
 }
 
+static void wakeup_all() {
+	pthread_mutex_lock(&work_mutex);
+	atomic_set(&STATUS, WORKER_SLEEP);
+	pthread_cond_broadcast(&work_cond);
+	pthread_mutex_unlock(&work_mutex);
+}
+
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
 
@@ -104,7 +111,7 @@ static void pflush_worker(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu + 3);
 
-	bonsai_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
+	printf("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
 
 	thread_block_alarm();
 	
@@ -112,6 +119,9 @@ static void pflush_worker(struct thread_info* this) {
 		worker_sleep();
 		thread_work(&__this->t_wq);
 	}
+
+	atomic_inc(&layer->exit);
+	printf("pflush thread[%d] exit\n", __this->t_id);
 }
 
 static void pflush_master(struct thread_info* this) {
@@ -121,14 +131,18 @@ static void pflush_master(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu + 3);
 	
-	bonsai_debug("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
+	printf("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
 
 	thread_block_alarm();
 
 	while (!atomic_read(&layer->exit)) {
 		usleep(CHKPT_INTERVAL);
+		printf("wakeup\n");
 		oplog_flush(bonsai);
 	}
+
+	atomic_inc(&layer->exit);
+	printf("pflush thread[%d] exit\n", __this->t_id);
 }
 
 void bonsai_self_thread_init() {
@@ -191,16 +205,22 @@ int bonsai_pflushd_thread_init() {
 
 int bonsai_pflushd_thread_exit() {
 	struct log_layer* layer = LOG(bonsai);
+	volatile int num_exit = 0;
 	int i;
 
 	atomic_set(&layer->exit, 1);
-	wakeup_master();
-	wakeup_workers();
+
+	while (atomic_read(&layer->exit) != (NUM_PFLUSH_THREAD + 1)) {
+		wakeup_all();
+		usleep(50);
+	}
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		pthread_join(bonsai->tids[i], NULL);
 		free(bonsai->pflushd[i]);
 	}
+
+	printf("pflush thread exit\n");
 	
 	return 0;
 }

@@ -200,11 +200,15 @@ void* thread_fun(void* arg) {
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
-#if 1
+
+	//printf("thread[%ld]---------------------1---------------------\n", id);
+
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		bonsai_lookup((pkey_t)a[i], &v);
 		assert(v == a[i]);
 	}
+
+	//printf("thread[%ld]---------------------2---------------------\n", id);
 
 	for (int i = 0; i < 1; i++) {
 		int size;
@@ -212,16 +216,21 @@ void* thread_fun(void* arg) {
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
 		assert(size == N);
 	}
-#endif
-#if 1
+
+	//printf("thread[%ld]---------------------3---------------------\n", id);
+
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
 
+	//printf("thread[%ld]---------------------4---------------------\n", id);
+
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
 	}
-#endif
+
+	//printf("thread[%ld]---------------------5---------------------\n", id);
+
 	bonsai_user_thread_exit();
 
 	return NULL;
@@ -247,6 +256,8 @@ void gen_data() {
 int main() {
 	long i;
 
+	bind_to_cpu(0);
+
 	if (bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;
@@ -254,8 +265,6 @@ int main() {
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
-
-	sleep(50);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

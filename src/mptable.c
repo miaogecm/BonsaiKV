@@ -345,7 +345,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		}
 	}
 	
-	i_layer->insert(i_layer->index_struct, pnode_anchor_key(old_pnode), old_table);
+	i_layer->insert(i_layer->index_struct, pnode_max_key(old_pnode), old_table);
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 }
 

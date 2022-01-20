@@ -47,7 +47,7 @@ static void index_layer_init(char* index_name, struct index_layer* layer, init_f
 static void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
 
-	bonsai_debug("index_layer_deinit\n");
+	printf("index_layer_deinit\n");
 }
 
 static int log_layer_init(struct log_layer* layer) {
@@ -90,7 +90,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 		numa_mptable_free(table);
 	}
 
-	bonsai_debug("log_layer_deinit\n");
+	printf("log_layer_deinit\n");
 }
 
 static int data_layer_init(struct data_layer* layer) {
@@ -123,7 +123,7 @@ static void data_layer_deinit(struct data_layer* layer) {
 	
 	data_region_deinit(layer);
 
-	bonsai_debug("data_layer_deinit\n");
+	printf("data_layer_deinit\n");
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {

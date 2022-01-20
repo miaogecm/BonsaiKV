@@ -368,13 +368,5 @@ void oplog_flush() {
 	/* 6. finish */
 	l_layer->nflush ++;
 
-	merge_ent* e;
-	struct hlist_node* hnode;
-	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
-		hlist_for_each_entry(e, hnode, &l_layer->buckets[i].head, node) {
-			printf("bucket[%d] %016lx\n", i, e);
-		}
-	}
-
-	bonsai_debug("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
+	printf("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }
