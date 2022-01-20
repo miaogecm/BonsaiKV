@@ -138,7 +138,6 @@ static void worker_oplog_merge(void *arg) {
 	layer = mwork->layer;
 
 	bonsai_debug("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
-	printf("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
@@ -184,7 +183,6 @@ static void worker_oplog_flush(void* arg) {
 	unsigned int i;
 
 	bonsai_debug("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
-	printf("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
 	for (i = fwork->min_index; i <= fwork->max_index; i ++) {
 		bucket = &layer->buckets[i];
