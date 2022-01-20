@@ -41,6 +41,7 @@ struct index_layer {
 
 struct log_layer {
 	unsigned int nflush; /* how many flushes */
+	atomic_t exit; /* thread exit */
 	
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
 	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */

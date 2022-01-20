@@ -54,6 +54,7 @@ static int log_layer_init(struct log_layer* layer) {
 	int i, err = 0;
 
 	layer->nflush = 0;
+	atomic_set(&layer->exit, 0);
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
 		goto out;
@@ -80,13 +81,12 @@ static void log_layer_deinit(struct log_layer* layer) {
 	log_region_deinit(layer);
 
 	list_for_each_entry_safe(table, tmp, &layer->numa_table_list, list) {
-		list_del(&table->list);
-
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			hs_destroy(&m->hs);
 		}
-		
+
+		list_del(&table->list);
 		numa_mptable_free(table);
 	}
 
@@ -190,6 +190,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 
 void bonsai_deinit() {
 	bonsai_debug("bonsai deinit\n");
+	printf("bonsai deinit\n");
 
 	dump_pnodes();
 	

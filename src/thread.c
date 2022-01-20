@@ -99,6 +99,7 @@ static void thread_work(struct workqueue_struct* wq) {
 }
 
 static void pflush_worker(struct thread_info* this) {
+	struct log_layer *layer = LOG(bonsai);
 	__this = this;
 
 	bind_to_cpu(__this->t_cpu + 3);
@@ -107,14 +108,15 @@ static void pflush_worker(struct thread_info* this) {
 
 	thread_block_alarm();
 	
-	while (1) {
+	while (!atomic_read(&layer->exit)) {
 		worker_sleep();
-		
 		thread_work(&__this->t_wq);
 	}
 }
 
 static void pflush_master(struct thread_info* this) {
+	struct log_layer *layer = LOG(bonsai);
+	
 	__this = this;
 
 	bind_to_cpu(__this->t_cpu + 3);
@@ -123,10 +125,8 @@ static void pflush_master(struct thread_info* this) {
 
 	thread_block_alarm();
 
-	for (;;) {
-		
+	while (!atomic_read(&layer->exit)) {
 		usleep(CHKPT_INTERVAL);
-		
 		oplog_flush(bonsai);
 	}
 }
@@ -190,9 +190,15 @@ int bonsai_pflushd_thread_init() {
 }
 
 int bonsai_pflushd_thread_exit() {
+	struct log_layer* layer = LOG(bonsai);
 	int i;
 
+	atomic_set(&layer->exit, 1);
+	wakeup_master();
+	wakeup_workers();
+
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
+		pthread_join(bonsai->tids[i], NULL);
 		free(bonsai->pflushd[i]);
 	}
 	

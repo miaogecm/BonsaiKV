@@ -237,6 +237,9 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 
 retry:
 	pnode = pnode_find_lowbound(pnode, key);
+	
+	assert(pnode);
+	
 	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
@@ -320,11 +323,12 @@ retry:
 int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
-	uint64_t mask, temp_mask;
+	uint64_t mask, bit;
 
 	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
 
 	pnode = pnode_find_lowbound(pnode, key);
+	assert(pnode);
 	
 	bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -333,8 +337,8 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     write_lock(pnode->bucket_lock[bucket_id]);
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
-		temp_mask = 1ULL << (offset + i);
-		if ((pnode->bitmap & temp_mask) && 
+		bit = 1ULL << (offset + i);
+		if ((pnode->bitmap & bit) && 
 			key_cmp(pnode->e[offset + i].k, key) == 0)
 			goto find;
 	}

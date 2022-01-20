@@ -249,8 +249,8 @@ void ll_destroy(struct linked_list* ll) {
         xadd(&node_count, -1);
 #endif
     } 
-
-    //free(head);
+	
+    free(ll);
 	
 #ifdef BONSAI_HASHSET_DEBUG
     bonsai_debug("node_count = %d.\n", node_count);
