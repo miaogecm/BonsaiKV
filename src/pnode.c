@@ -87,10 +87,6 @@ static void free_pnode(struct pnode* pnode) {
 	for (i = 0; i < NUM_BUCKET; i++)
 		free(pnode->bucket_lock[i]);
 
-	spin_lock(&DATA(bonsai)->lock);
-	list_del(&pnode->list);
-	spin_unlock(&DATA(bonsai)->lock);
-
 	POBJ_FREE(&toid);
 }
 
@@ -111,6 +107,14 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 		list_add(&pnode->list, head);
 	else
 		__list_add(&pnode->list, &prev->list, &pos->list);
+	write_unlock(&layer->lock);
+}
+
+static void remove_pnode_list(struct pnode* pnode) {
+	struct data_layer* layer = DATA(bonsai);
+	
+	write_lock(&layer->lock);
+	list_del(&pnode->list);
 	write_unlock(&layer->lock);
 }
 
@@ -315,11 +319,11 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     int bucket_id, offset, i;
 	uint64_t mask;
 
+	//bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
+
 	pnode = pnode_find_lowbound(pnode, key);
-
-	//bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
-
-    bucket_id = PNODE_BUCKET_HASH(key);
+	
+	bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
 	mask = (1ULL << (offset + NUM_ENT_PER_BUCKET)) - (1ULL << offset);
 
@@ -343,7 +347,8 @@ find:
     write_unlock(pnode->slot_lock);
 
 	if (unlikely(!pnode->slot[0])) {
-		i_layer->remove(i_layer->index_struct, pnode_max_key(pnode));
+		//i_layer->remove(i_layer->index_struct, pnode_max_key(pnode));
+		remove_pnode_list(pnode);
 		numa_mptable_free(pnode->table);
 		free_pnode(pnode);
 	} else {
