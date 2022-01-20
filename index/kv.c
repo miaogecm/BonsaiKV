@@ -27,7 +27,7 @@
 pkey_t a[5 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	1
+#define NUM_THREAD	4
 #endif
 
 #define NUM_CPU		8
@@ -210,8 +210,8 @@ void* thread_fun(void* arg) {
 	for (int i = 0; i < 1; i++) {
 		int size;
 
-		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
-		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id), val_arr);
+		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
+		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
 		printf("size: %d\n", size);
 		// assert(size == N);
 	}
