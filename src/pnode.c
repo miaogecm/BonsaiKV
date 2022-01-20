@@ -101,7 +101,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 
 	write_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
-		if (key_cmp(pnode_max_key(pos), max_key) > 0)
+		if (key_cmp(pnode_anchor_key(pos), max_key) > 0)
 			break;
 		else
 			prev = pos;
@@ -202,7 +202,7 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 
 	read_lock(&layer->lock);
 	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
-		if (key_cmp(pnode_max_key(pnode), key) >= 0) {
+		if (key_cmp(pnode_anchor_key(pnode), key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
 		}
@@ -231,7 +231,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 
 retry:
 	pnode = pnode_find_lowbound(pnode, key);
-	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_max_key(pnode));
+	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
@@ -285,12 +285,12 @@ retry:
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, pnode);
 
-	insert_pnode_list(new_pnode, pnode_max_key(new_pnode));
+	insert_pnode_list(new_pnode, pnode_anchor_key(new_pnode));
 
 	pnode->slot[0] = n - d;
     pnode->bitmap &= ~removed;
 
-	max_key = pnode_max_key(pnode);
+	max_key = pnode_anchor_key(pnode);
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
@@ -313,7 +313,7 @@ retry:
 int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
     int bucket_id, offset, i;
-	uint64_t mask;
+	uint64_t mask, temp_mask;
 
 	pnode = pnode_find_lowbound(pnode, key);
 
@@ -325,9 +325,12 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 
     write_lock(pnode->bucket_lock[bucket_id]);
 
-	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++)
-		if (!key_cmp(pnode->e[pnode->slot[bucket_id * NUM_ENT_PER_BUCKET + i]].k, key))
+	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
+		temp_mask = 1ULL << (offset + i);
+		if ((pnode->bitmap & temp_mask) && 
+			key_cmp(pnode->e[offset + i].k, key) == 0)
 			goto find;
+	}
 		
 	write_unlock(pnode->bucket_lock[bucket_id]);
 
@@ -343,9 +346,10 @@ find:
     write_unlock(pnode->slot_lock);
 
 	if (unlikely(!pnode->slot[0])) {
-		i_layer->remove(i_layer->index_struct, pnode_max_key(pnode));
-		numa_mptable_free(pnode->table);
-		free_pnode(pnode);
+		printf("!!!!\n");
+		// i_layer->remove(i_layer->index_struct, pnode_anchor_key(pnode));
+		// numa_mptable_free(pnode->table);
+		// free_pnode(pnode);
 	} else {
 		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	

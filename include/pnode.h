@@ -30,7 +30,7 @@ struct pnode {
 	char				padding1[7];
     __le64 				bitmap;
     rwlock_t* 			slot_lock;
-    struct numa_table* 	table;
+	pkey_t				anchor_key;
 	struct list_head 	list;
 
 	/* 2rd - 10th cache line */
@@ -38,7 +38,8 @@ struct pnode {
 
 	/* 11th cache line */
     __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many entries */
-	char				padding2[31];
+	char				padding2[23];
+	struct numa_table* 	table;
 
 	/* 12th cache line */
 	rwlock_t* 			bucket_lock[NUM_BUCKET];
@@ -47,6 +48,7 @@ struct pnode {
 	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
 }__packed;
 
+#define pnode_anchor_key(pnode) pnode->anchor_key
 #define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
 #define pnode_entry_n(pnode, k) pnode->e[pnode->slot[k]]
 
