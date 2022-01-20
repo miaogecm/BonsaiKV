@@ -497,7 +497,7 @@ void sentinel_node_init() {
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]]);
+	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]].k);
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -517,7 +517,7 @@ void dump_pnodes() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-	bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]]);
+	bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]].k);
 		for (i = 0; i <= pnode->slot[0]; i ++)
 			bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
 		bonsai_debug("\n");
