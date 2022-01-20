@@ -37,7 +37,7 @@ static uint64_t hash(uint64_t x) {
 
 #define PNODE_BUCKET_HASH(x) (hash(x) % NUM_BUCKET)
 
-static struct pnode* alloc_pnode(int node) {
+static struct pnode* alloc_pnode(int node, pkey_t ancher_key) {
 	struct data_layer *layer = DATA(bonsai);
     TOID(struct pnode) toid;
     struct pnode* pnode;
@@ -72,6 +72,8 @@ static struct pnode* alloc_pnode(int node) {
 	pnode->table = NULL;
 
 	memset(pnode->forward, 0, NUM_SOCKET * NUM_BUCKET * sizeof(__le64));
+
+	pnode->anchor_key = ancher_key;
 
     pmemobj_persist(pop, pnode, sizeof(struct pnode));
 
@@ -274,7 +276,7 @@ retry:
 		goto retry;
 	}
 
-    new_pnode = alloc_pnode(numa_node);
+    new_pnode = alloc_pnode(numa_node, pnode_anchor_key(pnode));
     memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
     n = pnode->slot[0]; d = n / 2;
     removed = 0;
@@ -421,7 +423,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 	bucket_id = PNODE_BUCKET_HASH(key);
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
 	if (pnode->forward[numa_node][bucket_id] == 0) {
-		remote_pnode = alloc_pnode(numa_node);
+		remote_pnode = alloc_pnode(numa_node, pnode_anchor_key(pnode));
 		memcpy(&remote_pnode[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg2(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
@@ -457,7 +459,7 @@ void sentinel_node_init() {
 	hs_insert(&MPTABLE_NODE(table, numa_node)->hs, get_tid(), key, NULL);
 
 	/* DATA Layer: allocate a persistent node */
-	pnode = alloc_pnode(numa_node);
+	pnode = alloc_pnode(numa_node, key);
 	insert_pnode_list(pnode, key);
 	table->pnode = pnode;
 	pnode->table = table;
