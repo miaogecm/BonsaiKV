@@ -130,6 +130,9 @@ static void worker_oplog_merge(void *arg) {
 	pkey_t key;
 	unsigned int i, j;
 
+	if (unlikely(!mwork))
+		return;
+
 	bonsai_debug("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	
 	for (i = 0; i < mwork->count; i ++) {
@@ -139,7 +142,7 @@ static void worker_oplog_merge(void *arg) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
 				bucket = &layer->buckets[simple_hash(key)];
-				//bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
+				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
 					if (!key_cmp(e->log->o_kv.k, key)) {
@@ -247,8 +250,8 @@ void oplog_flush() {
 	struct work_struct* work;
 	struct list_head* flush_list;
 	struct pnode* pnode;
-	int i, j, cpu, cnt = 0, num_region_per_thread;
-	int num_bucket_per_thread;
+	int i, j, cpu, cnt = 0, total = 0, num_thread;
+	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
 
 	bonsai_debug("thread[%d]: oplog_flush\n", __this->t_id);
 
@@ -256,33 +259,71 @@ void oplog_flush() {
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];
 		spin_lock(&region->lock);
-		first_blks[cpu] = region->first_blk;
-		curr_blks[cpu] = region->curr_blk;
-		region->first_blk = region->curr_blk;
+		if (region->curr_blk) {
+			first_blks[cpu] = region->first_blk;
+			curr_blks[cpu] = region->curr_blk;
+			region->first_blk = region->curr_blk;
+			total ++;
+		}
 		spin_unlock(&region->lock);
 	}
 
 	/* 2. merge all logs */
-	num_region_per_thread = NUM_CPU / (NUM_PFLUSH_THREAD - 1);
-	for (i = 1, j = 0; i < NUM_PFLUSH_THREAD; i ++) {
+	if (total < NUM_PFLUSH_WORKER) {
+		/* case I: total < (NUM_PFLUSH_THREAD - 1) */
+		num_region_per_thread = 1;
+		for (i = 1, j = 0; i < (total + 1); i ++) {
+			mwork = malloc(sizeof(struct merge_work));
+			mwork->count = num_region_per_thread;
+			mwork->layer = l_layer;
+			while (j < num_region_per_thread) {
+				mwork->first_blks[j] = first_blks[cnt];
+				mwork->last_blks[j] = curr_blks[cnt];
+				j ++; cnt ++;
+			}
+			j = 0;
+			mworks[i] = mwork;
+		}
+		for (i = total + 1; i < NUM_PFLUSH_THREAD; i ++)
+			mworks[i] = NULL;
+	} else {
+		/* case II: total >= NUM_PFLUSH_WORKER */
+		num_region_per_thread = total / NUM_PFLUSH_WORKER;
+		for (i = 1, j = 0; i < NUM_PFLUSH_WORKER; i ++) {
+			mwork = malloc(sizeof(struct merge_work));
+			mwork->count = num_region_per_thread;
+			mwork->layer = l_layer;
+			while (j < num_region_per_thread) {
+				mwork->first_blks[j] = first_blks[cnt];
+				mwork->last_blks[j] = curr_blks[cnt];
+				j ++; cnt ++;
+			}
+			j = 0;
+			mworks[i] = mwork;
+		}
+		j = 0;
+		num_region_rest = total - (NUM_PFLUSH_WORKER - 1) * num_region_per_thread;
 		mwork = malloc(sizeof(struct merge_work));
-		mwork->count = num_region_per_thread;
+		mwork->count = num_region_rest;
 		mwork->layer = l_layer;
-		while (j < num_region_per_thread) {
+		while (j < num_region_rest) {
 			mwork->first_blks[j] = first_blks[cnt];
 			mwork->last_blks[j] = curr_blks[cnt];
 			j ++; cnt ++;
 		}
-		j = 0;
 		mworks[i] = mwork;
 	}
-
+	
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		work = malloc(sizeof(struct work_struct));
 		INIT_LIST_HEAD(&work->list);
 		work->func = worker_oplog_merge;
 		work->arg = (void*)(mworks[cnt]);
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
+		if (mworks[cnt])
+			bonsai_debug("pflush thread[%d] mwork count %d\n", cnt, mworks[cnt]->count);
+		else
+			bonsai_debug("pflush thread[%d] mwork NULL\n", cnt);
 	}
 
 	wakeup_workers();
@@ -322,6 +363,6 @@ void oplog_flush() {
 
 	/* 6. finish */
 	l_layer->nflush ++;
-	
+
 	bonsai_debug("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }

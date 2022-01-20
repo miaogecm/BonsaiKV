@@ -250,7 +250,7 @@ void ll_destroy(struct linked_list* ll) {
 #endif
     } 
 
-    free(head);
+    //free(head);
 	
 #ifdef BONSAI_HASHSET_DEBUG
     bonsai_debug("node_count = %d.\n", node_count);

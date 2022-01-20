@@ -89,7 +89,9 @@ static void log_layer_deinit(struct log_layer* layer) {
 
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
+			bonsai_debug("------------%016lx\n", m);
 			hs_destroy(&m->hs);
+			bonsai_debug("------------%d\n", node);
 		}
 		
 		numa_mptable_free(table);

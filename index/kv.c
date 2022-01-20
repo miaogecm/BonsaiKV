@@ -27,7 +27,7 @@
 pkey_t a[4 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	4
+#define NUM_THREAD	2
 #endif
 
 #define NUM_CPU		8

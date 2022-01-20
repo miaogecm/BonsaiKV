@@ -12,6 +12,7 @@ extern "C" {
 #include "list.h"
 
 #define NUM_PFLUSH_THREAD	5
+#define NUM_PFLUSH_WORKER	(NUM_PFLUSH_THREAD - 1)
 
 struct log_layer;
 struct oplog_blk;
@@ -24,8 +25,8 @@ enum {
 struct merge_work {
 	unsigned int count;
 	struct log_layer* layer;
-	struct oplog_blk* first_blks[NUM_CPU/(NUM_PFLUSH_THREAD - 1)];
-	struct oplog_blk* last_blks[NUM_CPU/(NUM_PFLUSH_THREAD - 1)];
+	struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_WORKER];
+	struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_WORKER];
 };
 
 struct flush_work {
