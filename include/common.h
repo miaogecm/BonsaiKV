@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
- #define BONSAI_DEBUG
+#define BONSAI_DEBUG
 #define BONSAI_SUPPORT_UPDATE
 //#define BONSAI_HASHSET_DEBUG
 
