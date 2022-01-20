@@ -408,7 +408,7 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
 		mask = 1ULL << (offset + i);
-		if ((pnode->bitmap & mask) && !key_cmp(pnode->e[offset + i].k, key))
+		if ((pnode->bitmap & mask) && key_cmp(pnode->e[offset + i].k, key) == 0)
 			return &pnode->e[offset + i].v;
 	}	
 
