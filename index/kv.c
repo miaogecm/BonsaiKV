@@ -21,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			10
+#define N			10001
 #endif
 
 pkey_t a[5 * N];

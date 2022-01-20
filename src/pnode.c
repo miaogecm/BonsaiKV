@@ -288,7 +288,7 @@ retry:
     new_pnode->slot[0] = d;
    	new_pnode->bitmap = removed;
 
-	pnode->anchor_key = pnode_entry_n(pnode, n - d).k;
+	pnode->anchor_key = pnode_entry_n_key(pnode, n - d);
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, pnode);
 
