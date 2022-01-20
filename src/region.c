@@ -110,7 +110,6 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 
 	memset((char*)vaddr, 0, size);
 
-	spin_lock_init(&region->lock);
 	spin_lock_init(&region->free_lock);
 	spin_lock_init(&region->inuse_lock);
 	

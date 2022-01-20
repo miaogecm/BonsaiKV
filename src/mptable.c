@@ -22,6 +22,8 @@
 
 extern struct bonsai_info* bonsai;
 
+#define NUM_MERGE_HASH_BUCKET		64
+
 typedef struct {
 	int flag; /* 0:log; 1:pnode */
 	pentry_t* kv;
@@ -363,10 +365,6 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 }
 
-static int hash(pkey_t key) {
-	return (key % MAX_HASH_BUCKET);
-}
-
 static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low, pkey_t high, pkey_t* max_key) {
 	struct hbucket* bucket;
 	struct hlist_node* hnode;
@@ -380,7 +378,7 @@ static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low
 		return;
 	}
 
-	bucket = &merge_buckets[hash(*key)];
+	bucket = &merge_buckets[*key % NUM_MERGE_HASH_BUCKET];
 	hlist_for_each_entry(e, hnode, &bucket->head, node) {
 		/* reach the end */
 		// if (key_cmp(e->kv->k, high) > 0) {
@@ -416,7 +414,7 @@ int __compare(const void* a, const void* b) {
 
 #define MAX_LEN		100001
 static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
-	struct hbucket merge_buckets[MAX_HASH_BUCKET];
+	struct hbucket merge_buckets[NUM_MERGE_HASH_BUCKET];
 	struct bucket_list **buckets, *bucket;
 	struct hash_set* hs;
 	struct mptable *m;
@@ -429,7 +427,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	pentry_t* arr[MAX_LEN];
 	pkey_t max_key = 0;
 
-	memset(merge_buckets, 0, sizeof(struct hbucket) * MAX_HASH_BUCKET);
+	memset(merge_buckets, 0, sizeof(struct hbucket) * NUM_MERGE_HASH_BUCKET);
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
@@ -461,7 +459,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	}
 
 	/* 2. scan merge hash table and copy */
-	for (i = 0, j = 0; i < MAX_HASH_BUCKET; i ++) {
+	for (i = 0, j = 0; i < NUM_MERGE_HASH_BUCKET; i ++) {
 		hlist_for_each_entry_safe(e, hnode, n_hnode, &merge_buckets[i].head, node) {
 			if (addr_in_log((unsigned long)e->kv)) {
 				l = (struct oplog*)((unsigned long)e->kv + sizeof(pentry_t) - sizeof(struct oplog));
@@ -469,6 +467,8 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 					continue;
 			}
 			arr[j++] = e->kv;
+			
+			hlist_del(&e->node);
 			free(e);
 		}
 	}

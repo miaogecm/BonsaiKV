@@ -28,9 +28,9 @@ struct log_region_desc {
 }__packed;
 
 struct log_region {
-	spinlock_t lock;
-	struct oplog_blk* first_blk;
-	struct oplog_blk* curr_blk;
+	volatile struct oplog_blk* first_blk;
+	volatile struct oplog_blk* curr_blk;
+	spinlock_t lock; /* protect curr_blk & first_blk */
 
 	unsigned long vaddr; /* mapped address of all log region of this NUMA node */
 	unsigned long start; /* start address of this log region */
