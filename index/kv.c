@@ -88,7 +88,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	list_add(&knode->list, &__toy->head);
 	write_unlock(&__toy->lock);
 
-	bonsai_debug("kv insert <%lu %016lx>\n", key, value);
+	//bonsai_debug("kv insert <%lu %016lx>\n", key, value);
 
 	return 0;
 }

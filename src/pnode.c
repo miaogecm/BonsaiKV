@@ -283,13 +283,13 @@ retry:
     new_pnode->slot[0] = d;
    	new_pnode->bitmap = removed;
 
-	pnode->slot[0] = n - d;
-    pnode->bitmap &= ~removed;
+	/* split the mapping table */
+    mptable_split(pnode->table, new_pnode);
 
 	insert_pnode_list(new_pnode, pnode_max_key(new_pnode));
 
-	/* split the mapping table */
-    mptable_split(pnode->table, new_pnode);
+	pnode->slot[0] = n - d;
+    pnode->bitmap &= ~removed;
 
 	max_key = pnode_max_key(pnode);
 	
@@ -495,13 +495,14 @@ void print_pnode(struct pnode* pnode) {
 void dump_pnodes() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
-	int i, j = 0;
+	int i, j = 0, sum = 0;
 
 	bonsai_debug("====================================================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		sum += pnode->slot[0];
 /*
 		for (i = 0; i <= pnode->slot[0]; i ++)
 			bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -512,4 +513,6 @@ void dump_pnodes() {
 		bonsai_debug("\n");*/
 	}
 	read_unlock(&layer->lock);
+
+	bonsai_debug("pnode list total key [%d]\n", sum);
 }
