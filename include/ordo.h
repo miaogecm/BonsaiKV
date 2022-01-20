@@ -15,7 +15,7 @@ extern "C" {
  * 224-core machine: 1214 clock cycles
  * 120-core machine: 650 clock cycles
  * 56-core machine (etri nvmm): 366 clock cycles */
-#define __ORDO_BOUNDARY (300)
+#define __ORDO_BOUNDARY (500)
 
 #ifdef ORDO_CONFIGURABLE_BOUNDARY
 /* Since clock difference is a read-mostly variable that is never
