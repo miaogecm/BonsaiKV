@@ -229,8 +229,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 	
 	pnode = pnode_find_lowbound(pnode, key);
 
-	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", 
-		get_tid(), key, value, pnode, pnode_max_key(pnode));
+	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_max_key(pnode));
 
 retry:
 	bucket_id = PNODE_BUCKET_HASH(key);

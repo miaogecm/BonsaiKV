@@ -56,7 +56,7 @@ struct pnode;
 struct mptable;
 struct log_region;
 
-extern struct oplog* alloc_oplog(struct log_region* region, pkey_t key, pval_t val, optype_t type, int cpu);
+extern struct oplog* alloc_oplog(struct log_region* region, int cpu);
 
 extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, 
 			int cpu, struct mptable* mptable, struct pnode* pnode);
