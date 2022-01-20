@@ -50,7 +50,9 @@ struct pnode {
 
 #define pnode_anchor_key(pnode) pnode->anchor_key
 #define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
-#define pnode_entry_n(pnode, k) pnode->e[pnode->slot[k]]
+
+#define pnode_entry_n_key(pnode, n) pnode->e[pnode->slot[n]].k
+#define pnode_entry_n_val(pnode, n) pnode->e[pnode->slot[n]].v
 
 static int key_cmp(pkey_t a, pkey_t b) {
     if (a < b) return -1;
