@@ -188,7 +188,7 @@ static inline void bind_to_cpu(int cpu) {
 void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
-	pval_t v;
+	pval_t v = 0;
 	pval_t val_arr[2 * N];
 
 	bind_to_cpu(id);
@@ -196,7 +196,6 @@ void* thread_fun(void* arg) {
 	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 	
 	bonsai_user_thread_init();
-	
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
@@ -210,9 +209,8 @@ void* thread_fun(void* arg) {
 	for (int i = 0; i < 1; i++) {
 		int size;
 
-		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
+		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		printf("size: %d\n", size);
 		// assert(size == N);
 	}
 #endif
@@ -258,7 +256,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(5);
+	sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

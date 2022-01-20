@@ -237,7 +237,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 
 retry:
 	pnode = pnode_find_lowbound(pnode, key);
-	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
+	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
@@ -322,7 +322,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     int bucket_id, offset, i;
 	uint64_t mask, temp_mask;
 
-	//bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
+	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
 
 	pnode = pnode_find_lowbound(pnode, key);
 	

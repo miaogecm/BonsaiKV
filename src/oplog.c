@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "bonsai.h"
 #include "oplog.h"
@@ -148,6 +149,7 @@ static void worker_oplog_merge(void *arg) {
 				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
+					//assert(e->log != NULL);
 					if (!key_cmp(e->log->o_kv.k, key)) {
 						if (ordo_cmp_clock(e->log->o_stamp, log->o_stamp) == ORDO_LESS_THAN)
 							/* less than */
@@ -324,9 +326,9 @@ void oplog_flush() {
 		work->arg = (void*)(mworks[cnt]);
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 		if (mworks[cnt])
-			bonsai_debug("pflush thread[%d] mwork count %d\n", cnt, mworks[cnt]->count);
+			bonsai_debug("pflush thread[%d] merge work count %d\n", cnt, mworks[cnt]->count);
 		else
-			bonsai_debug("pflush thread[%d] mwork NULL\n", cnt);
+			bonsai_debug("pflush thread[%d] merge work NULL\n", cnt);
 	}
 
 	wakeup_workers();
