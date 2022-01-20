@@ -102,7 +102,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 
 	write_lock(&__toy->lock);
 	next_node = __kv_lookup(index_struct, key);
-	if (next_node != &__toy->head && next_node->kv.k == key) {
+	if (&next_node->list != &__toy->head && next_node->kv.k == key) {
 		next_node->kv.v = value;
 	} else {
 		ll_node = &next_node->list;
