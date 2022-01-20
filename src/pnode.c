@@ -398,14 +398,18 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
  * @key: target key
  */
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
-	int bucket_id, i;
+	int bucket_id, i, offset;
+	unsigned long mask;
 
 	bonsai_debug("pnode_lookup: pnode %016lx <%lu>\n", pnode, key);
 
 	bucket_id = PNODE_BUCKET_HASH(key);
+	offset = bucket_id * NUM_ENT_PER_BUCKET;
+
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++) {
-		if (!key_cmp(pnode->e[bucket_id + i].k, key))
-			return &pnode->e[bucket_id + i].v;
+		mask = 1ULL << (offset + i);
+		if ((pnode->bitmap & mask) && key_cmp(pnode->e[offset + i].k, key) == 0)
+			return &pnode->e[offset + i].v;
 	}	
 
 	return NULL;
