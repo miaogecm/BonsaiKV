@@ -179,7 +179,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		if (addr) {
 			if (addr_in_log((unsigned long)addr)) {
 				log = OPLOG(addr);
-				if (ordo_cmp_clock(log->o_stamp, max_op_t)) {
+				if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
 					max_op_t = log->o_stamp;
 					latest_op_type = log->o_type;
 				}
@@ -228,7 +228,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 			log = OPLOG(addr);
 			switch (log->o_type) {
 			case OP_INSERT:
-				if (ordo_cmp_clock(log->o_stamp, max_insert_t)) {
+				if (ordo_cmp_clock(log->o_stamp, max_insert_t) == ORDO_GREATER_THAN) {
 					max_insert_t = log->o_stamp;
 					max_insert_index = node;
 				}
@@ -236,7 +236,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 				n_insert++;
 				break;
 			case OP_REMOVE:
-				if (ordo_cmp_clock(log->o_stamp, max_remove_t)) {
+				if (ordo_cmp_clock(log->o_stamp, max_remove_t) == ORDO_GREATER_THAN) {
 					max_remove_t = log->o_stamp;
 				}
 				n_remove++;
@@ -256,29 +256,13 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	}
 
 	if (n_insert > 0) {
-#if 0
-		log = insert_logs[max_insert_index];
-		if (ordo_cmp_clock(max_insert_t, max_remove_t)) {
-			pnode = (struct pnode*)log->o_addr;
-			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert) {
-				*val = log->o_kv.v;
-				return 0;
-			}
-			else
-				return -ENOENT;
+		if (ordo_cmp_clock(max_remove_t, max_insert_t) == ORDO_GREATER_THAN) {
+			return -ENOENT;
 		} else {
+			log = insert_logs[max_insert_index];
 			*val = log->o_kv.v;
 			return 0;
-		}
-#else
-	if (ordo_cmp_clock(max_remove_t, max_insert_t)) {
-		return -ENOENT;
-	} else {
-		log = insert_logs[max_insert_index];
-		*val = log->o_kv.v;
-		return 0;
-	} 
-#endif
+		} 
 	} else if (n_insert == 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		if (n_remove > 0)

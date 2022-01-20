@@ -208,10 +208,9 @@ void* thread_fun(void* arg) {
 
 	for (int i = 0; i < 1; i++) {
 		int size;
-
 		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		// assert(size == N);
+		assert(size == N);
 	}
 #endif
 #if 1
