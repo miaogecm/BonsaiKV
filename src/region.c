@@ -197,7 +197,7 @@ static inline int file_exists(const char *filename) {
 
 int data_region_init(struct data_layer *layer) {
 	struct data_region *region;
-	int node, sds_write_value = 0;
+	int node;
 	PMEMobjpool* pop;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {

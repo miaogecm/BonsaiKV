@@ -182,7 +182,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 					latest_op_type = log->o_type;
 				}
 			}
-			else if (addr_in_pnode(addr)) {
+			else if (addr_in_pnode((unsigned long)addr)) {
 				found_in_pnode = 1;
 			}
 		}

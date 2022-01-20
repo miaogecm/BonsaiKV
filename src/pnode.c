@@ -143,7 +143,7 @@ static int find_unused_entry(pkey_t key, uint64_t bitmap, int bucket_id) {
  * bucket_is_full: return 1 if bucket is full
  */
 static int bucket_is_full(uint64_t bitmap, int bucket_id) {
-	uint64_t mask, pos;
+	uint64_t mask;
 	int offset;
 
 	offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -228,7 +228,7 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
-    int bucket_id, pos, i, j, n, d;
+    int bucket_id, pos, i, n, d;
     struct pnode *new_pnode;
 	uint64_t removed;
 	pkey_t max_key;

@@ -229,7 +229,9 @@ static void worker_oplog_flush(void* arg) {
 
 static void free_pages(struct log_layer *layer, struct list_head* flush_list) {
 	flush_page_struct *p, *n;
+#ifdef BONSAI_DEBUG
 	int i = 0;
+#endif
 	
 	list_for_each_entry_safe(p, n, flush_list, list) {
 		free_log_page(&layer->region[p->cpu], p->page);
@@ -255,7 +257,7 @@ void oplog_flush() {
 	struct work_struct* work;
 	struct list_head* flush_list;
 	struct pnode* pnode;
-	int i, j, cpu, cnt = 0, total = 0, num_thread;
+	int i, j, cpu, cnt = 0, total = 0;
 	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
 
 	bonsai_debug("thread[%d]: oplog_flush\n", __this->t_id);

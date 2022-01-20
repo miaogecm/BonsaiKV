@@ -14,7 +14,7 @@ extern "C" {
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
-#define PNODE_BITMAP_FULL			(~(1UL<<64))
+#define PNODE_BITMAP_FULL			(~(1ULL<<64))
 
 enum {
 	PNODE_DATA_CLEAN = 0,
