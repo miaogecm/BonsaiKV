@@ -101,7 +101,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 
 	write_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
-		if (key_cmp(pos->e[pnode->slot[pnode->slot[0]]].k, max_key) > 0)
+		if (key_cmp(pnode_max_key(pos), max_key) > 0)
 			break;
 		else
 			prev = pos;
@@ -202,7 +202,7 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 
 	read_lock(&layer->lock);
 	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
-		if (key_cmp(pnode->e[pnode->slot[pnode->slot[0]]].k, key) >= 0) {
+		if (key_cmp(pnode_max_key(pnode), key) >= 0) {
 			read_unlock(&layer->lock);
 			return pnode;
 		}
@@ -229,13 +229,8 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 	
 	pnode = pnode_find_lowbound(pnode, key);
 
-	bonsai_debug("thread[%d] pnode_find_lowbound: %016lx <%lu %lu>\n", 
-		get_tid(), pnode, key, value);
-
-	dump_pnodes();
-
-	bonsai_debug("thread[%d] pnode_find_lowbound: pnode max %lu <%lu %lu>\n", 
-		get_tid(), pnode->e[pnode->slot[pnode->slot[0]]], key, value);
+	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", 
+		get_tid(), key, value, pnode, pnode_max_key(pnode));
 
 retry:
 	bucket_id = PNODE_BUCKET_HASH(key);
@@ -256,7 +251,6 @@ retry:
         write_unlock(pnode->slot_lock);
 
 		set_bit(pos, &pnode->bitmap);
-		bonsai_debug("thread[%d] bitmap %016lx <%lu %lu> bucket %d\n", get_tid(), pnode->bitmap, key, value, bucket_id);
         write_unlock(pnode->bucket_lock[bucket_id]);
 		
 		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
@@ -278,15 +272,13 @@ retry:
 		goto retry;
 	}
 
-	print_pnode(pnode);
-
     new_pnode = alloc_pnode(numa_node);
     memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
     n = pnode->slot[0]; d = n / 2;
     removed = 0;
 
     for (i = 1; i <= d; i++) {
-    	removed |= (1ULL << pnode->slot[i]);
+    	removed |= (1ULL << pnode->slot[n + 1 - i]);
 		new_pnode->slot[d + 1 - i] = pnode->slot[n + 1 - i];
     }
     new_pnode->slot[0] = d;
@@ -295,15 +287,12 @@ retry:
 	pnode->slot[0] = n - d;
     pnode->bitmap &= ~removed;
 
-	print_pnode(pnode);
-	print_pnode(new_pnode);
-
-	insert_pnode_list(new_pnode, new_pnode->e[new_pnode->slot[new_pnode->slot[0]]].k);
+	insert_pnode_list(new_pnode, pnode_max_key(new_pnode));
 
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode);
 
- 	max_key = pnode->e[pnode->slot[0]].k;
+	max_key = pnode_max_key(pnode);
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
@@ -357,7 +346,7 @@ find:
 		/* free this persistent node */
 		free_pnode(pnode);
 		numa_mptable_free(pnode->table);
-		i_layer->remove(i_layer->index_struct, pnode->e[pnode->slot[0]].k);
+		i_layer->remove(i_layer->index_struct, pnode_max_key(pnode));
 	} else {
 		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
@@ -493,7 +482,7 @@ void sentinel_node_init() {
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]].k);
+	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -513,14 +502,15 @@ void dump_pnodes() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-	bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode->e[pnode->slot[pnode->slot[0]]].k);
+		bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+/*
 		for (i = 0; i <= pnode->slot[0]; i ++)
 			bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
 		bonsai_debug("\n");
 	
 		for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
 			bonsai_debug("key[%d]: %lu; ", i, pnode->e[i].k);
-		bonsai_debug("\n");
+		bonsai_debug("\n");*/
 	}
 	read_unlock(&layer->lock);
 }

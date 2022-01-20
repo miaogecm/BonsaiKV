@@ -47,6 +47,8 @@ struct pnode {
 	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
 }__packed;
 
+#define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
+
 static int key_cmp(pkey_t a, pkey_t b) {
     if (a < b) return -1;
     if (a > b) return 1;
