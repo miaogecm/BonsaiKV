@@ -8,3 +8,4 @@ log
 .objs
 kv
 .DS_Store
+core*

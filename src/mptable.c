@@ -256,7 +256,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	}
 
 	if (n_insert > 0) {
-#ifdef BONSAI_SUPPORT_UPDATE
+#if 0
 		log = insert_logs[max_insert_index];
 		if (ordo_cmp_clock(max_insert_t, max_remove_t)) {
 			pnode = (struct pnode*)log->o_addr;
