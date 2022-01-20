@@ -562,6 +562,11 @@ static inline void hlist_add_after(struct hlist_node *n,
 	for (pos = (head)->first; pos && ({ n = pos->next; 1; }); \
 	     pos = n)
 
+#define hlist_entry_safe(ptr, type, member) \
+	({ typeof(ptr) ____ptr = (ptr); \
+	____ptr ? hlist_entry(____ptr, type, member) : NULL; \
+	})
+
 /**
  * hlist_for_each_entry	- iterate over list of given type
  * @tpos:	the type * to use as a loop cursor.
@@ -611,6 +616,7 @@ static inline void hlist_add_after(struct hlist_node *n,
 	     pos && ({ n = pos->next; 1; }) && 				 \
 		({ tpos = hlist_entry(pos, typeof(*tpos), member); 1;}); \
 	     pos = n)
+
 
 /*
  * A fifo queue implementation using list

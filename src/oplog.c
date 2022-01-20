@@ -139,7 +139,7 @@ static void worker_oplog_merge(void *arg) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
 				bucket = &layer->buckets[simple_hash(key)];
-				bonsai_debug("thread[%d] merge <%lu, %lu>\n", __this->t_id, log->o_kv.k, log->o_kv.v);
+				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
 					if (!key_cmp(e->log->o_kv.k, key)) {
@@ -181,6 +181,7 @@ static void worker_oplog_flush(void* arg) {
 		bucket = &layer->buckets[i];
 		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
 			log = e->log;
+			bonsai_debug("worker_oplog_flush <%lu %lu> in bucket[%d]\n", log->o_kv.k, log->o_kv.v, i);
 			switch(log->o_type) {
 			case OP_INSERT:
 			pnode_insert((struct pnode*)log->o_addr, log->o_numa_node, log->o_kv.k, log->o_kv.v);		
@@ -192,7 +193,6 @@ static void worker_oplog_flush(void* arg) {
 			perror("bad operation type\n");
 			break;
 			}
-			free(e);
 
 			block = OPLOG_BLK(log);
 			asm volatile("lock; decl %0" : "+m" (block->cnt));
@@ -207,6 +207,8 @@ static void worker_oplog_flush(void* arg) {
 					list_add(&p->list, fwork->flush_list);
 				}
 			}
+
+			free(e);
 		}
 	}
 
@@ -282,7 +284,7 @@ void oplog_flush() {
 	park_master();
 
 	/* 3. flush all logs */
-	num_bucket_per_thread = NUM_CPU / (NUM_PFLUSH_THREAD - 1);
+	num_bucket_per_thread = MAX_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	flush_list = malloc(sizeof(struct list_head));
 	INIT_LIST_HEAD(flush_list);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
