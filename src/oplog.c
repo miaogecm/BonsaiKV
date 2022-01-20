@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "bonsai.h"
 #include "oplog.h"
@@ -137,10 +138,11 @@ static void worker_oplog_merge(void *arg) {
 	layer = mwork->layer;
 
 	bonsai_debug("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
+	printf("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
-		while(1) {
+		do {
 			for (j = 0; j < block->cnt; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
@@ -155,19 +157,16 @@ static void worker_oplog_merge(void *arg) {
 						continue;
 					}
 				}
-				
+
 				e = malloc(sizeof(merge_ent));
 				e->log = log;
 				hlist_add_head(&e->node, &bucket->head);
 				spin_unlock(&bucket->lock);
 			}
 
-			if (block == mwork->last_blks[i])
-				break;
-
 			region = &layer->region[block->cpu];
 			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
-		}
+		} while(block != mwork->last_blks[i]);
 	}
 	
 	free(mwork);
@@ -185,6 +184,7 @@ static void worker_oplog_flush(void* arg) {
 	unsigned int i;
 
 	bonsai_debug("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
+	printf("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
 	for (i = fwork->min_index; i <= fwork->max_index; i ++) {
 		bucket = &layer->buckets[i];
@@ -218,6 +218,7 @@ static void worker_oplog_flush(void* arg) {
 				}
 			}
 
+			hlist_del(&e->node);
 			free(e);
 		}
 	}
@@ -227,7 +228,9 @@ static void worker_oplog_flush(void* arg) {
 
 static void free_pages(struct log_layer *layer, struct list_head* flush_list) {
 	flush_page_struct *p, *n;
+#ifdef BONSAI_DEBUG
 	int i = 0;
+#endif
 	
 	list_for_each_entry_safe(p, n, flush_list, list) {
 		free_log_page(&layer->region[p->cpu], p->page);
@@ -247,13 +250,14 @@ void oplog_flush() {
 	struct log_region *region;
 	struct oplog_blk* first_blks[NUM_CPU];
 	struct oplog_blk* curr_blks[NUM_CPU];
+	struct oplog_blk* curr_blk;
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
 	struct work_struct* work;
 	struct list_head* flush_list;
 	struct pnode* pnode;
-	int i, j, cpu, cnt = 0, total = 0, num_thread;
+	int i, j, cpu, cnt = 0, total = 0;
 	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
 
 	bonsai_debug("thread[%d]: oplog_flush\n", __this->t_id);
@@ -261,14 +265,13 @@ void oplog_flush() {
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];
-		spin_lock(&region->lock);
-		if (region->curr_blk) {
+		curr_blk = ACCESS_ONCE(region->curr_blk);
+		if (curr_blk && region->first_blk != curr_blk) {
 			first_blks[cpu] = region->first_blk;
-			curr_blks[cpu] = region->curr_blk;
-			region->first_blk = region->curr_blk;
+			curr_blks[cpu] = curr_blk;
+			region->first_blk = curr_blk;
 			total ++;
 		}
-		spin_unlock(&region->lock);
 	}
 
 	/* 2. merge all logs */
@@ -324,9 +327,9 @@ void oplog_flush() {
 		work->arg = (void*)(mworks[cnt]);
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 		if (mworks[cnt])
-			bonsai_debug("pflush thread[%d] mwork count %d\n", cnt, mworks[cnt]->count);
+			bonsai_debug("pflush thread[%d] merge work count %d\n", cnt, mworks[cnt]->count);
 		else
-			bonsai_debug("pflush thread[%d] mwork NULL\n", cnt);
+			bonsai_debug("pflush thread[%d] merge work NULL\n", cnt);
 	}
 
 	wakeup_workers();
@@ -334,7 +337,7 @@ void oplog_flush() {
 	park_master();
 
 	/* 3. flush all logs */
-	num_bucket_per_thread = MAX_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
+	num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	flush_list = malloc(sizeof(struct list_head));
 	INIT_LIST_HEAD(flush_list);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
@@ -366,6 +369,14 @@ void oplog_flush() {
 
 	/* 6. finish */
 	l_layer->nflush ++;
+
+	merge_ent* e;
+	struct hlist_node* hnode;
+	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
+		hlist_for_each_entry(e, hnode, &l_layer->buckets[i].head, node) {
+			printf("bucket[%d] %016lx\n", i, e);
+		}
+	}
 
 	bonsai_debug("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }

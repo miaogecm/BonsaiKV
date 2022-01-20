@@ -61,7 +61,7 @@ static int log_layer_init(struct log_layer* layer) {
 	spin_lock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->numa_table_list);
 
-	for (i = 0; i < MAX_HASH_BUCKET; i ++) {
+	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
 		INIT_HLIST_HEAD(&layer->buckets[i].head);
 		spin_lock_init(&layer->buckets[i].lock);
 	}

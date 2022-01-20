@@ -26,7 +26,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-#define MAX_HASH_BUCKET		64
+#define NUM_PFLUSH_HASH_BUCKET		64
 
 struct index_layer {
 	void *index_struct;
@@ -50,7 +50,7 @@ struct log_layer {
 	spinlock_t lock;
 	struct list_head numa_table_list;
 
-	struct hbucket buckets[MAX_HASH_BUCKET]; /* hash table used in log flush */
+	struct hbucket buckets[NUM_PFLUSH_HASH_BUCKET]; /* hash table used in log flush */
 };
 
 struct data_layer {
@@ -100,7 +100,7 @@ extern void bonsai_deinit();
 extern void bonsai_recover();
 
 static int simple_hash(pkey_t key) {
-	return (key % MAX_HASH_BUCKET);
+	return (key % NUM_PFLUSH_HASH_BUCKET);
 }
 
 #ifdef __cplusplus

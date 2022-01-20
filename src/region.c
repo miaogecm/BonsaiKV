@@ -110,7 +110,6 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 
 	memset((char*)vaddr, 0, size);
 
-	spin_lock_init(&region->lock);
 	spin_lock_init(&region->free_lock);
 	spin_lock_init(&region->inuse_lock);
 	
@@ -197,7 +196,7 @@ static inline int file_exists(const char *filename) {
 
 int data_region_init(struct data_layer *layer) {
 	struct data_region *region;
-	int node, sds_write_value = 0;
+	int node;
 	PMEMobjpool* pop;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {

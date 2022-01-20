@@ -83,7 +83,8 @@ void thread_block_alarm() {
  * thread_set_alarm: every user thread must register this signal
  */
 int thread_set_alarm() {
-	return register_alarm(thread_alarm_handler);
+	//return register_alarm(thread_alarm_handler);
+	return 0;
 }
 
 #if 0

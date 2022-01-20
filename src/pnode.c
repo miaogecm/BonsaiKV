@@ -143,7 +143,7 @@ static int find_unused_entry(pkey_t key, uint64_t bitmap, int bucket_id) {
  * bucket_is_full: return 1 if bucket is full
  */
 static int bucket_is_full(uint64_t bitmap, int bucket_id) {
-	uint64_t mask, pos;
+	uint64_t mask;
 	int offset;
 
 	offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -228,7 +228,7 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
-    int bucket_id, pos, i, j, n, d;
+    int bucket_id, pos, i, n, d;
     struct pnode *new_pnode;
 	uint64_t removed;
 	pkey_t max_key;
@@ -237,7 +237,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
 
 retry:
 	pnode = pnode_find_lowbound(pnode, key);
-	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
+	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
@@ -322,7 +322,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
     int bucket_id, offset, i;
 	uint64_t mask, temp_mask;
 
-	//bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
+	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
 
 	pnode = pnode_find_lowbound(pnode, key);
 	
