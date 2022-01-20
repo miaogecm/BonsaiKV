@@ -120,7 +120,7 @@ struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node,
 
 static void worker_oplog_merge(void *arg) {
 	struct merge_work* mwork = (struct merge_work*)arg;
-	struct log_layer* layer = mwork->layer;
+	struct log_layer* layer;
 	struct oplog_blk* block;
 	struct oplog *log;
 	struct hbucket* bucket;
@@ -132,6 +132,8 @@ static void worker_oplog_merge(void *arg) {
 
 	if (unlikely(!mwork))
 		return;
+
+	layer = mwork->layer;
 
 	bonsai_debug("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	

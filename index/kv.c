@@ -27,7 +27,7 @@
 pkey_t a[4 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	2
+#define NUM_THREAD	5
 #endif
 
 #define NUM_CPU		8
@@ -247,7 +247,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(10);
+	sleep(5);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
