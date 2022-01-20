@@ -123,7 +123,7 @@ static void pflush_master(struct thread_info* this) {
 
 	//for (;;) {
 		
-		sleep(1);
+		sleep(3);
 		
 		oplog_flush(bonsai);
 	//}

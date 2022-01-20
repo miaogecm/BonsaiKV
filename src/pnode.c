@@ -283,7 +283,7 @@ retry:
    	new_pnode->bitmap = removed;
 
 	/* split the mapping table */
-    mptable_split(pnode->table, new_pnode);
+    mptable_split(pnode->table, new_pnode, pnode);
 
 	insert_pnode_list(new_pnode, pnode_max_key(new_pnode));
 
@@ -317,7 +317,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 
 	pnode = pnode_find_lowbound(pnode, key);
 
-	bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
+	//bonsai_debug("pnode_remove: pnode %016lx <%lu>\n", pnode, key);
 
     bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -343,10 +343,9 @@ find:
     write_unlock(pnode->slot_lock);
 
 	if (unlikely(!pnode->slot[0])) {
-		/* free this persistent node */
-		free_pnode(pnode);
-		numa_mptable_free(pnode->table);
 		i_layer->remove(i_layer->index_struct, pnode_max_key(pnode));
+		numa_mptable_free(pnode->table);
+		free_pnode(pnode);
 	} else {
 		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	

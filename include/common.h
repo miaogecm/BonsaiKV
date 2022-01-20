@@ -5,13 +5,14 @@
 extern "C" {
 #endif
 
- #define BONSAI_DEBUG
+#define BONSAI_DEBUG
 #define BONSAI_SUPPORT_UPDATE
 //#define BONSAI_HASHSET_DEBUG
 
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <errno.h>
 
 #ifndef LOCAL
 typedef uint64_t 	pkey_t;
@@ -49,15 +50,6 @@ typedef struct pentry {
     __le64 v;
 } pentry_t;
 
-#ifndef ENOMEM
-#define ENOMEM		101 /* out-of memory */
-#endif
-#ifndef ENOENT
-#define ENOENT		102 /* no such entry */
-#endif
-#ifndef EEXIST
-#define EEXIST		103 /* key exist */
-#endif
 #define EOPEN		104 /* open file error */
 #define EPMEMOBJ	105 /* create pmemobj error */
 #define EMMAP		106 /* memory-map error */
@@ -75,7 +67,7 @@ typedef struct pentry {
 #ifdef BONSAI_DEBUG
 #define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0)
 #else
-#define bonsai_debug(fmt, args ...) do{}while(0)
+#define bonsai_debug(fmt, args ...) do {} while(0)
 #endif
 
 #ifdef __cplusplus

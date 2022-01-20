@@ -334,34 +334,37 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 	hs_insert(&table->hs, tid, key, addr);
 }
 
-void mptable_split(struct numa_table* src, struct pnode* new_pnode) {	
+void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
 	int tid = get_tid(), i, node, N = new_pnode->slot[0];
-	struct numa_table* tables;
-	struct mptable *table;
+	struct numa_table* new_table;
+	struct mptable *m;
 	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
 	uint8_t* slot = new_pnode->slot;
 	
-	tables = numa_mptable_alloc(LOG(bonsai));
-	new_pnode->table = tables;
-	tables->pnode = new_pnode;
+	new_table = numa_mptable_alloc(LOG(bonsai));
+	new_pnode->table = new_table;
+	new_table->pnode = new_pnode;
 
 	for (i = 1; i <= N; i ++) {
 		key = new_pnode->e[slot[i]].k;
 		for (node = 0; node < NUM_SOCKET; node ++) {
-			table = MPTABLE_NODE(src, node);
-			if ((addr = hs_lookup(&table->hs, tid, key)) != NULL) {
+			m = MPTABLE_NODE(old_table, node);
+			if ((addr = hs_lookup(&m->hs, tid, key)) != NULL) {
 				if (addr_in_pnode((unsigned long)addr)) {
-					hs_remove(&table->hs, tid, key);
-					hs_insert(&tables->tables[node]->hs, tid, key, &new_pnode->e[slot[slot[0]]].v);
+					hs_remove(&m->hs, tid, key);
+					hs_insert(&new_table->tables[node]->hs, tid, key, &new_pnode->e[slot[slot[0]]].v);
 					//bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
 				}
 			}		
 		}
 	}
 
-	i_layer->insert(i_layer->index_struct, pnode_max_key(new_pnode), tables);
+	i_layer->remove(i_layer->index_struct, pnode_max_key(new_pnode));
+	
+	i_layer->insert(i_layer->index_struct, pnode_max_key(old_pnode), old_table);
+	i_layer->insert(i_layer->index_struct, pnode_max_key(new_pnode), new_table);
 }
 
 static int hash(pkey_t key) {

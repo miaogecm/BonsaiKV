@@ -184,7 +184,7 @@ static void worker_oplog_flush(void* arg) {
 		bucket = &layer->buckets[i];
 		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
 			log = e->log;
-			//bonsai_debug("thread[%d] flush <%lu %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, i);
+			bonsai_debug("thread[%d] flush <%lu %lu>[%s] in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert", i);
 			switch(log->o_type) {
 			case OP_INSERT:
 			pnode_insert((struct pnode*)log->o_addr, log->o_numa_node, log->o_kv.k, log->o_kv.v);		

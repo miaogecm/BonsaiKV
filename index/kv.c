@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <sched.h>
 #include <time.h>
+#include <errno.h>
 
 #include "common.h"
 #include "kv.h"
@@ -204,14 +205,13 @@ void* thread_fun(void* arg) {
 		printf("\n");
 	}
 #endif
-#if 0
+#if 1
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		//i don' know why -enoent(-102) become -2, anyway
-		assert(bonsai_lookup((pkey_t)i, &v) == -2);
+		//assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
 	}
 #endif
 	bonsai_user_thread_exit();
@@ -247,7 +247,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(5);
+	sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
