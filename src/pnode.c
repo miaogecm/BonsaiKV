@@ -379,10 +379,10 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
 	
 	slot = pnode->slot;
 	while(index <= slot[0]) {
-		if (likely(key_cmp(pnode->e[slot[index]].k, high) <= 0 
-				&& key_cmp(pnode->e[slot[index]].k, low) >= 0)) {
-			result[n++] = pnode->e[slot[index]].v;
-			max_key = max_key < pnode->e[slot[index]].k ? pnode->e[slot[index]].k : max_key;
+		if (likely(key_cmp(pnode_entry_n_key(pnode, index), high) <= 0 
+				&& key_cmp(pnode_entry_n_key(pnode, index), low) >= 0)) {
+			result[n++] = pnode_entry_n_val(pnode, index);
+			max_key = max_key < pnode_entry_n_key(pnode, index) ? pnode_entry_n_key(pnode, index) : max_key;
         	index++;
 		}
 	}

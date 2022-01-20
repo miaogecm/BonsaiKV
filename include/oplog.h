@@ -24,13 +24,12 @@ typedef enum {
 
 /*
  * operation log definition in log layer
- * Every oplog is 35 bytes. We pack 7 oplogs in 4 cache lines,
+ * Every oplog is 34 bytes. We pack 7 oplogs in 4 cache lines,
  * which is called oplog block.
  */
 struct oplog {
 	__le8 		o_type; /* OP_INSERT or OP_REMOVE */
 	__le8		o_numa_node; /* which numa node */
-	__le8		o_flag; /* 1: pnode, 0: numa_table */
 	__le64 		o_stamp; /* time stamp */
 	__le64		o_addr; /* pnode or numa_table address */
 	pentry_t 	o_kv; /* actual key-value pair */
@@ -41,13 +40,13 @@ struct oplog {
  */
 struct oplog_blk {
 	struct oplog logs[NUM_OPLOG_PER_BLK];
-	__le8 flush; /* whether it has been flushed */
 	__le8 cpu; /* which NUMA node */
 	__le8 cnt; /* how many logs in oplog block */
+	__le64 epoch; /* epoch */
 	__le64 next; /* next oplog block */
 }__packed;
 
-#define OPLOG(val) (struct oplog*)((unsigned long)val - 27)
+#define OPLOG(val) (struct oplog*)((unsigned long)val - 26)
 
 #define OPLOG_BLK_MASK	0xFFFFFFFFFFFFFF00
 #define OPLOG_BLK(addr)	(struct oplog_blk*)((unsigned long)addr & OPLOG_BLK_MASK)

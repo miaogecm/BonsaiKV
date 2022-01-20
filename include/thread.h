@@ -50,9 +50,10 @@ struct workqueue_struct {
 };
 
 struct thread_info {
-	unsigned int 	t_id;
-	unsigned int 	t_cpu;
-	void* 			t_data;
+	unsigned int 			t_id;
+	unsigned int 			t_cpu;
+	volatile unsigned long 	t_epoch;
+	void* 					t_data;
 	struct workqueue_struct t_wq;	
 };
 

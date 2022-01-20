@@ -22,6 +22,8 @@
 
 __thread struct thread_info* __this = NULL;
 
+#define CHKPT_INTERVAL		500
+
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
@@ -123,7 +125,7 @@ static void pflush_master(struct thread_info* this) {
 
 	for (;;) {
 		
-		usleep(500);
+		usleep(CHKPT_INTERVAL);
 		
 		oplog_flush(bonsai);
 	}
@@ -148,6 +150,7 @@ void bonsai_user_thread_init() {
 
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
+	thread->t_epoch = bonsai->desc->epoch;
 
 	thread_set_alarm();
 
