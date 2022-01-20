@@ -225,14 +225,13 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
     int bucket_id, pos, i, j, n, d;
     struct pnode *new_pnode;
 	uint64_t removed;
-    pkey_t max_key;
-	
-	pnode = pnode_find_lowbound(pnode, key);
+	pkey_t max_key;
 
-	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_max_key(pnode));
+	bucket_id = PNODE_BUCKET_HASH(key);
 
 retry:
-	bucket_id = PNODE_BUCKET_HASH(key);
+	pnode = pnode_find_lowbound(pnode, key);
+	//bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_max_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
@@ -322,13 +321,15 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 
     bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
-
 	mask = (1ULL << (offset + NUM_ENT_PER_BUCKET)) - (1ULL << offset);
 
     write_lock(pnode->bucket_lock[bucket_id]);
+
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i ++)
-		if (pnode->e[i].k == key)
+		if (!key_cmp(pnode->e[pnode->slot[bucket_id * NUM_ENT_PER_BUCKET + i]].k, key))
 			goto find;
+		
+	write_unlock(pnode->bucket_lock[bucket_id]);
 
 	return -ENOENT;
 

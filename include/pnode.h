@@ -48,6 +48,7 @@ struct pnode {
 }__packed;
 
 #define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
+#define pnode_entry_n(pnode, k) pnode->e[pnode->slot[k]]
 
 static int key_cmp(pkey_t a, pkey_t b) {
     if (a < b) return -1;
