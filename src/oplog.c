@@ -51,9 +51,9 @@ again:
 		goto again;
 
 	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
-	new_block->flush = 0;
 	new_block->cnt = 0;
 	new_block->cpu = cpu;
+	new_block->epoch = ACCESS_ONCE(bonsai->desc->epoch);
 	new_block->next = 0;
 
 	if (likely(old_val)) {
@@ -72,7 +72,7 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	struct oplog_blk* block = region->curr_blk;
 	struct oplog* log;
 
-	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK || block->flush)) {		
+	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {		
 		block = alloc_oplog_block(cpu);
 		region->curr_blk = block;
 	}
@@ -85,32 +85,33 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, 
 			int cpu, struct mptable* mptable, struct pnode* pnode) {
 	struct log_layer* layer = LOG(bonsai);
-	unsigned int epoch = layer->epoch;
+	unsigned int epoch;
 	struct log_region *region;
+	struct oplog_blk* block;
 	struct oplog* log;
 
 	region = &layer->region[cpu];
+retry:
 	log = alloc_oplog(region, cpu);
+	
+	block = OPLOG_BLK(log);
+	epoch = block->epoch;
 
 	log->o_type = cpu_to_le8(op);
 	log->o_numa_node = cpu_to_le8(numa_node);
-	log->o_flag = pnode ? cpu_to_le8(1) : cpu_to_le8(0);
 	log->o_stamp = cpu_to_le64(ordo_new_clock(0));
-	log->o_addr = log->o_flag ? (__le64)pnode : (__le64)mptable;
+	log->o_addr = (__le64)pnode;
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-	if (unlikely(epoch != layer->epoch)) {
+	if (unlikely(epoch != ACCESS_ONCE(bonsai->desc->epoch))) {
 		/* an epoch passed */
-		region->curr_blk->cnt--;
-		bonsai_flush(&region->curr_blk->cnt, sizeof(__le64), 1);
-		return log;
+		goto retry;
 	}
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
-		/* persist it */
-		region->curr_blk->flush = cpu_to_le8(1);
-		bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
+		/* persist it, no memory fence */
+		bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 0);
 	}
 
 	bonsai_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);

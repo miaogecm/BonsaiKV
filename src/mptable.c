@@ -175,7 +175,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		mptable = MPTABLE_NODE(tables, node);
 		addr = hs_lookup(&mptable->hs, tid, key);
 		if (addr) {
-			if (addr_in_log(addr)) {
+			if (addr_in_log((unsigned long)addr)) {
 				log = OPLOG(addr);
 				if (ordo_cmp_clock(log->o_stamp, max_op_t)) {
 					max_op_t = log->o_stamp;
@@ -253,13 +253,11 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 		}
 	}
 
-	bonsai_debug("%p %p\n", master_node_addr, self_node_addr);
-
 	if (n_insert > 0) {
 #ifdef BONSAI_SUPPORT_UPDATE
 		log = insert_logs[max_insert_index];
 		if (ordo_cmp_clock(max_insert_t, max_remove_t)) {
-			pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
+			pnode = (struct pnode*)log->o_addr;
 			if (pnode && pnode_lookup(pnode, key) && n_remove == n_insert) {
 				*val = log->o_kv.v;
 				return 0;
@@ -295,7 +293,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 					hs_insert(&table->hs, tid, key, map_addrs[0]);
 					
 					/* migrate this value */
-					pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
+					pnode = (struct pnode*)log->o_addr;
 					addr = pnode_numa_move(pnode, key, numa_node);
 					*val = *addr;
 					return 0;
@@ -315,7 +313,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 				hs_insert(&table->hs, tid, key, map_addrs[0]);
 
 				/* migrate this value */
-				pnode = log->o_flag ? (struct pnode*)log->o_addr : NULL;
+				pnode = (struct pnode*)log->o_addr;
 				addr = pnode_numa_move(pnode, key, numa_node);
 				*val = *addr;
 				return 0;

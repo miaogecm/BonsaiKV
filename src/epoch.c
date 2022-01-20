@@ -23,20 +23,25 @@ extern struct bonsai_info* bonsai;
 
 typedef void (*signal_handler_t)(int);
 
-static void main_alarm_handler(int sig) {
-	struct log_layer* layer = LOG(bonsai);
-	layer->epoch ++;
-
-	bonsai_debug("bonsai epoch[%d]\n", layer->epoch);
-}
-
 void thread_alarm_handler(int sig) {
+	int cpu = get_cpu();
 	struct log_layer* layer = LOG(bonsai);
-	struct log_region *region = &layer->region[get_cpu()];
-	
+	struct log_region *region = &layer->region[cpu];
+	__le64 old_epoch = ACCESS_ONCE(bonsai->desc->epoch);
+	__le64 new_epoch = old_epoch + 1;
+
+	if (ACCESS_ONCE(__this->t_epoch) == old_epoch) {
+		/* At least a thread succeed */
+		cmpxchg(&bonsai->desc->epoch, old_epoch, new_epoch);
+	}
+
 	/* persist it */
-	region->curr_blk->flush = cpu_to_le8(1);
 	bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
+
+	/* re-allocate a new log block */
+	region->curr_blk = alloc_oplog_block(cpu);
+
+	__this->t_epoch ++;
 }
 
 static int register_alarm(signal_handler_t handler) {
@@ -45,7 +50,7 @@ static int register_alarm(signal_handler_t handler) {
 	int err = 0;
 
 	memset(&value, 0, sizeof(struct itimerval));
-	value.it_interval.tv_sec = 0;
+	value.it_interval.tv_sec = 10000;
 	value.it_interval.tv_usec = EPOCH;
 
 	err = setitimer(ITIMER_VIRTUAL, &value, NULL);
@@ -62,6 +67,9 @@ static int register_alarm(signal_handler_t handler) {
 	return err;
 }
 
+/*
+ * thread_block_alarm: bonsai pflush thread block this signal
+ */
 void thread_block_alarm() {
 	sigset_t set;
 
@@ -71,10 +79,26 @@ void thread_block_alarm() {
 	pthread_sigmask(SIG_BLOCK, &set, NULL);
 }
 
+/*
+ * thread_set_alarm: every user thread must register this signal
+ */
 int thread_set_alarm() {
 	return register_alarm(thread_alarm_handler);
 }
 
+#if 0
+static void main_alarm_handler(int sig) {
+	bonsai->desc->epoch ++;
+
+	bonsai_flush((void*)bonsai->desc->epoch, sizeof(__le64), 1);
+
+	bonsai_debug("bonsai epoch[%d]\n", bonsai->desc->epoch);
+}
+
+/*
+ * epoch_init: main thread register this signal
+ */
 int epoch_init() {
 	return register_alarm(main_alarm_handler);
 }
+#endif

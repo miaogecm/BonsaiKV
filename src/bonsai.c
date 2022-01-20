@@ -53,11 +53,6 @@ static void index_layer_deinit(struct index_layer* layer) {
 static int log_layer_init(struct log_layer* layer) {
 	int i, err = 0;
 
-	layer->epoch = 0;
-	err = epoch_init();
-	if (err)
-		goto out;
-
 	layer->nflush = 0;
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
@@ -266,6 +261,8 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
     } else {
         bonsai_recover();
     }
+
+	bonsai->desc->epoch = 0;
 
 	/* 6. initialize pflush thread */
 	bonsai_pflushd_thread_init();

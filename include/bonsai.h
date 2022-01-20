@@ -40,7 +40,6 @@ struct index_layer {
 };
 
 struct log_layer {
-	unsigned int epoch; /* current epoch */
 	unsigned int nflush; /* how many flushes */
 	
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
@@ -67,6 +66,7 @@ struct data_layer {
 struct bonsai_desc {
 	__le32 init;
 	__le32 padding;
+	__le64 epoch;
 	struct log_region_desc log_region[NUM_CPU];
 	char log_region_fpath[NUM_SOCKET][REGION_FPATH_LEN];
 }__packed;
