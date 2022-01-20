@@ -214,19 +214,26 @@ void* thread_fun(void* arg) {
 		int size;
 		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		assert(size == N);
+		//assert(size == N);
+		if (size != N) {
+			printf("wrong size: %lu\n", size);
+		}
 	}
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_remove((pkey_t)i) == 0);
+		if (bonsai_remove((pkey_t)i) != 0) {
+			printf("remove fail: %lu\n", (pkey_t)i);
+		}
 	}
 
 	//printf("thread[%ld]---------------------4---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
+		if (bonsai_lookup((pkey_t)i, &v) != -ENOENT) {
+			printf("lookup see ghost: %lu\n", (pkey_t)i);
+		}
 	}
 
 	//printf("thread[%ld]---------------------5---------------------\n", id);
