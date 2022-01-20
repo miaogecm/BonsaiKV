@@ -21,13 +21,13 @@
 // #define RAND
 
 #ifndef N
-#define N			100
+#define N			1001
 #endif
 
 pkey_t a[4 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	5
+#define NUM_THREAD	3
 #endif
 
 #define NUM_CPU		8
