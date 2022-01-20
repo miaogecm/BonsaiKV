@@ -95,7 +95,6 @@ static void free_pnode(struct pnode* pnode) {
 }
 
 static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
-	printf("fuck:::::%lu\n", max_key);
 	struct pnode *pos, *prev = NULL;
 	struct data_layer* layer = DATA(bonsai);
 	struct list_head* head = &layer->pnode_list;
@@ -108,13 +107,10 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 			prev = pos;
 	}
 
-	if (!prev) {
+	if (!prev)
 		list_add(&pnode->list, head);
-	}
-	else {
+	else
 		__list_add(&pnode->list, &prev->list, &pos->list);
-		printf("%lu %lu\n", prev->e[prev->slot[prev->slot[0]]].k, pos == NULL ? 0 : pos->e[pos->slot[pos->slot[0]]].k);
-	}
 	write_unlock(&layer->lock);
 }
 
