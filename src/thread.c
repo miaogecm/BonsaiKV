@@ -121,12 +121,12 @@ static void pflush_master(struct thread_info* this) {
 
 	thread_block_alarm();
 
-	//for (;;) {
+	for (;;) {
 		
-		sleep(3);
+		usleep(500);
 		
 		oplog_flush(bonsai);
-	//}
+	}
 }
 
 void bonsai_self_thread_init() {

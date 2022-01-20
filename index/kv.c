@@ -21,13 +21,13 @@
 // #define RAND
 
 #ifndef N
-#define N			1001
+#define N			10
 #endif
 
-pkey_t a[4 * N];
+pkey_t a[5 * N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	3
+#define NUM_THREAD	1
 #endif
 
 #define NUM_CPU		8
@@ -77,16 +77,37 @@ void kv_destory(void* index_struct) {
 	free(toy);
 }
 
-int kv_insert(void* index_struct, pkey_t key, void* value) {
-	struct kv_node* knode;
+struct kv_node* __kv_lookup(void* index_struct, pkey_t key) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node *knode;
+
+	list_for_each_entry(knode, &__toy->head, list) {
+		if (knode->kv.k >= key) {
+			break;
+		}
+	}
+
+	return knode;
+}
+
+/*must support update*/
+int kv_insert(void* index_struct, pkey_t key, void* value) {
+	struct kv_node *knode, *next_node;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct list_head* ll_node;
 
 	knode = malloc(sizeof(struct kv_node));
 	knode->kv.k = key;
 	knode->kv.v = (__le64)value;
 
 	write_lock(&__toy->lock);
-	list_add(&knode->list, &__toy->head);
+	next_node = __kv_lookup(index_struct, key);
+	if (next_node->kv.k == key) {
+		next_node->kv.v = value;
+	} else {
+		ll_node = &next_node->list;
+		__list_add(&knode->list, ll_node->prev, ll_node);
+	}
 	write_unlock(&__toy->lock);
 
 	//bonsai_debug("kv insert <%lu %016lx>\n", key, value);
@@ -168,7 +189,7 @@ void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t v;
-	pval_t val_arr[N];
+	pval_t val_arr[2 * N];
 
 	bind_to_cpu(id);
 
@@ -180,7 +201,7 @@ void* thread_fun(void* arg) {
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
-#if 0
+#if 1
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		bonsai_lookup((pkey_t)a[i], &v);
 		assert(v == a[i]);
@@ -189,20 +210,10 @@ void* thread_fun(void* arg) {
 	for (int i = 0; i < 1; i++) {
 		int size;
 
-		// printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
+		printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id), val_arr);
 		printf("size: %d\n", size);
 		// assert(size == N);
-
-		unsigned long ex = 0;
-		for (int j = 0; j < size; j++) {
-			if (val_arr[j] != (pval_t)j + ex) {
-				printf("%lu \n", j + ex);
-				ex++;
-			}
-		}
-		printf("%lu ", val_arr[j]);
-		printf("\n");
 	}
 #endif
 #if 1
@@ -211,7 +222,7 @@ void* thread_fun(void* arg) {
 	}
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		//assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
+		assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
 	}
 #endif
 	bonsai_user_thread_exit();
