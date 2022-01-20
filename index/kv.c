@@ -198,14 +198,18 @@ void* thread_fun(void* arg) {
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
+		if (bonsai_insert((pkey_t)i, (pval_t)i) != 0) {
+			printf("insert fail: %lu\n", (pkey_t)i);
+		}
 	}
 
 	//printf("thread[%ld]---------------------1---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		bonsai_lookup((pkey_t)a[i], &v);
-		assert(v == a[i]);
+		if (v != a[i]) {
+			printf("lookup fail: %lu\n", (pkey_t)i);
+		}
 	}
 
 	//printf("thread[%ld]---------------------2---------------------\n", id);
