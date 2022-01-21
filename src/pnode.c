@@ -228,6 +228,7 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
+	// printf("pnode_insert %lu\n", key);
     int bucket_id, pos, i, n, d;
     struct pnode *new_pnode;
 	uint64_t removed;
@@ -292,6 +293,7 @@ retry:
    	new_pnode->bitmap = removed;
 
 	/* split the mapping table */
+	
     mptable_split(pnode->table, new_pnode, pnode);
 
 	insert_pnode_list(new_pnode, pnode_anchor_key(new_pnode));
@@ -548,7 +550,7 @@ struct pnode* data_layer_search_key(pkey_t key) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
 			if (!key_cmp(pnode_entry_n_key(pnode, i), key)) {
 				bonsai_print("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
-				print_pnode(pnode);
+				// print_pnode(pnode);
 				return pnode;
 			}
 		}

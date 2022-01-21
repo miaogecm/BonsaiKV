@@ -27,7 +27,7 @@ __thread struct thread_info* __this = NULL;
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-#define CHKPT_INTERVAL		50
+#define CHKPT_INTERVAL		100000
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
