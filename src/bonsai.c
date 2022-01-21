@@ -253,6 +253,7 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 			goto out;
 
 		/* 4. initialize self */
+		INIT_LIST_HEAD(&bonsai->thread_list);
 		bonsai_self_thread_init();
 		
 		/* 5. initialize sentinel node */

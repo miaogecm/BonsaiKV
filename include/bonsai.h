@@ -84,6 +84,7 @@ struct bonsai_info {
 
 	/* 3. thread info */
 	struct thread_info* self;
+	struct list_head	thread_list;
 	
 	pthread_t 			tids[NUM_PFLUSH_THREAD];
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];

@@ -535,3 +535,20 @@ void dump_pnodes() {
 
 	bonsai_debug("pnode list total key [%d]\n", sum);
 }
+
+struct pnode* pnode_find_key(pkey_t key) {
+	struct data_layer *layer = DATA(bonsai);
+	struct pnode* pnode;
+	int i;
+	
+	read_lock(&layer->lock);
+	list_for_each_entry(pnode, &layer->pnode_list, list) {
+		for (i = 1; i < pnode->slot[0]; i ++) {
+			if (!key_cmp(pnode_entry_n_key(pnode, i), key))
+				return pnode;
+		}
+	}
+	read_unlock(&layer->lock);
+
+	return NULL;
+}

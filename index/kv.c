@@ -21,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			1000001
+#define N			100001
 #endif
 
 pkey_t a[5 * N];
@@ -189,27 +189,23 @@ void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t v = 0;
-	pval_t* val_arr = malloc(sizeof(pval_t) * 2 * N);
+	pval_t val_arr[2 * N];
 
 	bind_to_cpu(id);
 
 	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
-
+	
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		if (bonsai_insert((pkey_t)i, (pval_t)i) != 0) {
-			printf("insert fail: %lu\n", (pkey_t)i);
-		}
+		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
 
 	//printf("thread[%ld]---------------------1---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		bonsai_lookup((pkey_t)a[i], &v);
-		if (v != a[i]) {
-			printf("lookup fail: %lu\n", (pkey_t)i);
-		}
+		assert(v == a[i]);
 	}
 
 	//printf("thread[%ld]---------------------2---------------------\n", id);
@@ -218,26 +214,19 @@ void* thread_fun(void* arg) {
 		int size;
 		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
 		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		//assert(size == N);
-		if (size != N) {
-			printf("wrong size: %lu\n", size);
-		}
+		assert(size == N);
 	}
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		if (bonsai_remove((pkey_t)i) != 0) {
-			printf("remove fail: %lu\n", (pkey_t)i);
-		}
+		assert(bonsai_remove((pkey_t)i) == 0);
 	}
 
 	//printf("thread[%ld]---------------------4---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		if (bonsai_lookup((pkey_t)i, &v) != -ENOENT) {
-			printf("lookup see ghost: %lu\n", (pkey_t)i);
-		}
+		assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
 	}
 
 	//printf("thread[%ld]---------------------5---------------------\n", id);

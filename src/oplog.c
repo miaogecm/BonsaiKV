@@ -19,6 +19,7 @@
 #include "common.h"
 #include "thread.h"
 #include "pnode.h"
+#include "mptable.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -181,6 +182,9 @@ static void worker_oplog_flush(void* arg) {
 	struct oplog* log;
 	merge_ent* e;
 	unsigned int i;
+	int node;
+	struct pnode* pnode;
+	struct mptable* m;
 
 	bonsai_debug("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
@@ -194,7 +198,12 @@ static void worker_oplog_flush(void* arg) {
 			pnode_insert((struct pnode*)log->o_addr, log->o_numa_node, log->o_kv.k, log->o_kv.v);		
 			break;
 			case OP_REMOVE:
-			pnode_remove((struct pnode*)log->o_addr, log->o_kv.k);
+			pnode = (struct pnode*)log->o_addr;
+			pnode_remove(pnode, log->o_kv.k);
+			for (node = 0; node < NUM_SOCKET; node ++) {
+				m = MPTABLE_NODE(pnode->table, node);
+				hs_remove(&m->hs, get_tid(), log->o_kv.k);
+			}
 			break;
 			default:
 			perror("bad operation type\n");
@@ -258,7 +267,7 @@ void oplog_flush() {
 	int i, j, cpu, cnt = 0, total = 0;
 	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
 
-	bonsai_debug("thread[%d]: oplog_flush\n", __this->t_id);
+	printf("thread[%d]: oplog flush\n", __this->t_id);
 
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
@@ -271,6 +280,9 @@ void oplog_flush() {
 			total ++;
 		}
 	}
+
+	if (unlikely(!total))
+		return;
 
 	/* 2. merge all logs */
 	if (total < NUM_PFLUSH_WORKER) {
