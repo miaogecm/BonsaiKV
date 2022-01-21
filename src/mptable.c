@@ -64,6 +64,8 @@ static struct mptable* init_one_mptable(int node) {
 	/* initialize the hash table */
 	hs_init(&mptable->hs);
 
+	rwlock_init(&mptable->rwlock);
+
     return mptable;
 }
 
@@ -111,16 +113,21 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
+	read_lock(&table->rwlock);
 	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
+	read_unlock(&table->rwlock);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(tables, node);
 		addr = hs_lookup(&table->hs, tid, key);
-		if (addr)
+		if (addr) {
+			read_unlock(&table->rwlock);
 			return -EEXIST;
+		}
 		else {
 			log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, table->pnode);
 			hs_insert(&table->hs, tid, key, &log->o_kv.v);
+			write_unlock(&table->rwlock);
 		}
 	}
 #endif
@@ -131,6 +138,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return ret;
 }
 
+#if 1
 int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key, pval_t* address) {
 	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
 	struct oplog* log;
@@ -143,16 +151,22 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, mptable, tables->pnode);
+	read_lock(&mptable->rwlock);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+	read_unlock(&mptable->rwlock);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
+		read_unlock(&mptable->rwlock);
 		addr = hs_lookup(&mptable->hs, tid, key);
-		if (addr)
+		if (addr) {
+			read_unlock(&mptable->rwlock);
 			return -ENOENT;
+		}
 		else {
 			log = oplog_insert(key, *address, OP_INSERT, numa_node, cpu, mptable, mptable->pnode);
 			hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+			read_unlock(&mptable->rwlock);
 		}
 	}
 #endif
@@ -162,6 +176,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 	return 0;
 }
+#endif
 
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
 	struct mptable* mptable;
@@ -171,11 +186,12 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	int node;
 	unsigned long max_op_t = 0;
 	int latest_op_type = -1, found_in_pnode = 0;
-	
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
+		read_lock(&mptable->rwlock);
 		addr = hs_lookup(&mptable->hs, tid, key);
+		read_unlock(&mptable->rwlock);
 		if (addr) {
 			if (addr_in_log((unsigned long)addr)) {
 				log = OPLOG(addr);
@@ -219,8 +235,11 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		return -ENOENT;
 	}
 
+	mptable = MPTABLE_NODE(tables, numa_node);
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
+	read_lock(&mptable->rwlock);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+	read_unlock(&mptable->rwlock);
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -245,7 +264,9 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(mptables, node);
+		read_lock(&table->rwlock);
 		addr = hs_lookup(&table->hs, tid, key);
+		read_unlock(&table->rwlock);
 		map_addrs[node] = addr;
 
 		if (addr_in_log((unsigned long)addr)) {
@@ -301,7 +322,9 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 				if (map_addrs[0]) {
 					/* pull latest value */
 					table = MPTABLE_NODE(mptables, numa_node);
+					read_lock(&table->rwlock);
 					hs_insert(&table->hs, tid, key, map_addrs[0]);
+					read_unlock(&table->rwlock);
 					
 					/* migrate this value */
 					pnode = (struct pnode*)log->o_addr;
@@ -351,27 +374,46 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	pkey_t key;
 	pval_t *addr;
 	uint8_t* slot = new_pnode->slot;
-	
+	pval_t* old_addr[NUM_ENT_PER_PNODE][NUM_SOCKET];
+
 	new_table = numa_mptable_alloc(LOG(bonsai));
 	new_pnode->table = new_table;
 	new_table->pnode = new_pnode;
 
 	for (i = 1; i <= N; i ++) {
-		key = new_pnode->e[slot[i]].k;
+		key = pnode_entry_n_key(new_pnode, i);
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(old_table, node);
-			if ((addr = hs_lookup(&m->hs, tid, key)) != NULL) {
-				if (addr_in_pnode((unsigned long)addr)) {
-					hs_remove(&m->hs, tid, key);
-					hs_insert(&new_table->tables[node]->hs, tid, key, &new_pnode->e[slot[slot[0]]].v);
-					//bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
-				}
+			addr = hs_lookup(&m->hs, tid, key);
+			old_addr[i][node] = addr;
+			if (addr != NULL) {
+				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
+				bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, addr);
 			}		
 		}
 	}
 	
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		m = MPTABLE_NODE(old_table, node);
+		write_lock(&m->rwlock);
+	}
+
 	i_layer->insert(i_layer->index_struct, pnode_max_key(old_pnode), old_table);
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+
+	for (i = 1; i <= N; i ++) {
+		key = pnode_entry_n_key(new_pnode, i);
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			m = MPTABLE_NODE(new_table, node);
+			addr = hs_lookup(&m->hs, tid, key);
+			if (addr != old_addr[i][node]) {
+				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
+				hs_remove(&m->hs, tid, key);
+				bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, addr);
+			}
+			write_unlock(&m->rwlock);
+		}
+	}
 }
 
 static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low, pkey_t high, pkey_t* max_key) {

@@ -9,9 +9,11 @@ extern "C" {
 #include "numa_config.h"
 #include "hash_set.h"
 #include "list.h"
+#include "rwlock.h"
 
 struct mptable {
 	struct hash_set hs;
+	rwlock_t rwlock;
 };
 
 struct numa_table {
