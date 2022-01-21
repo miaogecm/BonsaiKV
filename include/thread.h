@@ -57,8 +57,6 @@ typedef void (*clean_func_t)(void*);
 struct work_struct {
 	work_func_t exec;
 	void* exec_arg;
-	clean_func_t clean;
-	void* clean_arg;
 	struct list_head list;
 };
 

@@ -161,10 +161,6 @@ static void thread_work(struct workqueue_struct* wq) {
 
 	list_for_each_entry_safe(work, tmp, &wq->head, list) {
 		ret = work->exec(work->exec_arg);
-		if (unlikely(ret)) {
-			work->clean(work->clean_arg);
-		}
-				
 		workqueue_del(work);
 
 		if (unlikely(ret)) 
@@ -176,15 +172,13 @@ static void thread_work(struct workqueue_struct* wq) {
 
 static void pflush_thread_exit(struct thread_info* thread) {
 	struct log_layer *layer = LOG(bonsai);
-	unsigned int tid = thread->t_id;
 
 	list_del(&thread->list);
 	thread->t_state = S_EXIT;
-	free(thread);
 
 	atomic_inc(&layer->exit);
 	
-	bonsai_print("pflush thread[%d] exit\n", tid);
+	bonsai_print("pflush thread[%d] exit\n", thread->t_id);
 }
 
 static void pflush_worker(struct thread_info* this) {

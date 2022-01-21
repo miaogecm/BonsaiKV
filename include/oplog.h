@@ -64,6 +64,8 @@ extern void oplog_flush();
 
 extern struct oplog* log_layer_search_key(int cpu, pkey_t key);
 
+extern void clean_pflush_buckets(struct log_layer* layer);
+
 #ifdef __cplusplus
 }
 #endif

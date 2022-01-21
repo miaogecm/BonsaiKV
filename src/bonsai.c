@@ -78,6 +78,8 @@ static void log_layer_deinit(struct log_layer* layer) {
 	struct mptable* m;
 	int node;
 
+	clean_pflush_buckets(layer);
+
 	log_region_deinit(layer);
 
 	list_for_each_entry_safe(table, tmp, &layer->numa_table_list, list) {
