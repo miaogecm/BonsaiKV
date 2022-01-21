@@ -21,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			10001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -189,12 +189,12 @@ void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t v = 0;
-	pval_t val_arr[2 * N];
+	pval_t* val_arr = malloc(sizeof(pval_t) * 2 * N);
 
 	bind_to_cpu(id);
 
 	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
-	
+
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
