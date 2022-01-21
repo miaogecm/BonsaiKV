@@ -22,7 +22,7 @@
 
 extern struct bonsai_info* bonsai;
 
-#define NUM_MERGE_HASH_BUCKET		64
+#define NUM_MERGE_HASH_BUCKET		(16 * 1024 * 1024)
 
 typedef struct {
 	int flag; /* 0:log; 1:pnode */
@@ -396,9 +396,9 @@ int __compare(const void* a, const void* b) {
 	return key_cmp((*(pentry_t**)a)->k, (*(pentry_t**)b)->k);
 }
 
-#define MAX_LEN		100001
+#define MAX_LEN		(16 * 1024 * 1024)
 static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
-	struct hbucket merge_buckets[NUM_MERGE_HASH_BUCKET];
+	struct hbucket* merge_buckets;
 	struct bucket_list **buckets, *bucket;
 	struct hash_set* hs;
 	struct mptable *m;
@@ -408,10 +408,12 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	int node, i, j;
 	struct oplog *l;
 	scan_merge_ent* e;
-	pentry_t* arr[MAX_LEN];
+	pentry_t** arr;
 	pkey_t max_key = 0;
 
-	memset(merge_buckets, 0, sizeof(struct hbucket) * NUM_MERGE_HASH_BUCKET);
+	merge_buckets = malloc(sizeof(struct hbucket) * NUM_MERGE_HASH_BUCKET);
+	arr = malloc(sizeof(pentry_t*) * MAX_LEN);
+
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
@@ -465,6 +467,9 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 		result[n++] = arr[i]->v;
 
 	*curr_key = max_key;
+
+	free(merge_buckets);
+	free(arr);
 
 	return n;
 }
