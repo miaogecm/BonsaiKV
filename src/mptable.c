@@ -119,6 +119,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		table = MPTABLE_NODE(tables, node);
+		read_lock(&table->rwlock);
 		addr = hs_lookup(&table->hs, tid, key);
 		if (addr) {
 			read_unlock(&table->rwlock);
@@ -127,7 +128,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		else {
 			log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, table->pnode);
 			hs_insert(&table->hs, tid, key, &log->o_kv.v);
-			write_unlock(&table->rwlock);
+			read_unlock(&table->rwlock);
 		}
 	}
 #endif
@@ -388,7 +389,6 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 			old_addr[i][node] = addr;
 			if (addr != NULL) {
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
-				bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, addr);
 			}		
 		}
 	}
@@ -408,8 +408,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 			addr = hs_lookup(&m->hs, tid, key);
 			if (addr != old_addr[i][node]) {
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
-				hs_remove(&m->hs, tid, key);
-				bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, addr);
+				hs_remove(&m->hs, tid, key);			
 			}
 			write_unlock(&m->rwlock);
 		}
