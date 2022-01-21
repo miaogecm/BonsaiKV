@@ -392,14 +392,14 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 			}		
 		}
 	}
+
+	i_layer->insert(i_layer->index_struct, , old_table);
+	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(old_table, node);
+		m = MPTABLE_NODE(new_table, node);
 		write_lock(&m->rwlock);
 	}
-
-	i_layer->insert(i_layer->index_struct, pnode_max_key(old_pnode), old_table);
-	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(new_table, node);
@@ -410,8 +410,8 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
 				hs_remove(&m->hs, tid, key);			
 			}
-			write_unlock(&m->rwlock);
 		}
+		write_unlock(&m->rwlock);
 	}
 }
 

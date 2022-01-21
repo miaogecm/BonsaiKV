@@ -21,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			100001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -189,7 +189,7 @@ void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t v = 0;
-	pval_t val_arr[2 * N];
+	//pval_t val_arr[2 * N];
 
 	bind_to_cpu(id);
 
@@ -213,8 +213,8 @@ void* thread_fun(void* arg) {
 	for (int i = 0; i < 1; i++) {
 		int size;
 		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
-		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		assert(size == N);
+		//size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
+		//assert(size == N);
 	}
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);

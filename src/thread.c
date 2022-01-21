@@ -27,7 +27,7 @@ __thread struct thread_info* __this = NULL;
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-#define CHKPT_INTERVAL		50
+#define CHKPT_INTERVAL		500
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
@@ -338,7 +338,7 @@ int bonsai_pflushd_thread_exit() {
 
 	while (atomic_read(&layer->exit) != (NUM_PFLUSH_THREAD + 1)) {
 		wakeup_all();
-		usleep(50);
+		usleep(10);
 	}
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
