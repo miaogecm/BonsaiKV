@@ -161,6 +161,16 @@ int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
 	return 0;
 }
 
+void kv_print(void* index_struct) {
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node* knode;
+
+	list_for_each_entry(knode, &__toy->head, list) {
+		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+	}
+	printf("NULL\n");
+}
+
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
@@ -185,11 +195,12 @@ static inline void bind_to_cpu(int cpu) {
     }
 }
 
+extern void bonsai_print_all();
 void* thread_fun(void* arg) {
 	unsigned long i;
 	long id = (long)arg;
 	pval_t v = 0;
-	//pval_t val_arr[2 * N];
+	pval_t* val_arr = malloc(sizeof(pval_t*) * 2 * N);
 
 	bind_to_cpu(id);
 
@@ -201,21 +212,22 @@ void* thread_fun(void* arg) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
 
+	// bonsai_print_all();
 	//printf("thread[%ld]---------------------1---------------------\n", id);
 
-	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		bonsai_lookup((pkey_t)a[i], &v);
-		assert(v == a[i]);
-	}
+	// for (i = (0 + N * id); i < (N + N * id); i ++) {
+	// 	bonsai_lookup((pkey_t)a[i], &v);
+	// 	assert(v == a[i]);
+	// }
 
 	//printf("thread[%ld]---------------------2---------------------\n", id);
 
-	for (int i = 0; i < 1; i++) {
-		int size;
-		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
-		//size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		//assert(size == N);
-	}
+	// for (int i = 0; i < 1; i++) {
+	// 	int size;
+	// 	//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
+	// 	size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
+	// 	assert(size == N);
+	// }
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
 
@@ -225,13 +237,15 @@ void* thread_fun(void* arg) {
 
 	//printf("thread[%ld]---------------------4---------------------\n", id);
 
-	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
-	}
+	// for (i = (0 + N * id); i < (N + N * id); i ++) {
+	// 	assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
+	// }
 
 	//printf("thread[%ld]---------------------5---------------------\n", id);
 
 	bonsai_user_thread_exit();
+
+	free(val_arr);
 
 	return NULL;
 }

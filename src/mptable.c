@@ -179,6 +179,8 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 }
 #endif
 
+extern void kv_print(void* index_struct);
+
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
 	struct mptable* mptable;
 	int tid = get_tid();
@@ -209,10 +211,13 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		}
 		else {
 			stop_the_world();
-			bonsai_print("max_op_t == 0 && !found_in_pnode %lu hs %016lx address %016lx\n", key, &mptable->hs, addr);
+			struct index_layer* i_layer = INDEX(bonsai);
+			kv_print(i_layer->index_struct);
+			bonsai_print("max_op_t == 0 && !found_in_pnode %lu hs %016lx address %016lx\n", key, tables, addr);
 			log_layer_search_key(-1, key);
 			numa_table_search_key(key);
 			data_layer_search_key(key);
+			dump_pnodes();
 			return -ENOENT;
 		}
 	}
@@ -368,9 +373,11 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 }
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
-	int tid = get_tid(), i, node, N = new_pnode->slot[0];
+	int tid = get_tid(), i, node;
+	int N = new_pnode->slot[0];
+	int old_N = old_pnode->slot[0] - N;
 	struct numa_table* new_table;
-	struct mptable *m;
+	struct mptable *m, *m2;
 	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
@@ -392,24 +399,25 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 			}		
 		}
 	}
-
-	i_layer->insert(i_layer->index_struct, , old_table);
-	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(new_table, node);
 		write_lock(&m->rwlock);
 	}
 
+	i_layer->insert(i_layer->index_struct, pnode_entry_n_key(old_pnode, old_N), old_table);
+	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(new_table, node);
+		m = MPTABLE_NODE(old_table, node);
+		m2 = MPTABLE_NODE(old_table, node);
 		for (i = 1; i <= N; i ++) {
 			key = pnode_entry_n_key(new_pnode, i);
 			addr = hs_lookup(&m->hs, tid, key);
 			if (addr != old_addr[node][i]) {
-				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
-				hs_remove(&m->hs, tid, key);			
+				hs_insert(&m2->hs, tid, key, addr);
 			}
+			hs_remove(&m->hs, tid, key);
 		}
 		write_unlock(&m->rwlock);
 	}
@@ -574,8 +582,10 @@ void numa_table_search_key(pkey_t key) {
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
-			if (find = hs_search_key(&m->hs, key))
+			if (find = hs_search_key(&m->hs, key)) {
+				printf("numa_table address: %016lx\n", table);
 				return;
+			}
 		}
 	}
 

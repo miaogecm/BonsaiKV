@@ -126,6 +126,12 @@ static void data_layer_deinit(struct data_layer* layer) {
 	bonsai_print("data_layer_deinit\n");
 }
 
+extern void* index_struct(void* index_struct);
+void bonsai_print_all() {
+	struct index_layer* i_layer = INDEX(bonsai);
+	kv_print(i_layer->index_struct);
+}
+
 int bonsai_insert(pkey_t key, pval_t value) {
 	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
@@ -191,7 +197,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 void bonsai_deinit() {
 	bonsai_print("bonsai deinit\n");
 
-	dump_pnodes();
+	// dump_pnodes();
 	
 	bonsai_self_thread_exit();
 
