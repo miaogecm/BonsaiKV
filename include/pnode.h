@@ -72,6 +72,7 @@ extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, p
 
 extern void print_pnode(struct pnode* pnode);
 extern void dump_pnodes();
+extern struct pnode* pnode_find_key(pkey_t key);
 
 #ifdef __cplusplus
 }

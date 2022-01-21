@@ -189,8 +189,20 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			}
 		}
 	}
-
+/*
 	if (latest_op_type == OP_REMOVE || (max_op_t == 0 && !found_in_pnode)) {
+		return -ENOENT;
+	}
+*/
+
+	if (latest_op_type == OP_REMOVE) {
+		printf("latest_op_type == OP_REMOVE\n");
+		return -ENOENT;
+	}
+
+	if (max_op_t == 0 && !found_in_pnode) {
+		printf("max_op_t == 0 && !found_in_pnode %lu\n", key);
+		stop_the_world();
 		return -ENOENT;
 	}
 

@@ -7,12 +7,17 @@ extern "C" {
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #include "numa_config.h"
 #include "list.h"
 
+#define NUM_USER_THREAD		4
+
 #define NUM_PFLUSH_THREAD	5
 #define NUM_PFLUSH_WORKER	(NUM_PFLUSH_THREAD - 1)
+
+#define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
 
 struct log_layer;
 struct oplog_blk;
@@ -20,6 +25,14 @@ struct oplog_blk;
 enum {
 	WORKER_SLEEP = 0,
 	WORKER_RUNNING = NUM_PFLUSH_THREAD - 1,
+};
+
+enum {
+	S_RUNNING = 1,
+	S_SLEEPING,
+	S_INTERRUPTED,
+	S_UNINIT,
+	S_EXIT
 };
 
 struct merge_work {
@@ -51,10 +64,13 @@ struct workqueue_struct {
 
 struct thread_info {
 	unsigned int 			t_id;
+	pid_t					t_pid;
+	volatile int 			t_state;
 	unsigned int 			t_cpu;
 	volatile unsigned long 	t_epoch;
 	void* 					t_data;
-	struct workqueue_struct t_wq;	
+	struct workqueue_struct t_wq;
+	struct list_head		list;
 };
 
 extern __thread struct thread_info* __this;
@@ -83,6 +99,8 @@ extern void park_workers();
 extern void wakeup_workers();
 
 extern int get_tid();
+
+extern void stop_the_world();
 
 #ifdef __cplusplus
 }

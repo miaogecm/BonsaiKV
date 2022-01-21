@@ -8,6 +8,9 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 
 #include "thread.h"
 #include "cpu.h"
@@ -22,7 +25,9 @@
 
 __thread struct thread_info* __this = NULL;
 
-#define CHKPT_INTERVAL		500
+#define gettid() ((pid_t)syscall(SYS_gettid))
+
+#define CHKPT_INTERVAL		50
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
@@ -89,6 +94,59 @@ static void wakeup_all() {
 	pthread_mutex_unlock(&work_mutex);
 }
 
+void debug_signal_handler(int signo) {
+	printf("thread[%d] sleep\n", __this->t_id);
+	
+	__this->t_state = S_INTERRUPTED;
+	sleep(60);
+}
+
+static int thread_register_signal() {
+	struct sigaction sa;
+	int err = 0;
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = debug_signal_handler;
+	if (sigaction(SIGUSR1, &sa, NULL) == -1) {
+		err = -ESIGNO;
+	}
+
+	return err;
+}
+
+void stop_the_world() {
+	int i, states[NUM_THREAD] = {0};
+	struct thread_info* thread;
+	int num_interrupted = 0;
+	
+	states[__this->t_id] = S_INTERRUPTED;
+
+	while (1) {
+		list_for_each_entry(thread, &bonsai->thread_list, list) {
+			if (unlikely(thread == __this))
+				continue;
+			
+			if (kill(thread->t_pid, SIGUSR1)) {
+				printf("thread[%d] stop the world fails %s\n", thread->t_pid, strerror(errno));
+				exit(0);
+			}
+
+			usleep(50);
+
+			if (states[thread->t_id] != S_INTERRUPTED && thread->t_state == S_INTERRUPTED) {
+				states[thread->t_id] = S_INTERRUPTED;
+				num_interrupted ++;
+			}
+
+			if (num_interrupted == NUM_THREAD - 1) {
+				printf("world has been stopped\n");
+				return;
+			}
+		}
+	}
+}
+
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
 
@@ -105,56 +163,111 @@ static void thread_work(struct workqueue_struct* wq) {
 	try_wakeup_master();
 }
 
+static void pflush_thread_exit(struct thread_info* thread) {
+	struct log_layer *layer = LOG(bonsai);
+	unsigned int tid = thread->t_id;
+
+	list_del(&thread->list);
+	thread->t_state = S_EXIT;
+	free(thread);
+
+	atomic_inc(&layer->exit);
+	
+	printf("pflush thread[%d] exit\n", tid);
+}
+
 static void pflush_worker(struct thread_info* this) {
 	struct log_layer *layer = LOG(bonsai);
+
 	__this = this;
+	__this->t_pid = gettid();
+	__this->t_state = S_RUNNING;
 
-	bind_to_cpu(__this->t_cpu + 3);
+	bind_to_cpu(__this->t_cpu);
 
-	printf("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
+	printf("pflush thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 
 	thread_block_alarm();
+	thread_register_signal();
 	
 	while (!atomic_read(&layer->exit)) {
+		__this->t_state = S_SLEEPING;
 		worker_sleep();
+		
+		__this->t_state = S_RUNNING;
 		thread_work(&__this->t_wq);
 	}
 
-	atomic_inc(&layer->exit);
-	printf("pflush thread[%d] exit\n", __this->t_id);
+	pflush_thread_exit(this);
+}
+
+static void master_wait_workers(struct thread_info* master) {
+	struct thread_info* thread;
+	int i, num_worker = 0;
+
+	while (1) {
+		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
+			thread = bonsai->pflushd[i];
+			if (thread != master) {
+				if (thread->t_state == S_UNINIT)
+					usleep(10);
+				else
+					num_worker ++;
+
+				if (num_worker == NUM_PFLUSH_THREAD - 1)
+					return;
+			}
+		}
+	}
 }
 
 static void pflush_master(struct thread_info* this) {
 	struct log_layer *layer = LOG(bonsai);
 	
 	__this = this;
+	__this->t_pid = gettid();
+	__this->t_state = S_RUNNING;
 
-	bind_to_cpu(__this->t_cpu + 3);
+	bind_to_cpu(__this->t_cpu);
 	
-	printf("pflush thread[%d] start on cpu[%d]\n", __this->t_id, get_cpu());
+	printf("pflush thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 
 	thread_block_alarm();
+	thread_register_signal();
+
+	
 
 	while (!atomic_read(&layer->exit)) {
+		__this->t_state = S_SLEEPING;
 		usleep(CHKPT_INTERVAL);
-		printf("wakeup\n");
+
+		__this->t_state = S_RUNNING;
 		oplog_flush(bonsai);
 	}
 
-	atomic_inc(&layer->exit);
-	printf("pflush thread[%d] exit\n", __this->t_id);
+	pflush_thread_exit(this);
 }
 
 void bonsai_self_thread_init() {
 	
 	bonsai->self = malloc(sizeof(struct thread_info));
 	bonsai->self->t_id = atomic_add_return(1, &tids);
+	bonsai->self->t_pid = gettid();
+	bonsai->self->t_state = S_RUNNING;
+
+	thread_register_signal();
 
 	__this = bonsai->self;
+
+	list_add(&__this->list, &bonsai->thread_list);
+
+	printf("self thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 }
 
 void bonsai_self_thread_exit() {
 	struct thread_info* thread = bonsai->self;
+
+	list_del(&thread->list);
 	
 	free(thread);
 }
@@ -164,15 +277,25 @@ void bonsai_user_thread_init() {
 
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
+	thread->t_pid = gettid();
+	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
+
+	list_add(&thread->list, &bonsai->thread_list);
 
 	thread_set_alarm();
 
+	thread_register_signal();
+
 	__this = thread;
+
+	printf("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 }
 
 void bonsai_user_thread_exit() {
 	struct thread_info* thread = __this;
+
+	list_del(&thread->list);
 
 	free(thread);
 }
@@ -186,10 +309,13 @@ int bonsai_pflushd_thread_init() {
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
-		thread->t_id = i;
-		thread->t_cpu = i;
+		thread->t_id = atomic_add_return(1, &tids);
+		thread->t_cpu = i + 3;
+		thread->t_state = S_UNINIT;
 		init_workqueue(thread, &thread->t_wq);
 		thread->t_data = NULL;
+
+		list_add(&thread->list, &bonsai->thread_list);
 
 		if (pthread_create(&bonsai->tids[i], NULL, 
 			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)thread) != 0) {

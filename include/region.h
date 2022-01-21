@@ -11,8 +11,8 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-#define LOG_REGION_SIZE		1 * 1024 * 1024 * 48ULL /* 48 MB */
-#define DATA_REGION_SIZE	1 * 1024 * 1024 * 16ULL  /* 16 MB */
+#define LOG_REGION_SIZE		1 * 1024 * 1024 * 96ULL /* 48 MB */
+#define DATA_REGION_SIZE	1 * 1024 * 1024 * 48ULL  /* 16 MB */
 
 struct log_page_desc {
 	__le64 p_off; /* page offset */
