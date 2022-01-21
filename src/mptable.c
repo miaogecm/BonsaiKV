@@ -158,7 +158,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
-		read_unlock(&mptable->rwlock);
+		read_lock(&mptable->rwlock);
 		addr = hs_lookup(&mptable->hs, tid, key);
 		if (addr) {
 			read_unlock(&mptable->rwlock);
@@ -375,18 +375,18 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	pkey_t key;
 	pval_t *addr;
 	uint8_t* slot = new_pnode->slot;
-	pval_t* old_addr[NUM_ENT_PER_PNODE][NUM_SOCKET];
+	pval_t* old_addr[NUM_SOCKET][NUM_ENT_PER_PNODE];
 
 	new_table = numa_mptable_alloc(LOG(bonsai));
 	new_pnode->table = new_table;
 	new_table->pnode = new_pnode;
 
-	for (i = 1; i <= N; i ++) {
-		key = pnode_entry_n_key(new_pnode, i);
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(old_table, node);
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		m = MPTABLE_NODE(old_table, node);
+		for (i = 1; i <= N; i ++) {
+			key = pnode_entry_n_key(new_pnode, i);
 			addr = hs_lookup(&m->hs, tid, key);
-			old_addr[i][node] = addr;
+			old_addr[node][i] = addr;
 			if (addr != NULL) {
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
 			}		
@@ -401,12 +401,12 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	i_layer->insert(i_layer->index_struct, pnode_max_key(old_pnode), old_table);
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
 
-	for (i = 1; i <= N; i ++) {
-		key = pnode_entry_n_key(new_pnode, i);
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(new_table, node);
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		m = MPTABLE_NODE(new_table, node);
+		for (i = 1; i <= N; i ++) {
+			key = pnode_entry_n_key(new_pnode, i);
 			addr = hs_lookup(&m->hs, tid, key);
-			if (addr != old_addr[i][node]) {
+			if (addr != old_addr[node][i]) {
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
 				hs_remove(&m->hs, tid, key);			
 			}
