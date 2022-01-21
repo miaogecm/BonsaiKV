@@ -9,8 +9,8 @@ extern "C" {
 
 extern int epoch_init();
 
-extern int thread_set_alarm();
-extern void thread_block_alarm();
+extern int thread_register_alarm_signal();
+extern int thread_block_alarm_signal();
 
 #ifdef __cplusplus
 }

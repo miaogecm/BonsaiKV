@@ -90,7 +90,7 @@ extern void bonsai_self_thread_exit();
 extern int bonsai_pflushd_thread_init();
 extern int bonsai_pflushd_thread_exit();
 
-extern void bonsai_user_thread_init();
+extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
 
 extern void wakeup_master();

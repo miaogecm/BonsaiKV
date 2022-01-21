@@ -500,15 +500,15 @@ void sentinel_node_init() {
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	printf("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
-		printf("slot[%d]: %d; ", i, pnode->slot[i]);
-	printf("\n");
+		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
+	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-		printf("key[%d]: %lu; ", i, pnode->e[i].k);
-	printf("\n");
+		bonsai_print("key[%d]: %lu; ", i, pnode->e[i].k);
+	bonsai_print("\n");
 }
 
 void dump_pnodes() {
@@ -516,24 +516,24 @@ void dump_pnodes() {
 	struct pnode* pnode;
 	int i, j = 0, sum = 0;
 
-	printf("====================================================================================\n");
+	bonsai_print("====================================================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		printf("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		bonsai_print("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
 		sum += pnode->slot[0];
 
 		for (i = 0; i <= pnode->slot[0]; i ++)
-			printf("slot[%d]: %d; ", i, pnode->slot[i]);
-		printf("\n");
+			bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
+		bonsai_print("\n");
 	
 		for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-			printf("key[%d]: %lu; ", i, pnode->e[i].k);
-		printf("\n");
+			bonsai_print("key[%d]: %lu; ", i, pnode->e[i].k);
+		bonsai_print("\n");
 	}
 	read_unlock(&layer->lock);
 
-	printf("pnode list total key [%d]\n", sum);
+	bonsai_print("pnode list total key [%d]\n", sum);
 }
 
 /*
@@ -547,14 +547,14 @@ struct pnode* data_layer_search_key(pkey_t key) {
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
 			if (!key_cmp(pnode_entry_n_key(pnode, i), key)) {
-				printf("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
+				bonsai_print("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
 				print_pnode(pnode);
 				return pnode;
 			}
 		}
 	}
 
-	printf("data layer search key[%lu]: pnode %016lx\n", key, NULL);
+	bonsai_print("data layer search key[%lu]: pnode %016lx\n", key, NULL);
 
 	return NULL;
 }

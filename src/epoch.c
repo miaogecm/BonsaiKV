@@ -44,7 +44,27 @@ void thread_alarm_handler(int sig) {
 	__this->t_epoch ++;
 }
 
-static int register_alarm(signal_handler_t handler) {
+/*
+ * thread_block_alarm_signal: bonsai pflush thread block this signal
+ */
+int thread_block_alarm_signal() {
+	sigset_t set;
+	int ret = 0;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGALRM);
+
+	ret = pthread_sigmask(SIG_BLOCK, &set, NULL);
+	if (ret)
+		perror("block alarm signal\n");
+
+	return ret;
+}
+
+/*
+ * thread_register_alarm_signal: every user thread must register this signal
+ */
+int thread_register_alarm_signal() {
 	struct itimerval value;
 	struct sigaction sa;
 	int err = 0;
@@ -54,52 +74,18 @@ static int register_alarm(signal_handler_t handler) {
 	value.it_interval.tv_usec = EPOCH;
 
 	err = setitimer(ITIMER_VIRTUAL, &value, NULL);
-	if (err)
+	if (err) {
+		perror("setitimer\n");
 		return err;
+	}
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-	sa.sa_handler = handler;
+	sa.sa_handler = thread_alarm_handler;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) {
+		perror("sigaction\n");
 		err = -ESIGNO;
 	}
 
 	return err;
 }
-
-/*
- * thread_block_alarm: bonsai pflush thread block this signal
- */
-void thread_block_alarm() {
-	sigset_t set;
-
-	sigemptyset(&set);
-	sigaddset(&set, SIGALRM);
-
-	pthread_sigmask(SIG_BLOCK, &set, NULL);
-}
-
-/*
- * thread_set_alarm: every user thread must register this signal
- */
-int thread_set_alarm() {
-	//return register_alarm(thread_alarm_handler);
-	return 0;
-}
-
-#if 0
-static void main_alarm_handler(int sig) {
-	bonsai->desc->epoch ++;
-
-	bonsai_flush((void*)bonsai->desc->epoch, sizeof(__le64), 1);
-
-	bonsai_debug("bonsai epoch[%d]\n", bonsai->desc->epoch);
-}
-
-/*
- * epoch_init: main thread register this signal
- */
-int epoch_init() {
-	return register_alarm(main_alarm_handler);
-}
-#endif

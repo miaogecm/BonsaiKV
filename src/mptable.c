@@ -192,7 +192,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		}
 		else {
 			stop_the_world();
-			printf("max_op_t == 0 && !found_in_pnode %lu hs %016lx address %016lx\n", key, &mptable->hs, addr);
+			bonsai_print("max_op_t == 0 && !found_in_pnode %lu hs %016lx address %016lx\n", key, &mptable->hs, addr);
 			log_layer_search_key(-1, key);
 			numa_table_search_key(key);
 			data_layer_search_key(key);
@@ -206,13 +206,13 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 */
 
 	if (latest_op_type == OP_REMOVE) {
-		printf("latest_op_type == OP_REMOVE\n");
+		bonsai_print("latest_op_type == OP_REMOVE\n");
 		return -ENOENT;
 	}
 
 	if (max_op_t == 0 && !found_in_pnode) {
 		stop_the_world();
-		printf("max_op_t == 0 && !found_in_pnode %lu %016lx\n", key, addr);
+		bonsai_print("max_op_t == 0 && !found_in_pnode %lu %016lx\n", key, addr);
 		log_layer_search_key(-1, key);
 		numa_table_search_key(key);
 		data_layer_search_key(key);
@@ -364,7 +364,6 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 				if (addr_in_pnode((unsigned long)addr)) {
 					hs_remove(&m->hs, tid, key);
 					hs_insert(&new_table->tables[node]->hs, tid, key, &new_pnode->e[slot[slot[0]]].v);
-					//bonsai_debug("mptable_split [%d]: <%lu %016lx>\n", i, key, &pnode->e[pnode->slot[0]].v);
 				}
 			}		
 		}

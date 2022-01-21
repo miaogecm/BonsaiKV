@@ -267,7 +267,7 @@ void oplog_flush() {
 	int i, j, cpu, cnt = 0, total = 0;
 	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
 
-	printf("thread[%d]: oplog flush\n", __this->t_id);
+	bonsai_print("thread[%d]: oplog flush\n", __this->t_id);
 
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
@@ -380,7 +380,7 @@ void oplog_flush() {
 	/* 6. finish */
 	l_layer->nflush ++;
 
-	printf("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
+	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }
 
 static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
@@ -428,6 +428,6 @@ struct oplog* log_layer_search_key(int cpu, pkey_t key) {
 	}
 
 out:
-	printf("log layer search key[%lu]: log %016lx\n", log ? log->o_kv.k : key, log);
+	bonsai_print("log layer search key[%lu]: log %016lx\n", log ? log->o_kv.k : key, log);
 	return log;
 }

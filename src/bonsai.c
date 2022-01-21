@@ -41,13 +41,13 @@ static void index_layer_init(char* index_name, struct index_layer* layer, init_f
 	layer->scan = scan;
 	layer->destory = destroy;
 
-	bonsai_debug("index_layer_init: %s\n", index_name);
+	bonsai_print("index_layer_init: %s\n", index_name);
 }
 
 static void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
 
-	printf("index_layer_deinit\n");
+	bonsai_print("index_layer_deinit\n");
 }
 
 static int log_layer_init(struct log_layer* layer) {
@@ -67,7 +67,7 @@ static int log_layer_init(struct log_layer* layer) {
 		spin_lock_init(&layer->buckets[i].lock);
 	}
 
-	bonsai_debug("log_layer_init\n");
+	bonsai_print("log_layer_init\n");
 
 out:
 	return err;
@@ -90,7 +90,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 		numa_mptable_free(table);
 	}
 
-	printf("log_layer_deinit\n");
+	bonsai_print("log_layer_deinit\n");
 }
 
 static int data_layer_init(struct data_layer* layer) {
@@ -103,7 +103,7 @@ static int data_layer_init(struct data_layer* layer) {
 	rwlock_init(&layer->lock);
 	INIT_LIST_HEAD(&layer->pnode_list);
 
-	bonsai_debug("data_layer_init\n");
+	bonsai_print("data_layer_init\n");
 
 out:
 	return ret;
@@ -123,7 +123,7 @@ static void data_layer_deinit(struct data_layer* layer) {
 	
 	data_region_deinit(layer);
 
-	printf("data_layer_deinit\n");
+	bonsai_print("data_layer_deinit\n");
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
@@ -189,8 +189,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 }
 
 void bonsai_deinit() {
-	bonsai_debug("bonsai deinit\n");
-	printf("bonsai deinit\n");
+	bonsai_print("bonsai deinit\n");
 
 	dump_pnodes();
 	
@@ -269,7 +268,7 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 	/* 6. initialize pflush thread */
 	bonsai_pflushd_thread_init();
 
-	bonsai_debug("bonsai is initialized successfully!\n");
+	bonsai_print("bonsai is initialized successfully!\n");
 
 out:
 	return error;

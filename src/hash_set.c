@@ -447,7 +447,7 @@ pkey_t hs_search_key(struct hash_set* hs, pkey_t key) {
                 } else {
                 	if (!key_cmp(get_origin_key(curr->key), key)) {
 						addr = hs_lookup(hs, get_tid(), key);
-						bonsai_print("hash set search key[%lu] hs %016lx address: %016lx\n", get_origin_key(curr->key), hs, addr);
+						bonsai_print("hash set search key[%lu]: hs %016lx address: %016lx\n", get_origin_key(curr->key), hs, addr);
 						return key;
 					}
                 }
