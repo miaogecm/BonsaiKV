@@ -40,6 +40,8 @@ struct log_region {
 	spinlock_t inuse_lock;
 	struct log_page_desc* free;
 	struct log_page_desc* inuse;
+
+	atomic_t nlog;
 };
 
 struct data_region {

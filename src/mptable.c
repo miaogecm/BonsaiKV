@@ -208,8 +208,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			}
 			else
 				perror("invalid address\n");
-		}
-		else {
+		} else {
 			stop_the_world();
 			struct index_layer* i_layer = INDEX(bonsai);
 			kv_print(i_layer->index_struct);
@@ -217,27 +216,12 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			log_layer_search_key(-1, key);
 			numa_table_search_key(key);
 			data_layer_search_key(key);
-			dump_pnodes();
 			return -ENOENT;
 		}
 	}
-/*
-	if (latest_op_type == OP_REMOVE || (max_op_t == 0 && !found_in_pnode)) {
-		return -ENOENT;
-	}
-*/
 
 	if (latest_op_type == OP_REMOVE) {
-		bonsai_print("latest_op_type == OP_REMOVE\n");
-		return -ENOENT;
-	}
-
-	if (max_op_t == 0 && !found_in_pnode) {
-		stop_the_world();
-		bonsai_print("max_op_t == 0 && !found_in_pnode %lu %016lx\n", key, addr);
-		log_layer_search_key(-1, key);
-		numa_table_search_key(key);
-		data_layer_search_key(key);
+		perror("latest_op_type == OP_REMOVE\n");
 		return -ENOENT;
 	}
 
@@ -377,7 +361,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	int N = new_pnode->slot[0];
 	int old_N = old_pnode->slot[0] - N;
 	struct numa_table* new_table;
-	struct mptable *m, *m2;
+	struct mptable *old_m, *new_m;
 	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
@@ -389,37 +373,37 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	new_table->pnode = new_pnode;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(old_table, node);
+		old_m = MPTABLE_NODE(old_table, node);
 		for (i = 1; i <= N; i ++) {
 			key = pnode_entry_n_key(new_pnode, i);
-			addr = hs_lookup(&m->hs, tid, key);
+			addr = hs_lookup(&old_m->hs, tid, key);
 			old_addr[node][i] = addr;
 			if (addr != NULL) {
 				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
 			}		
 		}
 	}
-	
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(new_table, node);
-		write_lock(&m->rwlock);
-	}
 
 	i_layer->insert(i_layer->index_struct, pnode_entry_n_key(old_pnode, old_N), old_table);
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+	
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		old_m = MPTABLE_NODE(new_table, node);
+		write_lock(&old_m->rwlock);
+	}
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(old_table, node);
-		m2 = MPTABLE_NODE(old_table, node);
+		old_m = MPTABLE_NODE(old_table, node);
+		new_m = MPTABLE_NODE(new_table, node);
 		for (i = 1; i <= N; i ++) {
 			key = pnode_entry_n_key(new_pnode, i);
-			addr = hs_lookup(&m->hs, tid, key);
+			addr = hs_lookup(&old_m->hs, tid, key);
 			if (addr != old_addr[node][i]) {
-				hs_insert(&m2->hs, tid, key, addr);
+				hs_insert(&new_m->hs, tid, key, addr);
 			}
-			hs_remove(&m->hs, tid, key);
+			hs_remove(&old_m->hs, tid, key);
 		}
-		write_unlock(&m->rwlock);
+		write_unlock(&old_m->rwlock);
 	}
 }
 

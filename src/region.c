@@ -119,6 +119,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	region->start = vaddr;
 	region->free = (struct log_page_desc*)vaddr;
 	region->inuse = NULL;
+	atomic_set(&region->nlog, 0);
 
 	for (i = 0; i < num_page; i++, vaddr += PAGE_SIZE, offset += PAGE_SIZE) {
 		init_log_page((struct log_page_desc*)(vaddr), offset, 

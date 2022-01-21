@@ -228,7 +228,6 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  * return 0 if successful
  */
 int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
-	// printf("pnode_insert %lu\n", key);
     int bucket_id, pos, i, n, d;
     struct pnode *new_pnode;
 	uint64_t removed;
@@ -293,7 +292,6 @@ retry:
    	new_pnode->bitmap = removed;
 
 	/* split the mapping table */
-	
     mptable_split(pnode->table, new_pnode, pnode);
 
 	insert_pnode_list(new_pnode, pnode_anchor_key(new_pnode));
@@ -513,7 +511,7 @@ void print_pnode(struct pnode* pnode) {
 	bonsai_print("\n");
 }
 
-void dump_pnodes() {
+void dump_pnode_list() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
 	int i, j = 0, sum = 0;

@@ -26,7 +26,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-#define NUM_PFLUSH_HASH_BUCKET		64
+#define NUM_PFLUSH_HASH_BUCKET		65536
 
 struct index_layer {
 	void *index_struct;

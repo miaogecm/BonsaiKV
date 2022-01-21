@@ -111,15 +111,18 @@ out:
 
 static void data_layer_deinit(struct data_layer* layer) {
 	struct pnode* pnode, *tmp;
-	int i;
+	int i, j = 0;
 
+	write_lock(&layer->lock);
 	list_for_each_entry_safe(pnode, tmp, &layer->pnode_list, list) {
 		free(pnode->slot_lock);
-		for (i = 0; i < NUM_BUCKET; i ++)
+		for (i = 0; i < NUM_BUCKET; i ++) {
 			free(pnode->bucket_lock[i]);
+		}
 
 		list_del(&pnode->list);
 	}
+	write_unlock(&layer->lock);
 	
 	data_region_deinit(layer);
 
@@ -196,8 +199,6 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 
 void bonsai_deinit() {
 	bonsai_print("bonsai deinit\n");
-
-	// dump_pnodes();
 	
 	bonsai_self_thread_exit();
 

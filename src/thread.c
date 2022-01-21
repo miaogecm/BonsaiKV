@@ -27,12 +27,13 @@ __thread struct thread_info* __this = NULL;
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-#define CHKPT_INTERVAL		10000
+#define CHKPT_INTERVAL		700000
 
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
-static atomic_t STATUS;
+//static atomic_t STATUS;
+atomic_t STATUS;
 static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
@@ -75,21 +76,23 @@ void park_workers() {
 
 void park_master() {
 	pthread_mutex_lock(&work_mutex);
-	while (atomic_read(&STATUS) != WORKER_SLEEP) 
+	while (atomic_read(&STATUS) != WORKER_SLEEP 
+			&& atomic_read(&STATUS) != ALL_WAKEUP) 
 		pthread_cond_wait(&work_cond, &work_mutex);
 	pthread_mutex_unlock(&work_mutex);
 }
 
 static void worker_sleep() {
 	pthread_mutex_lock(&work_mutex);
-	while (atomic_read(&STATUS) != WORKER_RUNNING)
+	while (atomic_read(&STATUS) != WORKER_RUNNING 
+			&& atomic_read(&STATUS) != ALL_WAKEUP)
 		pthread_cond_wait(&work_cond, &work_mutex);
 	pthread_mutex_unlock(&work_mutex);
 }
 
 static void wakeup_all() {
 	pthread_mutex_lock(&work_mutex);
-	atomic_set(&STATUS, WORKER_SLEEP);
+	atomic_set(&STATUS, ALL_WAKEUP);
 	pthread_cond_broadcast(&work_cond);
 	pthread_mutex_unlock(&work_mutex);
 }
@@ -149,6 +152,7 @@ void stop_the_world() {
 
 static void thread_work(struct workqueue_struct* wq) {
 	struct work_struct* work, *tmp;
+	int ret = 0;
 
 	bonsai_debug("worker thread[%d] start to work\n", __this->t_id);
 
@@ -156,8 +160,15 @@ static void thread_work(struct workqueue_struct* wq) {
 		return;
 
 	list_for_each_entry_safe(work, tmp, &wq->head, list) {
-		work->func(work->arg);
+		ret = work->exec(work->exec_arg);
+		if (unlikely(ret)) {
+			work->clean(work->clean_arg);
+		}
+				
 		workqueue_del(work);
+
+		if (unlikely(ret)) 
+			return;
 	}
 
 	try_wakeup_master();

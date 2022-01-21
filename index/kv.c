@@ -165,6 +165,8 @@ void kv_print(void* index_struct) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
 
+	printf("index layer:\n");
+
 	list_for_each_entry(knode, &__toy->head, list) {
 		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
 	}
@@ -212,15 +214,14 @@ void* thread_fun(void* arg) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
 
-	// bonsai_print_all();
-	//printf("thread[%ld]---------------------1---------------------\n", id);
+	printf("thread[%ld]---------------------1---------------------\n", id);
 
-	// for (i = (0 + N * id); i < (N + N * id); i ++) {
-	// 	bonsai_lookup((pkey_t)a[i], &v);
-	// 	assert(v == a[i]);
-	// }
+	 for (i = (0 + N * id); i < (N + N * id); i ++) {
+	 	//bonsai_lookup((pkey_t)a[i], &v);
+	 	//assert(v == a[i]);
+	 }
 
-	//printf("thread[%ld]---------------------2---------------------\n", id);
+	printf("thread[%ld]---------------------2---------------------\n", id);
 
 	// for (int i = 0; i < 1; i++) {
 	// 	int size;
@@ -230,19 +231,19 @@ void* thread_fun(void* arg) {
 	// }
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
-
+#if 0
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
 
-	//printf("thread[%ld]---------------------4---------------------\n", id);
+	printf("thread[%ld]---------------------4---------------------\n", id);
 
-	// for (i = (0 + N * id); i < (N + N * id); i ++) {
-	// 	assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
-	// }
+	for (i = (0 + N * id); i < (N + N * id); i ++) {
+	 	assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
+	}
 
-	//printf("thread[%ld]---------------------5---------------------\n", id);
-
+	printf("thread[%ld]---------------------5---------------------\n", id);
+#endif
 	bonsai_user_thread_exit();
 
 	free(val_arr);

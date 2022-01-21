@@ -25,6 +25,7 @@ struct oplog_blk;
 enum {
 	WORKER_SLEEP = 0,
 	WORKER_RUNNING = NUM_PFLUSH_THREAD - 1,
+	ALL_WAKEUP = NUM_PFLUSH_THREAD,
 };
 
 enum {
@@ -37,6 +38,7 @@ enum {
 
 struct merge_work {
 	unsigned int count;
+	struct list_head page_list;
 	struct log_layer* layer;
 	struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_WORKER];
 	struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_WORKER];
@@ -45,15 +47,18 @@ struct merge_work {
 struct flush_work {
 	unsigned int min_index;
 	unsigned int max_index;
-	struct list_head* flush_list;
+	unsigned int curr_index;
 	struct log_layer* layer;
 };
 
-typedef void (*work_func_t)(void*);
+typedef int (*work_func_t)(void*);
+typedef void (*clean_func_t)(void*);
 
 struct work_struct {
-	work_func_t func;
-	void* arg;
+	work_func_t exec;
+	void* exec_arg;
+	clean_func_t clean;
+	void* clean_arg;
 	struct list_head list;
 };
 

@@ -55,6 +55,7 @@ typedef struct pentry {
 #define EMMAP		106 /* memory-map error */
 #define ESIGNO		107 /* sigaction error */
 #define ETHREAD		108 /* thread create error */
+#define EEXIT		109 /* exit */
 
 #ifndef likely
 #define likely(x) __builtin_expect((unsigned long)(x), 1)
