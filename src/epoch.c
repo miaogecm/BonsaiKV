@@ -36,7 +36,7 @@ void thread_alarm_handler(int sig) {
 	}
 
 	/* persist it */
-	bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 1);
+	bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 1);
 
 	/* re-allocate a new log block */
 	region->curr_blk = alloc_oplog_block(cpu);

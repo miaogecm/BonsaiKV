@@ -260,9 +260,9 @@ retry:
 		set_bit(pos, &pnode->bitmap);
         write_unlock(pnode->bucket_lock[bucket_id]);
 		
-		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
-		bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
-		bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
+		bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 0);
+		bonsai_flush((void*)&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
 
         return 0;
     }
@@ -305,10 +305,10 @@ retry:
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
 
-	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
-	bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 0);
-	bonsai_flush(&new_pnode->bitmap, sizeof(__le64), 0);
-	bonsai_flush(&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
+	bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush((void*)&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 0);
+	bonsai_flush((void*)&new_pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush((void*)&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
     pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
 
@@ -362,8 +362,8 @@ find:
 		numa_mptable_free(pnode->table);
 		free_pnode(pnode);
 	} else {
-		bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
-		bonsai_flush(&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
+		bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
+		bonsai_flush((void*)&pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);	
 	}
 
     return 0;
@@ -442,7 +442,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 	}
 
-	bonsai_flush(&remote_pnode[offset], 
+	bonsai_flush((void*)&remote_pnode[offset], 
         NUM_ENT_PER_BUCKET * sizeof(pentry_t), 1);
 
 	for (i = 0; i < NUM_ENT_PER_BUCKET; i++) {
@@ -487,9 +487,9 @@ void sentinel_node_init() {
 	set_bit(pos, &pnode->bitmap);
     write_unlock(pnode->bucket_lock[bucket_id]);
 		
-	bonsai_flush(&pnode->bitmap, sizeof(__le64), 0);
-	bonsai_flush(&pnode->e[pos], sizeof(pentry_t), 0);
-	bonsai_flush(&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
+	bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
+	bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 0);
+	bonsai_flush((void*)&pnode->slot, NUM_ENT_PER_PNODE + 1, 1);
 
 	/* INDEX Layer: insert into index layer */
 	i_layer->insert(i_layer->index_struct, key, (void*)table);
@@ -500,15 +500,15 @@ void sentinel_node_init() {
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_debug("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+	printf("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
-		bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
-	bonsai_debug("\n");
+		printf("slot[%d]: %d; ", i, pnode->slot[i]);
+	printf("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-		bonsai_debug("key[%d]: %lu; ", i, pnode->e[i].k);
-	bonsai_debug("\n");
+		printf("key[%d]: %lu; ", i, pnode->e[i].k);
+	printf("\n");
 }
 
 void dump_pnodes() {
@@ -516,39 +516,45 @@ void dump_pnodes() {
 	struct pnode* pnode;
 	int i, j = 0, sum = 0;
 
-	bonsai_debug("====================================================================================\n");
+	printf("====================================================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_debug("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		printf("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
 		sum += pnode->slot[0];
-/*
+
 		for (i = 0; i <= pnode->slot[0]; i ++)
-			bonsai_debug("slot[%d]: %d; ", i, pnode->slot[i]);
-		bonsai_debug("\n");
+			printf("slot[%d]: %d; ", i, pnode->slot[i]);
+		printf("\n");
 	
 		for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-			bonsai_debug("key[%d]: %lu; ", i, pnode->e[i].k);
-		bonsai_debug("\n");*/
+			printf("key[%d]: %lu; ", i, pnode->e[i].k);
+		printf("\n");
 	}
 	read_unlock(&layer->lock);
 
-	bonsai_debug("pnode list total key [%d]\n", sum);
+	printf("pnode list total key [%d]\n", sum);
 }
 
-struct pnode* pnode_find_key(pkey_t key) {
+/*
+ * data_layer_search_key: search @key in data layer, you must stop the world first.
+ */
+struct pnode* data_layer_search_key(pkey_t key) {
 	struct data_layer *layer = DATA(bonsai);
-	struct pnode* pnode;
+	struct pnode* pnode = NULL;
 	int i;
 	
-	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
-			if (!key_cmp(pnode_entry_n_key(pnode, i), key))
+			if (!key_cmp(pnode_entry_n_key(pnode, i), key)) {
+				printf("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
+				print_pnode(pnode);
 				return pnode;
+			}
 		}
 	}
-	read_unlock(&layer->lock);
+
+	printf("data layer search key[%lu]: pnode %016lx\n", key, NULL);
 
 	return NULL;
 }

@@ -38,6 +38,8 @@ extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 
 extern void hs_destroy(struct hash_set* hs);
 
+extern pkey_t hs_search_key(struct hash_set* hs, pkey_t key);
+
 #ifdef __cplusplus
 }
 #endif

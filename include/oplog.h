@@ -62,6 +62,8 @@ extern struct oplog* oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_
 
 extern void oplog_flush();
 
+extern struct oplog* log_layer_search_key(int cpu, pkey_t key);
+
 #ifdef __cplusplus
 }
 #endif

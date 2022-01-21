@@ -164,7 +164,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 }
 
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
-	struct mptable* mptable = MPTABLE_NODE(tables, numa_node);
+	struct mptable* mptable;
 	int tid = get_tid();
 	struct oplog* log;
 	pval_t* addr;
@@ -187,6 +187,16 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			else if (addr_in_pnode((unsigned long)addr)) {
 				found_in_pnode = 1;
 			}
+			else
+				perror("invalid address\n");
+		}
+		else {
+			stop_the_world();
+			printf("max_op_t == 0 && !found_in_pnode %lu hs %016lx address %016lx\n", key, &mptable->hs, addr);
+			log_layer_search_key(-1, key);
+			numa_table_search_key(key);
+			data_layer_search_key(key);
+			return -ENOENT;
 		}
 	}
 /*
@@ -201,8 +211,11 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	}
 
 	if (max_op_t == 0 && !found_in_pnode) {
-		printf("max_op_t == 0 && !found_in_pnode %lu\n", key);
 		stop_the_world();
+		printf("max_op_t == 0 && !found_in_pnode %lu %016lx\n", key, addr);
+		log_layer_search_key(-1, key);
+		numa_table_search_key(key);
+		data_layer_search_key(key);
 		return -ENOENT;
 	}
 
@@ -503,4 +516,22 @@ int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* resu
 	}
 
 	return ret;
+}
+
+void numa_table_search_key(pkey_t key) {
+	struct log_layer* layer = LOG(bonsai);
+	struct numa_table* table;
+	struct mptable* m;
+	pkey_t find;
+	int node;
+	
+	list_for_each_entry(table, &layer->numa_table_list, list) {
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			m = MPTABLE_NODE(table, node);
+			if (find = hs_search_key(&m->hs, key))
+				return;
+		}
+	}
+
+	bonsai_print("numa table find no such key[%lu]\n", key);
 }

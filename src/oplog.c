@@ -113,7 +113,7 @@ retry:
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it, no memory fence */
-		bonsai_flush(region->curr_blk, sizeof(struct oplog_blk), 0);
+		bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 0);
 	}
 
 	bonsai_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
@@ -381,4 +381,53 @@ void oplog_flush() {
 	l_layer->nflush ++;
 
 	printf("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
+}
+
+static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
+	struct oplog_blk* block;
+	struct oplog *log;
+	int i;
+
+	if (region->curr_blk) {
+		block = region->first_blk;
+		while (1) {
+			for (i = 0; i < block->cnt; i ++) {
+				log = &block->logs[i];
+				if (!key_cmp(log->o_kv.k, key)) {
+					return log;
+				}
+			}
+			if (block == region->curr_blk)
+				return NULL;
+			
+			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
+		}
+	}
+}
+
+/*
+ * log_layer_search_key: scan @cpu log region and search @key,
+ * find @cpu equals -1, scan all log regions, you must stop the world first.
+ */
+struct oplog* log_layer_search_key(int cpu, pkey_t key) {
+	struct log_layer *l_layer = LOG(bonsai);
+	struct log_region *region;
+	struct oplog* log = NULL;
+
+	if (cpu != -1) {
+		region = &l_layer->region[cpu];
+		log = scan_one_cpu_log_region(region, key);
+	}
+	else {
+		for (cpu = 0; cpu < NUM_CPU; cpu ++) {
+			region = &l_layer->region[cpu];
+			if (log = scan_one_cpu_log_region(region, key)) {
+				goto out;
+			}
+		}
+	}
+
+out:
+	printf("log layer search key[%lu]: log %016lx\n", log ? log->o_kv.k : key, log);
+	return log;
 }

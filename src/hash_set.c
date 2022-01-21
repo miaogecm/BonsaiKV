@@ -22,6 +22,7 @@
 #include "hash_set.h"
 #include "common.h"
 #include "atomic.h"
+#include "pnode.h"
 
 #define MASK 	0x00FFFFFFFFFFFFFF  /* takes the lowest 3 bytes of the hashcode */
 #define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
@@ -418,6 +419,43 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
     bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
 }
 #endif
+
+pkey_t hs_search_key(struct hash_set* hs, pkey_t key) {
+	struct bucket_list **buckets, *bucket;
+	struct ll_node *head, *curr;
+	int i, j;
+	pval_t* addr;
+
+    for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+        segment_t* p_segment = hs->main_array[i];
+        if (p_segment == NULL) {
+            continue;
+        }
+        for (j = 0; j < SEGMENT_SIZE; j++) {
+            buckets = (struct bucket_list**)p_segment;
+            bucket = buckets[j];
+            if (bucket == NULL) {
+                continue;
+            }
+			
+            head = &(bucket->bucket_sentinel.ll_head);
+
+            curr = GET_NODE(head->next);
+            while (curr) {
+                if (is_sentinel_key(curr->key)) {
+                    break;
+                } else {
+                	if (!key_cmp(get_origin_key(curr->key), key)) {
+						addr = hs_lookup(hs, get_tid(), key);
+						bonsai_print("hash set search key[%lu] hs %016lx address: %016lx\n", get_origin_key(curr->key), hs, addr);
+						return key;
+					}
+                }
+                curr = GET_NODE(STRIP_MARK(curr->next));
+            } 
+        }
+    }
+}
 
 void hs_destroy(struct hash_set* hs) { 
     // First , get the first linked_list of bucket-0.

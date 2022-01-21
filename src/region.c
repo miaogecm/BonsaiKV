@@ -61,7 +61,7 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 
 	page->p_num_blk = 0;
 
-	bonsai_flush(page, sizeof(struct log_page_desc), 1);
+	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
 }
 
 struct log_page_desc* alloc_log_page(struct log_region *region) {
@@ -86,7 +86,7 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 	region->inuse = page;
 	spin_unlock(&region->inuse_lock);
 
-	bonsai_flush(page, sizeof(struct log_page_desc), 1);
+	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
 
 	return page;
 }
@@ -106,7 +106,7 @@ static void init_per_cpu_log_region(struct log_region* region, struct log_region
 	desc->r_size = size;
 	desc->r_oplog_top = 0;
 
-	bonsai_flush(desc, sizeof(struct log_region_desc), 1);
+	bonsai_flush((void*)desc, sizeof(struct log_region_desc), 1);
 
 	memset((char*)vaddr, 0, size);
 
@@ -165,7 +165,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 		
 		start = vaddr;
 		
-		bonsai_debug("node[%d] log region: [%016lx %016lx]\n", node, vaddr, vaddr + LOG_REGION_SIZE);
+		bonsai_print("node[%d] log region: [%016lx %016lx]\n", node, vaddr, vaddr + LOG_REGION_SIZE);
 		
 		layer->pmem_fd[node] = fd;
 		layer->pmem_addr[node] = vaddr;
@@ -178,7 +178,7 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 			init_per_cpu_log_region(region, desc, (unsigned long)start, (unsigned long)vaddr, 
 				vaddr - layer->pmem_addr[node], size_per_cpu);
 
-			bonsai_debug("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
+			bonsai_print("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
 				cpu, (unsigned long)vaddr, (unsigned long)vaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;
@@ -216,7 +216,7 @@ int data_region_init(struct data_layer *layer) {
 		region->pop = pop;
 		region->start = (unsigned long)pop;
 
-		bonsai_debug("data_region_init node[%d] region: [%016lx, %016lx]\n", 
+		bonsai_print("data_region_init node[%d] region: [%016lx, %016lx]\n", 
 			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 
