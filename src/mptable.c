@@ -410,7 +410,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(old_table, node);
-		m2 = MPTABLE_NODE(old_table, node);
+		m2 = MPTABLE_NODE(new_table, node);
 		for (i = 1; i <= N; i ++) {
 			key = pnode_entry_n_key(new_pnode, i);
 			addr = hs_lookup(&m->hs, tid, key);
