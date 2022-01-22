@@ -204,6 +204,7 @@ static void pnode_sort_slot(struct pnode* pnode, int pos_e, pkey_t key, optype_t
  * pnode_find_lowbound: find first pnode whose maximum key is equal or greater than @key
  */
 static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
+#if 0
 	struct data_layer *layer = DATA(bonsai);
 
 	read_lock(&layer->lock);
@@ -216,6 +217,13 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 	read_unlock(&layer->lock);
 
 	return NULL;
+#endif
+
+	struct index_layer* layer = INDEX(bonsai);
+	struct numa_table* table;
+
+	table = (struct numa_table*)layer->lookup(layer->index_struct, key);
+	return table->pnode;
 }
 
 /*
