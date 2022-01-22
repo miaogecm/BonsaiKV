@@ -32,8 +32,7 @@ __thread struct thread_info* __this = NULL;
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
-//static atomic_t STATUS;
-atomic_t STATUS;
+static atomic_t STATUS;
 static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
