@@ -19,6 +19,7 @@
 #include "region.h"
 #include "ordo.h"
 #include "hash_set.h"
+#include "hash.h"
 
 extern struct bonsai_info* bonsai;
 
@@ -521,7 +522,7 @@ static void merge_one_log(struct ll_node* node, void* arg1, void* arg2, void* ar
 	
 	e = malloc(sizeof(scan_merge_ent));
 	e->kv = (pentry_t*)((unsigned long)val - sizeof(pkey_t));
-	hlist_add_head(&e->node, &merge_buckets[simple_hash(e->kv->k)].head);
+	hlist_add_head(&e->node, &merge_buckets[p_hash(e->kv->k)].head);
 }
 
 int __compare(const void* a, const void* b) {

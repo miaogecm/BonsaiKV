@@ -20,6 +20,7 @@
 #include "thread.h"
 #include "pnode.h"
 #include "mptable.h"
+#include "hash.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -192,12 +193,13 @@ static int worker_oplog_merge(void *arg) {
 			for (j = 0; j < count; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
-				bucket = &layer->buckets[simple_hash(key)];
+				bucket = &layer->buckets[p_hash(key)];
 
 				try_free_log_page(block, &mwork->page_list);
 
 				nlog++; atomic_dec(&layer->nlogs);
-				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
+				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
+					__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
 				
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {

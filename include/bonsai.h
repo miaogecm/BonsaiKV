@@ -26,7 +26,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-#define NUM_PFLUSH_HASH_BUCKET		65536
+#define NUM_PFLUSH_HASH_BUCKET		131072
 
 struct index_layer {
 	void *index_struct;
@@ -103,10 +103,6 @@ extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destro
 extern void bonsai_deinit();
 
 extern void bonsai_recover();
-
-static int simple_hash(pkey_t key) {
-	return (key % NUM_PFLUSH_HASH_BUCKET);
-}
 
 #ifdef __cplusplus
 }

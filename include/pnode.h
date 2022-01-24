@@ -71,7 +71,7 @@ extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
 extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr);
 
 extern void print_pnode(struct pnode* pnode);
-extern void dump_pnodes();
+extern void dump_pnode_list();
 extern struct pnode* data_layer_search_key(pkey_t key);
 
 #ifdef __cplusplus
