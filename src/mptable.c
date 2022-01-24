@@ -126,12 +126,11 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			read_unlock(&table->rwlock);
 			return -EEXIST;
 		}
-		else {
-			log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, table->pnode);
-			hs_insert(&table->hs, tid, key, &log->o_kv.v);
-			read_unlock(&table->rwlock);
-		}
+		read_unlock(&table->rwlock);
 	}
+	table = MPTABLE_NODE(tables, numa_node);
+	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, table->pnode);
+	hs_insert(&table->hs, tid, key, &log->o_kv.v);
 #endif
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -182,11 +181,39 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 extern void kv_print(void* index_struct);
 
-int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
+static int mptable_insert_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* val) {
+	struct mptable* table = MPTABLE_NODE(tables, numa_node);
+	int ret = 0, tid = get_tid();
+
+#ifdef BONSAI_SUPPORT_UPDATE
+	read_lock(&table->rwlock);
+	ret = hs_insert(&table->hs, tid, key, val);
+	read_unlock(&table->rwlock);
+#else
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		table = MPTABLE_NODE(tables, node);
+		addr = hs_lookup(&table->hs, tid, key);
+		if (addr) {
+			read_unlock(&table->rwlock);
+			return -EEXIST;
+		}
+		read_unlock(&table->rwlock);
+	}
+	table = MPTABLE_NODE(tables, numa_node);
+	read_lock(&table->rwlock);
+	ret = hs_insert(&table->hs, tid, key, val);
+	read_unlock(&table->rwlock);
+#endif
+	tables->pnode->stale = PNODE_DATA_STALE;
+
+	return ret;
+}
+
+int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key, int forward, pval_t* val_ptr) {
 	struct mptable* mptable;
 	int tid = get_tid();
 	struct oplog* log;
-	pval_t* addr;
+	pval_t *addr, *ptr;
 	int node;
 	unsigned long max_op_t = 0;
 	int latest_op_type = -1, found_in_pnode = 0;
@@ -210,6 +237,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			else
 				perror("invalid address\n");
 		} else {
+#if 0
 			stop_the_world();
 			struct index_layer* i_layer = INDEX(bonsai);
 			kv_print(i_layer->index_struct);
@@ -218,12 +246,24 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 			numa_table_search_key(key);
 			data_layer_search_key(key);
 			return -ENOENT;
+#endif
 		}
 	}
 
 	if (latest_op_type == OP_REMOVE) {
 		perror("latest_op_type == OP_REMOVE\n");
 		return -ENOENT;
+	}
+
+	if (latest_op_type == -1 && !found_in_pnode) {
+		if (!forward && tables->forward != NULL) {
+			if (mptable_remove(tables->forward, numa_node, cpu, key, 1, ptr) == 0) {
+				mptable_insert_addr(tables, numa_node, key, ptr);
+				return 0;
+			}
+		}
+		perror("no such entry\n");
+		return -EEXIST;
 	}
 
 	mptable = MPTABLE_NODE(tables, numa_node);
@@ -239,11 +279,11 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return 0;
 }
 
-int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val) {
+int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val, int forward) {
 	int node, tid = get_tid();
 	struct oplog* insert_logs[NUM_SOCKET];
 	struct oplog* log = NULL;
-	struct mptable *m, *forward;
+	struct mptable *m;
 	pval_t *addr, *master_node_addr, *self_node_addr;
 	unsigned long max_insert_t = 0, max_remove_t = 0;
 	int n_insert = 0, n_remove = 0, numa_node = get_numa_node(cpu);
@@ -348,6 +388,13 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 #endif
 	}
 
+	// Forward operation
+	if (!forward && mptables->forward != NULL) {
+		if (mptable_lookup(mptables->forward, key, cpu, val, 1) == 0) {
+			mptable_insert_addr(mptables, numa_node, key, val);
+			return 0;
+		}
+	}
 	return -ENOENT;
 }
 
@@ -425,6 +472,8 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
+	int N = new_pnode->slot[0];
+	int old_N = old_pnode->slot[0] - N;
 
 	/* 1. allocate a new mapping table */
 	new_table = numa_mptable_alloc(LOG(bonsai));
