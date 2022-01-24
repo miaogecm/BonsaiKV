@@ -40,6 +40,8 @@ extern void hs_destroy(struct hash_set* hs);
 
 extern pkey_t hs_search_key(struct hash_set* hs, pkey_t key);
 
+extern void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max, int tid);
+
 #ifdef __cplusplus
 }
 #endif
