@@ -30,8 +30,6 @@ struct hash_set {
     unsigned long capacity; /* how many buckets in the hash_set, capacity <= MAX_NUM_BUCKETS */
 };
 
-extern int is_sentinel_key(pkey_t key);
-
 extern void hs_init(struct hash_set * hs);
 extern int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* addr);
 extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
@@ -39,7 +37,6 @@ extern int hs_remove(struct hash_set* hs, int tid, pkey_t key);
 extern void hs_destroy(struct hash_set* hs);
 
 typedef void (*hs_op_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4);
-
 extern void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4);
 extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4);
 extern void hs_search_key(struct ll_node* node, void* arg1);

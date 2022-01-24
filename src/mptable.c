@@ -295,9 +295,6 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(mptables, node);
-
-		if (mptables->forward)
-			forward = MPTABLE_NODE(mptables->forward, node);
 		
 		addr = hs_lookup(&m->hs, tid, key);
 		map_addrs[node] = addr;
@@ -479,7 +476,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
 
-		hs_scan_and_ops(&old_m->hs, hs_split, 
+		hs_scan_and_ops(&old_m->hs, hs_split,
 			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), &old_m->hs, &new_m->hs);
 	}
 
@@ -540,11 +537,8 @@ int __compare(const void* a, const void* b) {
 #define MAX_LEN		(16 * 1024 * 1024)
 static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
 	struct hbucket* merge_buckets;
-	struct bucket_list **buckets, *bucket;
 	struct hash_set* hs;
 	struct mptable *m;
-	segment_t* p_segment;
-	struct ll_node *head, *curr;
 	struct hlist_node *hnode, *n_hnode;
 	int node, i, j;
 	struct oplog *l;
