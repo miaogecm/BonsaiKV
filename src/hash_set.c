@@ -442,7 +442,7 @@ void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* ar
             assert(addr);
 			hs_insert(new, tid, key, addr);
             hs_remove(old, tid, key);
-		} else 
+		} else {
 			perror("invalid address\n");
 			assert(0);
 		}
