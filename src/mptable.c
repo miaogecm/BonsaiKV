@@ -347,12 +347,6 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {
 			*val = *addr;
-			if (*val != key) {
-				stop_the_world();
-				data_layer_search_key(key);
-				bonsai_print("%lu %lu\n", key, *val);
-				assert(0);
-			}
 			return 0;
 		} else {
 			/* FIXME */
