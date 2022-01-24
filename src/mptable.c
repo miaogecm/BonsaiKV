@@ -413,7 +413,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 #endif
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
-	int tid = get_tid(), i, j, node;
+	int i, j, node;
 	pkey_t min = pnode_entry_n_key(new_pnode, 1);
 	pkey_t max = pnode_max_key(new_pnode);
 	struct numa_table* new_table;
@@ -421,11 +421,6 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	struct index_layer* i_layer = INDEX(bonsai);
 	pkey_t key;
 	pval_t *addr;
-	struct bucket_list **buckets, *bucket;
-	struct hash_set* hs;
-	struct mptable *m;
-	segment_t* p_segment;
-	struct ll_node *head, *curr;
 
 	/* 1. allocate a new mapping table */
 	new_table = numa_mptable_alloc(LOG(bonsai));
@@ -439,37 +434,9 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	/* 3. copy entries from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		old_m = MPTABLE_NODE(old_table, node);
-		hs = &m->hs;
-
-		/* scan @old_m */
-		for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-			p_segment = hs->main_array[i];
-        	if (p_segment == NULL)
-            	continue;
-
-			for (j = 0; j < SEGMENT_SIZE; j++) {
-				buckets = (struct bucket_list**)p_segment;
-				bucket = buckets[j];
-				if (bucket == NULL) 
-                	continue;
-				
-            	head = &(bucket->bucket_sentinel.ll_head);
-				curr = GET_NODE(head->next);
-				while (curr) {
-                	if (is_sentinel_key(curr->key)) {
-                   	 	break;
-                	} else {
-						key = get_origin_key(curr->key);
-						if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
-							addr = curr->val;
-							hs_remove(&old_m->hs, tid, key);
-							hs_insert(&new_m->hs, tid, key, addr);
-						}
-                	}
-                	curr = GET_NODE(STRIP_MARK(curr->next));
-            	} 
-			}
-		}
+		new_m = MPTABLE_NODE(new_table, node);
+		
+		hs_split(&old_m->hs, &new_m->hs, min, max, get_tid());
 	}
 
 	new_table->forward = NULL;

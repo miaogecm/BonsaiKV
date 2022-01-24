@@ -420,6 +420,47 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
+void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max, int tid) {
+	struct bucket_list **buckets, *bucket;
+	struct hash_set* hs;
+	struct mptable *m;
+	segment_t* p_segment;
+	struct ll_node *head, *curr;
+	int i, j;
+	pkey_t key;
+	pval_t* addr;
+
+	/* scan @old_m */
+	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+		p_segment = old->main_array[i];
+        if (p_segment == NULL)
+            continue;
+
+		for (j = 0; j < SEGMENT_SIZE; j++) {
+			buckets = (struct bucket_list**)p_segment;
+			bucket = buckets[j];
+			if (bucket == NULL) 
+                continue;
+				
+            head = &(bucket->bucket_sentinel.ll_head);
+			curr = GET_NODE(head->next);
+			while (curr) {
+                if (is_sentinel_key(curr->key)) {
+                   	 break;
+                } else {
+					key = get_origin_key(curr->key);
+						if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+							addr = curr->val;
+							hs_remove(&old, tid, key);
+							hs_insert(&new, tid, key, addr);
+						}
+                }
+                	curr = GET_NODE(STRIP_MARK(curr->next));
+            } 
+		}
+	}
+}
+
 pkey_t hs_search_key(struct hash_set* hs, pkey_t key) {
 	struct bucket_list **buckets, *bucket;
 	struct ll_node *head, *curr;

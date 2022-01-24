@@ -72,6 +72,7 @@ again:
 
 struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	struct oplog_blk* block = region->curr_blk;
+	struct log_layer* layer = LOG(bonsai);
 	struct oplog* log;
 
 	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {		
@@ -81,7 +82,8 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 
 	log = &block->logs[block->cnt++];
 
-	if (atomic_add_return(&LOG(bonsai)->nlogs, 1) == CHKPT_NLOG_INTERVAL) {
+	if (!atomic_read(&layer->checkpoint) 
+			&& atomic_add_return(&layer->nlogs, 1) >= CHKPT_NLOG_INTERVAL) {
 		wakeup_master();
 	}
 
@@ -317,6 +319,8 @@ void oplog_flush() {
 
 	bonsai_print("thread[%d]: start oplog flush [%d]\n", __this->t_id, l_layer->nflush);
 
+	atomic_set(&l_layer->checkpoint, 1);
+
 	/* 1. fetch and merge all log lists */
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];
@@ -433,9 +437,11 @@ void oplog_flush() {
 
 	/* 6. finish */
 	l_layer->nflush ++;
+	atomic_set(&l_layer->checkpoint, 0);
 
 out:
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
+	return;
 }
 
 static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
