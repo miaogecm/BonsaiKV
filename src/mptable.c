@@ -290,6 +290,7 @@ static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu
 			/* case I: mapping table entry points to an oplog */
 			log = OPLOG(addr);
 			if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
+				max_op_t = log->o_stamp;
 				ret = &log->o_kv.v;
 			}
 		} else if (addr_in_pnode((unsigned long)addr)) {
@@ -298,9 +299,9 @@ static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu
 				master_node_addr = addr;
 			else if (node == numa_node) {
 				self_node_addr = addr;
-				if (!ret)
-					ret = addr;
 			}
+			if (!ret)
+				ret = addr;
 		} else {
 			/* case III: mapping table entry is NULL */
 			if (node == numa_node)
@@ -323,16 +324,21 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 
 	addr = __mptable_lookup(tables, key, cpu);
 	
+	// printf("!!!\n");
 	if (!addr && tables->forward) {
 		addr = __mptable_lookup(tables->forward, key, cpu);
 	}
+	// if (addr) {
+	// 	printf("fuck\n");
+	// 	printf("%016lx\n", addr);
+	// }
 
 	if (addr_in_log((unsigned long)addr)) {
 		log = OPLOG(addr);
 		switch (log->o_type) {
 		case OP_INSERT:
 			*val = log->o_kv.v;
-			return;
+			return 0;
 		case OP_REMOVE:
 			return -ENOENT;
 		default:
@@ -340,7 +346,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		}
 	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {
-			*val = addr;
+			*val = *addr;
 			return 0;
 		} else {
 			/* FIXME */
@@ -358,7 +364,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}	
 	} else {
-		perror("NULL address\n");
+		// perror("NULL address\n");
 	}
 
 	return -ENOENT;

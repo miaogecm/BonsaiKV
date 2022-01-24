@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <thread.h>
+#include <assert.h>
 
 #include "hash_set.h"
 #include "common.h"
@@ -434,12 +435,13 @@ void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* ar
 	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
-			hs_remove(old, tid, key);
 			hs_insert(new, tid, key, addr);
+            hs_remove(old, tid, key);
 		} else if (addr_in_pnode(addr)) {
-			hs_remove(old, tid, key);
 			addr = pnode_lookup(pnode, key);
+            assert(addr);
 			hs_insert(new, tid, key, addr);
+            hs_remove(old, tid, key);
 		} else 
 			perror("invalid address\n");
 	}

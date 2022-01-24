@@ -307,6 +307,9 @@ retry:
 
 	insert_pnode_list(new_pnode, pnode_anchor_key(new_pnode));
 
+	for (i = 1; i <= n - d; i++) {
+		pnode->slot[i] = pnode->slot[d + i];
+	}
 	pnode->slot[0] = n - d;
     pnode->bitmap &= ~removed;
 

@@ -216,10 +216,16 @@ void* thread_fun(void* arg) {
 
 	printf("thread[%ld]---------------------1---------------------\n", id);
 
-	 for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	bonsai_lookup((pkey_t)a[i], &v);
-	 	assert(v == a[i]);
-	 }
+	for (i = (0 + N * id); i < (N + N * id); i ++) {
+		if (bonsai_lookup((pkey_t)i, &v) != 0) {
+			printf("!!!!!!%lu\n", i);
+			exit(0);
+		}
+	 	if (v != i) {
+			printf("%lu %lu\n", i, v);
+			exit(1); 
+		}
+	}
 
 	printf("thread[%ld]---------------------2---------------------\n", id);
 
