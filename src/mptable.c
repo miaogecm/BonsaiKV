@@ -361,12 +361,18 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}	
 	} else {
-		bonsai_print("invalid address %016lx %lu\n", addr, key);
+		bonsai_print("************invalid address %016lx %lu***********\n", addr, key);
+		print_pnode_summary(tables->pnode);
+		bonsai_print("%016lx tables: %016lx hs: %016lx\n", __mptable_lookup(tables, key, cpu), tables, &tables->tables[0]->hs);
+		if (tables->forward)
+			bonsai_print("%016lx\n", __mptable_lookup(tables->forward, key, cpu));
 		stop_the_world();
+		if (tables->pnode)
+			print_pnode(tables->pnode);
 		numa_table_search_key(key);
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);
-		dump_pnode_list_summary();	
+		index_layer_dump();
 		assert(0);
 	}
 
@@ -591,11 +597,13 @@ void numa_table_search_key(pkey_t key) {
 	struct numa_table* table;
 	struct mptable* m;
 	pkey_t find;
-	int node;
+	int node, i = 0;
 	
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
+			bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
+			print_pnode_summary(table->pnode);
 			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
 		}
 	}

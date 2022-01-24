@@ -104,6 +104,8 @@ extern void bonsai_deinit();
 
 extern void bonsai_recover();
 
+extern void index_layer_dump();
+
 #ifdef __cplusplus
 }
 #endif

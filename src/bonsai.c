@@ -134,7 +134,7 @@ static void data_layer_deinit(struct data_layer* layer) {
 }
 
 extern void* index_struct(void* index_struct);
-void bonsai_print_all() {
+void index_layer_dump() {
 	struct index_layer* i_layer = INDEX(bonsai);
 	kv_print(i_layer->index_struct);
 }

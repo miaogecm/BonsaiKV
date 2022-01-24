@@ -50,6 +50,7 @@ struct pnode {
 
 #define pnode_anchor_key(pnode) pnode->anchor_key
 #define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
+#define pnode_min_key(pnode) pnode->e[pnode->slot[1]].k
 
 #define pnode_entry_n_key(pnode, n) pnode->e[pnode->slot[n]].k
 #define pnode_entry_n_val(pnode, n) pnode->e[pnode->slot[n]].v
@@ -71,6 +72,7 @@ extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
 extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr);
 
 extern void print_pnode(struct pnode* pnode);
+extern void print_pnode_summary(struct pnode* pnode);
 extern void dump_pnode_list();
 extern void dump_pnode_list_summary();
 extern struct pnode* data_layer_search_key(pkey_t key);

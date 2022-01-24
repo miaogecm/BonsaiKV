@@ -493,7 +493,7 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	pval_t* addr;
 
 	key = get_origin_key(node->key);
-	if (!key_cmp(get_origin_key(node->key), target)) {
+	if (!key_cmp(key, target)) {
 		addr = node->val;
 		bonsai_print("hash set search key[%lu]: address: %016lx\n", key, addr);
 	}

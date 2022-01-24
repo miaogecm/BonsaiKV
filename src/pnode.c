@@ -522,7 +522,7 @@ void sentinel_node_init() {
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d max: %lu\n", pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -531,6 +531,10 @@ void print_pnode(struct pnode* pnode) {
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
 		bonsai_print("[%d]: <%lu, %lu> ", i, pnode->e[i].k, pnode->e[i].v);
 	bonsai_print("\n");
+}
+
+void print_pnode_summary(struct pnode* pnode) {
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
 }
 
 void dump_pnode_list_summary() {
