@@ -439,9 +439,10 @@ void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* ar
 			hs_remove(old, tid, key);
 		} else if (addr_in_pnode(addr)) {
 			addr = pnode_lookup(pnode, key);
+            assert(addr);
 			hs_insert(new, tid, key, addr);
-			hs_remove(old, tid, key);
-		} else {
+            hs_remove(old, tid, key);
+		} else 
 			perror("invalid address\n");
 			assert(0);
 		}

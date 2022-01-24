@@ -325,9 +325,14 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 
 	addr = __mptable_lookup(tables, key, cpu);
 	
+	// printf("!!!\n");
 	if (!addr && tables->forward) {
 		addr = __mptable_lookup(tables->forward, key, cpu);
 	}
+	// if (addr) {
+	// 	printf("fuck\n");
+	// 	printf("%016lx\n", addr);
+	// }
 
 	if (addr_in_log((unsigned long)addr)) {
 		log = OPLOG(addr);
