@@ -442,6 +442,8 @@ static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new,
 			assert(0);
 		}
 	}
+	
+	return -1;
 }
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
@@ -452,6 +454,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	struct ll_node *head, *curr;
 	int i, j, cnt = 0, tid = get_tid();;
 	pkey_t* array =  malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+	pkey_t key;
 
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
 		p_segment = old->main_array[i];
@@ -470,7 +473,9 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					array[cnt++] = hs_split_one(curr, new, min, max, pnode);
+					 key = hs_split_one(curr, new, min, max, pnode);
+					 if (key != -1)
+					 	array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 

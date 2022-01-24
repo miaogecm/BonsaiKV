@@ -334,9 +334,6 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		switch (log->o_type) {
 		case OP_INSERT:
 			*val = log->o_kv.v;
-			if (*val != key) {
-				assert(0);
-			}
 			return 0;
 		case OP_REMOVE:
 			assert(0);
