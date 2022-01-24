@@ -420,19 +420,43 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max, int tid) {
+void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4) {
+	pkey_t key, min, max;
+	pval_t* addr;
+	int tid = get_tid();
+	struct hash_set *old, *new; 
+
+	min = (pkey_t)arg1; max = (pkey_t)arg2;
+	old = (struct hash_set*)arg3; new = (struct hash_set*)arg4;
+
+	key = get_origin_key(node->key);
+	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+		addr = node->val;
+		hs_remove(&old, tid, key);
+		hs_insert(&new, tid, key, addr);
+	}
+}
+
+void hs_search_key(struct ll_node* node, void* arg1) {
+	pkey_t key, target = (pkey_t)arg1;
+	pval_t* addr;
+
+	key = get_origin_key(node->key);
+	if (!key_cmp(get_origin_key(node->key), target)) {
+		addr = node->val;
+		bonsai_print("hash set search key[%lu]: address: %016lx\n", key, addr);
+	}
+}
+
+void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4) {
 	struct bucket_list **buckets, *bucket;
-	struct hash_set* hs;
 	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j;
-	pkey_t key;
-	pval_t* addr;
 
-	/* scan @old */
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-		p_segment = old->main_array[i];
+		p_segment = hs->main_array[i];
         if (p_segment == NULL)
             continue;
 
@@ -448,54 +472,12 @@ void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					key = get_origin_key(curr->key);
-					if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
-						addr = curr->val;
-						hs_remove(&old, tid, key);
-						hs_insert(&new, tid, key, addr);
-					}
+					func(curr, arg1, arg2, arg3, arg4);
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 
 		}
 	}
-}
-
-pkey_t hs_search_key(struct hash_set* hs, pkey_t key) {
-	struct bucket_list **buckets, *bucket;
-	struct ll_node *head, *curr;
-	int i, j;
-	pval_t* addr;
-
-    for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-        segment_t* p_segment = hs->main_array[i];
-        if (p_segment == NULL) {
-            continue;
-        }
-        for (j = 0; j < SEGMENT_SIZE; j++) {
-            buckets = (struct bucket_list**)p_segment;
-            bucket = buckets[j];
-            if (bucket == NULL) {
-                continue;
-            }
-			
-            head = &(bucket->bucket_sentinel.ll_head);
-
-            curr = GET_NODE(head->next);
-            while (curr) {
-                if (is_sentinel_key(curr->key)) {
-                    break;
-                } else {
-                	if (!key_cmp(get_origin_key(curr->key), key)) {
-						addr = hs_lookup(hs, get_tid(), key);
-						bonsai_print("hash set search key[%lu]: hs %016lx address: %016lx\n", get_origin_key(curr->key), hs, addr);
-						return key;
-					}
-                }
-                curr = GET_NODE(STRIP_MARK(curr->next));
-            } 
-        }
-    }
 }
 
 void hs_destroy(struct hash_set* hs) { 

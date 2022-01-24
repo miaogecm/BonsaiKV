@@ -414,13 +414,9 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
 	int i, j, node;
-	pkey_t min = pnode_entry_n_key(new_pnode, 1);
-	pkey_t max = pnode_max_key(new_pnode);
 	struct numa_table* new_table;
 	struct mptable *old_m, *new_m;
 	struct index_layer* i_layer = INDEX(bonsai);
-	pkey_t key;
-	pval_t *addr;
 
 	/* 1. allocate a new mapping table */
 	new_table = numa_mptable_alloc(LOG(bonsai));
@@ -435,14 +431,19 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
-		
-		hs_split(&old_m->hs, &new_m->hs, min, max, get_tid());
+
+		hs_scan_and_ops(&old_m->hs, hs_split, 
+			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), &old_m->hs, &new_m->hs);
 	}
 
 	new_table->forward = NULL;
 }
 
-static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low, pkey_t high, pkey_t* max_key) {
+static void merge_one_log(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4) {
+	pval_t* val = node->val;
+	struct hbucket* merge_buckets = (struct hbucket*)arg1;
+	pkey_t low = (pkey_t)arg2, high = (pkey_t)arg3;
+	pkey_t* max_key = (pkey_t*)arg4;
 	struct hbucket* bucket;
 	struct hlist_node* hnode;
 	scan_merge_ent* e;
@@ -510,31 +511,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
-		hs = &m->hs;
-		
-		for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-			p_segment = hs->main_array[i];
-        	if (p_segment == NULL)
-            	continue;
-
-			for (j = 0; j < SEGMENT_SIZE; j++) {
-				buckets = (struct bucket_list**)p_segment;
-				bucket = buckets[j];
-				if (bucket == NULL) 
-                	continue;
-				
-            	head = &(bucket->bucket_sentinel.ll_head);
-				curr = GET_NODE(head->next);
-				while (curr) {
-                	if (is_sentinel_key(curr->key)) {
-                   	 	break;
-                	} else {
-						merge_one_log(merge_buckets, (void*)curr->val, low, high, &max_key);
-                	}
-                	curr = GET_NODE(STRIP_MARK(curr->next));
-            	} 
-			}
-		}
+		hs_scan_and_ops(&m->hs, merge_one_log, merge_buckets, low, high, &max_key);
 	}
 
 	/* 2. scan merge hash table and copy */
@@ -601,10 +578,7 @@ void numa_table_search_key(pkey_t key) {
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
-			if (find = hs_search_key(&m->hs, key)) {
-				printf("numa_table address: %016lx\n", table);
-				return;
-			}
+			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL);
 		}
 	}
 
