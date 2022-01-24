@@ -216,13 +216,13 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	pval_t *addr;
 	int node;
 	unsigned long max_op_t = 0;
-	int latest_op_type = -1, found_in_pnode = 0;
+	int latest_op_type = OP_NONE, found_in_pnode = 0;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		mptable = MPTABLE_NODE(tables, node);
-		read_lock(&mptable->rwlock);
+		//read_lock(&mptable->rwlock);
 		addr = hs_lookup(&mptable->hs, tid, key);
-		read_unlock(&mptable->rwlock);
+		//read_unlock(&mptable->rwlock);
 		if (addr) {
 			if (addr_in_log((unsigned long)addr)) {
 				log = OPLOG(addr);
@@ -230,12 +230,11 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 					max_op_t = log->o_stamp;
 					latest_op_type = log->o_type;
 				}
-			}
-			else if (addr_in_pnode((unsigned long)addr)) {
+			} else if (addr_in_pnode((unsigned long)addr)) {
 				found_in_pnode = 1;
-			}
-			else
+			} else {
 				perror("invalid address\n");
+			}
 		} else {
 #if 0
 			stop_the_world();
@@ -250,21 +249,17 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		}
 	}
 
-	if (mptable_lookup(tables->forward, key, cpu, addr, 1) == 0) {
+	if (tables->forward && mptable_lookup(tables->forward, key, cpu, addr, 1) == 0) {
 		if (addr_in_pnode(addr)) {
-			if (latest_op_type == -1 && !found_in_pnode) {
-				mptable_insert_addr(tables, numa_node, key, addr);
+			if (latest_op_type == OP_NONE && !found_in_pnode) {
 				found_in_pnode = 1;
 			}
-		}
-		else if (addr_in_log(addr)) {
+		} else if (addr_in_log(addr)) {
 			log = OPLOG(addr);
 			if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
-				mptable_insert_addr(tables, numa_node, key, addr);
 				latest_op_type = log->o_type;
 			}
 		}
-		return 0;
 	}
 
 	if (latest_op_type == OP_REMOVE) {
@@ -274,14 +269,14 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 
 	if (latest_op_type == -1 && !found_in_pnode) {
 		perror("no such entry\n");
-		return -EEXIST;
+		return -ENOENT;
 	}
 
 	mptable = MPTABLE_NODE(tables, numa_node);
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, mptable, tables->pnode);
-	read_lock(&mptable->rwlock);
+	//read_lock(&mptable->rwlock);
 	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
-	read_unlock(&mptable->rwlock);
+	//read_unlock(&mptable->rwlock);
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -299,7 +294,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	unsigned long max_t = 0;
 	int numa_node = get_numa_node(cpu);
 	int latest_op_type = -1;
-	void* map_addrs[NUM_SOCKET * 2];
+	void* map_addrs[NUM_SOCKET];
 	struct pnode* pnode;
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
@@ -348,18 +343,17 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 		}
 	}
 
-	if (!forward) {
+	if (mptables->forward && !forward) {
 		mptable_lookup(mptables->forward, key, cpu, forward_addr, 1);
 		if (addr_in_log(forward_addr)) {
-			forward_log = OPLOG(addr);
+			forward_log = OPLOG(forward_addr);
 			if (ordo_cmp_clock(forward_log->o_stamp, max_t) == ORDO_GREATER_THAN) {
 				max_t = forward_log->o_stamp;
 				latest_op_type = forward_log->o_type;
 				latest_log = forward_log;
 				mptable_insert_addr(mptables, numa_node, key, addr);
 			}
-		}
-		else if (addr_in_pnode(forward_addr)) {
+		} else if (addr_in_pnode(forward_addr)) {
 			if (max_t == 0) {
 				mptable_insert_addr(mptables, 0, key, addr);
 			}
@@ -369,11 +363,9 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	if (latest_op_type == OP_INSERT) {
 		*val = latest_log->o_kv.v;
 		return 0;
-	} 
-	else if (latest_op_type == OP_REMOVE) {
+	} else if (latest_op_type == OP_REMOVE) {
 		return -ENOENT;
-	} 
-	else {
+	} else {
 		addr = map_addrs[numa_node];
 		if (addr) {
 			*val = *addr;
@@ -382,9 +374,9 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 			if (map_addrs[0]) {
 				/* pull latest value */
 				m = MPTABLE_NODE(mptables, numa_node);
-				read_lock(&m->rwlock);
+				//read_lock(&m->rwlock);
 				hs_insert(&m->hs, tid, key, map_addrs[0]);
-				read_unlock(&m->rwlock);
+				//read_unlock(&m->rwlock);
 				
 				/* migrate this value */
 				pnode = (struct pnode*)log->o_addr;

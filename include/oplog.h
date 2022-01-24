@@ -16,6 +16,7 @@ typedef struct {
 } merge_ent;
 
 typedef enum {
+	OP_NONE = -1,
 	OP_INSERT = 0,
 	OP_REMOVE,
 } optype_t;
