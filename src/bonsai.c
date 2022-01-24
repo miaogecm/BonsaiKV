@@ -172,7 +172,7 @@ int bonsai_remove(pkey_t key) {
 
 	assert(table);
 	
-	return mptable_remove(table, numa_node, cpu, key, 0);
+	return mptable_remove(table, numa_node, cpu, key);
 }
 
 int bonsai_lookup(pkey_t key, pval_t* val) {
