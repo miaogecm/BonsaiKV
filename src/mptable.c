@@ -248,17 +248,18 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	unsigned long max_insert_t = 0, max_remove_t = 0;
 	int n_insert = 0, n_remove = 0, numa_node = get_numa_node(cpu);
 	int max_insert_index;
-	void* map_addrs[NUM_SOCKET];
+	void* map_addrs[NUM_SOCKET * 2];
 	struct pnode* pnode;
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(mptables, node);
+
+		if (mptables->forward)
+			forward = MPTABLE_NODE(mptables->forward, node);
 		
-		read_lock(&m->rwlock);
 		addr = hs_lookup(&m->hs, tid, key);
-		read_unlock(&m->rwlock);
 		map_addrs[node] = addr;
 
 		if (addr_in_log((unsigned long)addr)) {
@@ -434,7 +435,6 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 
 	/* 2. update the index layer */
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
-	i_layer->insert(i_layer->index_struct, pnode_entry_n_key(old_pnode, old_N), old_table);
 
 	/* 3. copy entries from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
