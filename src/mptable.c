@@ -235,6 +235,7 @@ static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, p
 				found = 1;
 			} else {
 				perror("invalid address\n");
+				assert(0);
 			}
 		}
 	}
@@ -290,6 +291,7 @@ static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu
 			/* case I: mapping table entry points to an oplog */
 			log = OPLOG(addr);
 			if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
+				max_op_t = log->o_stamp;
 				ret = &log->o_kv.v;
 			}
 		} else if (addr_in_pnode((unsigned long)addr)) {
@@ -298,9 +300,9 @@ static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu
 				master_node_addr = addr;
 			else if (node == numa_node) {
 				self_node_addr = addr;
-				if (!ret)
-					ret = addr;
 			}
+			if (!ret)
+				ret = addr;
 		} else {
 			/* case III: mapping table entry is NULL */
 			if (node == numa_node)
@@ -316,7 +318,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 	struct pnode* pnode;
 	void* map_addrs[NUM_SOCKET];
 	struct mptable *m;
-	pval_t *addr;
+	pval_t *addr = NULL;
 	struct oplog* log;
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
@@ -332,15 +334,16 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		switch (log->o_type) {
 		case OP_INSERT:
 			*val = log->o_kv.v;
-			return;
+			return 0;
 		case OP_REMOVE:
+			assert(0);
 			return -ENOENT;
 		default:
 			perror("invalid operation type\n");
 		}
 	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {
-			*val = addr;
+			*val = *addr;
 			return 0;
 		} else {
 			/* FIXME */
@@ -358,7 +361,8 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}	
 	} else {
-		perror("NULL address\n");
+		bonsai_print("invalid address %016lx\n", addr);
+		assert(0);
 	}
 
 	return -ENOENT;

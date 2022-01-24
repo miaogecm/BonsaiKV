@@ -217,8 +217,11 @@ void* thread_fun(void* arg) {
 	printf("thread[%ld]---------------------1---------------------\n", id);
 
 	 for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	bonsai_lookup((pkey_t)a[i], &v);
-	 	assert(v == a[i]);
+	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
+		if (v != a[i]) {
+			printf("%lu\n", v);
+			assert(0);
+		}
 	 }
 
 	printf("thread[%ld]---------------------2---------------------\n", id);
@@ -270,6 +273,8 @@ void gen_data() {
 
 int main() {
 	long i;
+
+	gen_data();
 
 	bind_to_cpu(0);
 
