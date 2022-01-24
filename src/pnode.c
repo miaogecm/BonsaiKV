@@ -112,6 +112,15 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 	write_unlock(&layer->lock);
 }
 
+static void insert_pnode_list_fast(struct pnode* pnode, struct pnode* next) {
+	struct data_layer* layer = DATA(bonsai);
+	struct pnode* prev = list_prev_entry(next, list);
+
+	write_lock(&layer->lock);
+	__list_add(&pnode->list, &prev->list, &next->list);
+	write_unlock(&layer->lock);
+}
+
 static void remove_pnode_list(struct pnode* pnode) {
 	struct data_layer* layer = DATA(bonsai);
 	
@@ -305,7 +314,7 @@ retry:
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, pnode);
 
-	insert_pnode_list(new_pnode, pnode_anchor_key(new_pnode));
+	insert_pnode_list_fast(new_pnode, pnode);
 
 	for (i = 1; i <= n - d; i ++) {
 		pnode->slot[i] = pnode->slot[d + i];
