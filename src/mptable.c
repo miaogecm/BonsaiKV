@@ -445,7 +445,8 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		new_m = MPTABLE_NODE(new_table, node);
 
 		hs_scan_and_ops(&old_m->hs, hs_split,
-			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), &old_m->hs, &new_m->hs);
+			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), 
+			&old_m->hs, &new_m->hs, new_pnode);
 	}
 
 	new_table->forward = NULL;
@@ -520,7 +521,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
-		hs_scan_and_ops(&m->hs, merge_one_log, merge_buckets, low, high, &max_key);
+		hs_scan_and_ops(&m->hs, merge_one_log, merge_buckets, low, high, &max_key, NULL);
 	}
 
 	/* 2. scan merge hash table and copy */
@@ -587,7 +588,7 @@ void numa_table_search_key(pkey_t key) {
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
-			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL);
+			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
 		}
 	}
 

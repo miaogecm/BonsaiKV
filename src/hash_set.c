@@ -420,11 +420,12 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4) {
+void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key, min, max;
 	pval_t* addr;
 	int tid = get_tid();
-	struct hash_set *old, *new; 
+	struct hash_set *old, *new;
+	struct pnode* pnode = (struct pnode*)arg5;
 
 	min = (pkey_t)arg1; max = (pkey_t)arg2;
 	old = (struct hash_set*)arg3; new = (struct hash_set*)arg4;
@@ -432,8 +433,15 @@ void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* ar
 	key = get_origin_key(node->key);
 	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
 		addr = node->val;
-		hs_remove(old, tid, key);
-		hs_insert(new, tid, key, addr);
+		if (addr_in_log(addr)) {
+			hs_remove(old, tid, key);
+			hs_insert(new, tid, key, addr);
+		} else if (addr_in_pnode(addr)) {
+			hs_remove(old, tid, key);
+			addr = pnode_lookup(pnode, key);
+			hs_insert(new, tid, key, addr);
+		} else 
+			perror("invalid address\n");
 	}
 }
 
@@ -448,7 +456,7 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	}
 }
 
-void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4) {
+void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	struct bucket_list **buckets, *bucket;
 	struct mptable *m;
 	segment_t* p_segment;
@@ -472,7 +480,7 @@ void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, 
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					func(curr, arg1, arg2, arg3, arg4);
+					func(curr, arg1, arg2, arg3, arg4, arg5);
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 

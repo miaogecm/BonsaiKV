@@ -36,9 +36,9 @@ extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 
 extern void hs_destroy(struct hash_set* hs);
 
-typedef void (*hs_op_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4);
-extern void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4);
-extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4);
+typedef void (*hs_op_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
+extern void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
+extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
 extern void hs_search_key(struct ll_node* node, void* arg1);
 
 #ifdef __cplusplus
