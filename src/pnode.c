@@ -320,7 +320,7 @@ retry:
 	bonsai_flush((void*)&new_pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush((void*)&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
-    pnode = key_cmp(key, max_key) <= 0 ? pnode : new_pnode;
+    pnode = key_cmp(key, max_key) <= 0 ? new_pnode : pnode;
 
     goto retry;
 }
