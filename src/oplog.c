@@ -83,7 +83,7 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	log = &block->logs[block->cnt++];
 
 	if (!atomic_read(&layer->checkpoint) 
-			&& atomic_add_return(&layer->nlogs, 1) >= CHKPT_NLOG_INTERVAL) {
+			&& atomic_add_return(1, &layer->nlogs) >= CHKPT_NLOG_INTERVAL) {
 		wakeup_master();
 	}
 
