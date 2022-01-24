@@ -80,7 +80,7 @@ int is_sentinel_key(pkey_t key) {
     return 0;
 }
 
-static pkey_t get_origin_key(pkey_t key) {
+pkey_t get_origin_key(pkey_t key) {
     key = (key >> 1) << 1;
     return reverse(key);
 }
