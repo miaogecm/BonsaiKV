@@ -80,7 +80,10 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	}
 
 	log = &block->logs[block->cnt++];
-	atomic_inc(&region->nlog);
+
+	if (atomic_add_return(&LOG(bonsai)->nlogs, 1) == CHKPT_NLOG_INTERVAL) {
+		wakeup_master();
+	}
 
 	return log;
 }
@@ -191,7 +194,7 @@ static int worker_oplog_merge(void *arg) {
 
 				try_free_log_page(block, &mwork->page_list);
 
-				nlog++;
+				nlog++; atomic_dec(&layer->nlogs);
 				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, simple_hash(key));
 				
 				spin_lock(&bucket->lock);

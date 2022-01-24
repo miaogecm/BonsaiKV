@@ -19,6 +19,7 @@ struct mptable {
 struct numa_table {
 	struct mptable* tables[NUM_SOCKET];
 	struct pnode* pnode;
+	struct numa_table* forward;
 	struct list_head list;
 };
 

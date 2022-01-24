@@ -55,6 +55,7 @@ static int log_layer_init(struct log_layer* layer) {
 
 	layer->nflush = 0;
 	atomic_set(&layer->exit, 0);
+	atomic_set(&layer->nlog, 0);
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
 		goto out;

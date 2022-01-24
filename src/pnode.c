@@ -223,6 +223,8 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
 	struct numa_table* table;
 
 	table = (struct numa_table*)layer->lookup(layer->index_struct, key);
+	assert(table);
+	
 	return table->pnode;
 }
 
@@ -293,8 +295,8 @@ retry:
     removed = 0;
 
     for (i = 1; i <= d; i++) {
-    	removed |= (1ULL << pnode->slot[n + 1 - i]);
-		new_pnode->slot[d + 1 - i] = pnode->slot[n + 1 - i];
+    	removed |= (1ULL << pnode->slot[i]);
+		new_pnode->slot[i] = pnode->slot[i];
     }
     new_pnode->slot[0] = d;
    	new_pnode->bitmap = removed;

@@ -27,12 +27,10 @@ __thread struct thread_info* __this = NULL;
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-#define CHKPT_INTERVAL		700000
-
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
-static atomic_t STATUS;
+static atomic_t STATUS = ATOMIC_INIT(WORKER_SLEEP);
 static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
@@ -196,7 +194,7 @@ static void pflush_worker(struct thread_info* this) {
 	
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
-		worker_sleep();
+		park_master();
 		
 		__this->t_state = S_RUNNING;
 		thread_work(&__this->t_wq);
@@ -241,7 +239,8 @@ static void pflush_master(struct thread_info* this) {
 
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
-		usleep(CHKPT_INTERVAL);
+		//usleep(CHKPT_TIME_INTERVAL);
+		park_master();
 
 		__this->t_state = S_RUNNING;
 		oplog_flush(bonsai);

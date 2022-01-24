@@ -84,6 +84,7 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 	}
 	
 	tables->pnode = NULL;
+	tables->forward = NULL;
 
 	spin_lock(&layer->lock);
 	list_add_tail(&tables->list, &layer->numa_table_list);
@@ -242,7 +243,7 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	int node, tid = get_tid();
 	struct oplog* insert_logs[NUM_SOCKET];
 	struct oplog* log = NULL;
-	struct mptable *table;
+	struct mptable *m, *forward;
 	pval_t *addr, *master_node_addr, *self_node_addr;
 	unsigned long max_insert_t = 0, max_remove_t = 0;
 	int n_insert = 0, n_remove = 0, numa_node = get_numa_node(cpu);
@@ -253,10 +254,11 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		table = MPTABLE_NODE(mptables, node);
-		read_lock(&table->rwlock);
-		addr = hs_lookup(&table->hs, tid, key);
-		read_unlock(&table->rwlock);
+		m = MPTABLE_NODE(mptables, node);
+		
+		read_lock(&m->rwlock);
+		addr = hs_lookup(&m->hs, tid, key);
+		read_unlock(&m->rwlock);
 		map_addrs[node] = addr;
 
 		if (addr_in_log((unsigned long)addr)) {
@@ -311,10 +313,10 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 			} else {
 				if (map_addrs[0]) {
 					/* pull latest value */
-					table = MPTABLE_NODE(mptables, numa_node);
-					read_lock(&table->rwlock);
-					hs_insert(&table->hs, tid, key, map_addrs[0]);
-					read_unlock(&table->rwlock);
+					m = MPTABLE_NODE(mptables, numa_node);
+					read_lock(&m->rwlock);
+					hs_insert(&m->hs, tid, key, map_addrs[0]);
+					read_unlock(&m->rwlock);
 					
 					/* migrate this value */
 					pnode = (struct pnode*)log->o_addr;
@@ -333,8 +335,8 @@ int mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, pval_t* val
 		} else {
 			if (map_addrs[0]) {
 				/* pull latest value */
-				table = MPTABLE_NODE(mptables, numa_node);
-				hs_insert(&table->hs, tid, key, map_addrs[0]);
+				m = MPTABLE_NODE(mptables, numa_node);
+				hs_insert(&m->hs, tid, key, map_addrs[0]);
 
 				/* migrate this value */
 				pnode = (struct pnode*)log->o_addr;
@@ -356,6 +358,7 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 	hs_insert(&table->hs, tid, key, addr);
 }
 
+#if 0
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
 	int tid = get_tid(), i, node;
 	int N = new_pnode->slot[0];
@@ -405,6 +408,71 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		}
 		write_unlock(&new_m->rwlock);
 	}
+}
+#endif
+
+void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
+	int tid = get_tid(), i, j, node;
+	pkey_t min = pnode_entry_n_key(new_pnode, 1);
+	pkey_t max = pnode_max_key(new_pnode);
+	struct numa_table* new_table;
+	struct mptable *old_m, *new_m;
+	struct index_layer* i_layer = INDEX(bonsai);
+	pkey_t key;
+	pval_t *addr;
+	struct bucket_list **buckets, *bucket;
+	struct hash_set* hs;
+	struct mptable *m;
+	segment_t* p_segment;
+	struct ll_node *head, *curr;
+
+	/* 1. allocate a new mapping table */
+	new_table = numa_mptable_alloc(LOG(bonsai));
+	new_pnode->table = new_table;
+	new_table->pnode = new_pnode;
+	new_table->forward = old_table;
+
+	/* 2. update the index layer */
+	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+	i_layer->insert(i_layer->index_struct, pnode_entry_n_key(old_pnode, old_N), old_table);
+
+	/* 3. copy entries from @old_table to @new_table */
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		old_m = MPTABLE_NODE(old_table, node);
+		hs = &m->hs;
+
+		/* scan @old_m */
+		for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+			p_segment = hs->main_array[i];
+        	if (p_segment == NULL)
+            	continue;
+
+			for (j = 0; j < SEGMENT_SIZE; j++) {
+				buckets = (struct bucket_list**)p_segment;
+				bucket = buckets[j];
+				if (bucket == NULL) 
+                	continue;
+				
+            	head = &(bucket->bucket_sentinel.ll_head);
+				curr = GET_NODE(head->next);
+				while (curr) {
+                	if (is_sentinel_key(curr->key)) {
+                   	 	break;
+                	} else {
+						key = get_origin_key(curr->key);
+						if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+							addr = curr->val;
+							hs_remove(&old_m->hs, tid, key);
+							hs_insert(&new_m->hs, tid, key, addr);
+						}
+                	}
+                	curr = GET_NODE(STRIP_MARK(curr->next));
+            	} 
+			}
+		}
+	}
+
+	new_table->forward = NULL;
 }
 
 static void merge_one_log(struct hbucket* merge_buckets, pval_t* val, pkey_t low, pkey_t high, pkey_t* max_key) {
