@@ -20,7 +20,7 @@ extern "C" {
 #define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
 
 #define CHKPT_TIME_INTERVAL		700000
-#define CHKPT_NLOG_INTERVAL		100000
+#define CHKPT_NLOG_INTERVAL		500000
 
 struct log_layer;
 struct oplog_blk;
