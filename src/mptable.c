@@ -316,21 +316,15 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 	struct pnode* pnode;
 	void* map_addrs[NUM_SOCKET];
 	struct mptable *m;
-	pval_t *addr[2];
+	pval_t *addr;
 	struct oplog* log;
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 
-	addr[0] = __mptable_lookup(tables, key, cpu);
+	addr = __mptable_lookup(tables, key, cpu);
 	
-	if (tables->forward) {
-		addr[1] = __mptable_lookup(tables->forward, key, cpu);
-	}
-
-	if (addr_in_pnode((unsigned long)addr[0])) {
-		if (addr_in_log((unsigned long)addr[1])) {
-			
-		}
+	if (!addr && tables->forward) {
+		addr = __mptable_lookup(tables->forward, key, cpu);
 	}
 
 	if (addr_in_log((unsigned long)addr)) {
