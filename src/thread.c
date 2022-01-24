@@ -194,7 +194,7 @@ static void pflush_worker(struct thread_info* this) {
 	
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
-		park_master();
+		worker_sleep();
 		
 		__this->t_state = S_RUNNING;
 		thread_work(&__this->t_wq);

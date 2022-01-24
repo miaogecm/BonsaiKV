@@ -184,7 +184,7 @@ static int worker_oplog_merge(void *arg) {
 
 	layer = mwork->layer;
 
-	bonsai_print("thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
+	bonsai_print("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 	
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
@@ -198,7 +198,7 @@ static int worker_oplog_merge(void *arg) {
 				try_free_log_page(block, &mwork->page_list);
 
 				nlog++; atomic_dec(&layer->nlogs);
-				bonsai_debug("thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
+				bonsai_debug("pflush thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
 					__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
 				
 				spin_lock(&bucket->lock);
@@ -231,7 +231,7 @@ static int worker_oplog_merge(void *arg) {
 	}
 
 out:
-	bonsai_print("thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
+	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
 	return 0;
 }
 
@@ -248,13 +248,13 @@ static int worker_oplog_flush(void* arg) {
 	struct mptable* m;
 	int ret = 0;
 
-	bonsai_debug("thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
+	bonsai_debug("pflush thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
 	for (i = fwork->min_index; i <= fwork->max_index; i ++, fwork->curr_index ++) {
 		bucket = &layer->buckets[i];
 		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
 			log = e->log;
-			bonsai_debug("thread[%d] flush <%lu %lu>[%s] in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert", i);
+			bonsai_debug("pflush thread[%d] flush <%lu %lu>[%s] in bucket[%d]\n", __this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert", i);
 			
 			switch(log->o_type) {
 			case OP_INSERT:
@@ -287,7 +287,7 @@ static int worker_oplog_flush(void* arg) {
 
 out:
 	free(fwork);
-	bonsai_print("thread[%d] flush %d logs\n", __this->t_id, count);
+	bonsai_print("pflush thread[%d] flush %d logs\n", __this->t_id, count);
 }
 
 static void free_pages(struct log_layer *layer, struct list_head* page_list) {
@@ -336,6 +336,9 @@ void oplog_flush() {
 	}
 
 	if (unlikely(!total))
+		goto out;
+
+	if (unlikely(atomic_read(&l_layer->exit)))
 		goto out;
 
 	/* 2. merge all logs */

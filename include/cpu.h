@@ -11,6 +11,7 @@ extern "C" {
 #include "numa_config.h"
 
 #define NOCPU	-1
+#define MAXCPU	48
 
 static inline int get_cpu() {
 	cpu_set_t mask;
@@ -19,7 +20,7 @@ static inline int get_cpu() {
 	if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1)
 		perror("sched_getaffinity fail\n");
 
-	for (i = 0; i < NUM_CPU; i++) {
+	for (i = 0; i < MAXCPU; i++) {
 		if (CPU_ISSET(i, &mask))
 			return i;
 	}
