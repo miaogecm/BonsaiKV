@@ -421,32 +421,66 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
-	pkey_t key, min, max;
+static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new, 
+		pkey_t min, pkey_t max, struct pnode* pnode) {
 	pval_t* addr;
 	int tid = get_tid();
-	struct hash_set *old, *new;
-	struct pnode* pnode = (struct pnode*)arg5;
-
-	min = (pkey_t)arg1; max = (pkey_t)arg2;
-	old = (struct hash_set*)arg3; new = (struct hash_set*)arg4;
+	pkey_t key;
 
 	key = get_origin_key(node->key);
 	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
 			hs_insert(new, tid, key, addr);
-			hs_remove(old, tid, key);
+			return key;
 		} else if (addr_in_pnode(addr)) {
-			addr = pnode_lookup(pnode, key);
-            assert(addr);
+			pnode_lookup(pnode, key);
 			hs_insert(new, tid, key, addr);
-            hs_remove(old, tid, key);
+			return key;
 		} else {
 			perror("invalid address\n");
 			assert(0);
 		}
 	}
+}
+
+void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
+			pkey_t min, pkey_t max, struct pnode* pnode) {
+	struct bucket_list **buckets, *bucket;
+	struct mptable *m;
+	segment_t* p_segment;
+	struct ll_node *head, *curr;
+	int i, j, cnt = 0, tid = get_tid();;
+	pkey_t* array =  malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+
+	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+		p_segment = old->main_array[i];
+        if (p_segment == NULL)
+            continue;
+
+		for (j = 0; j < SEGMENT_SIZE; j++) {
+			buckets = (struct bucket_list**)p_segment;
+			bucket = buckets[j];
+			if (bucket == NULL) 
+                continue;
+				
+            head = &(bucket->bucket_sentinel.ll_head);
+			curr = GET_NODE(head->next);
+			while (curr) {
+                if (is_sentinel_key(curr->key)) {
+                   	 break;
+                } else {
+					array[cnt++] = hs_split_one(curr, new, min, max, pnode);
+                }
+                curr = GET_NODE(STRIP_MARK(curr->next));
+            } 
+		}
+	}
+
+	for (i = 0; i < cnt; i ++)
+		hs_remove(old, tid, array[i]);
+
+	free(array);
 }
 
 void hs_search_key(struct ll_node* node, void* arg1) {
@@ -460,7 +494,7 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	}
 }
 
-void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	struct bucket_list **buckets, *bucket;
 	struct mptable *m;
 	segment_t* p_segment;
@@ -484,7 +518,7 @@ void hs_scan_and_ops(struct hash_set* hs, hs_op_t func, void* arg1, void* arg2, 
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					func(curr, arg1, arg2, arg3, arg4, arg5);
+					exec(curr, arg1, arg2, arg3, arg4, arg5);
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 

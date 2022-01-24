@@ -524,17 +524,37 @@ void print_pnode(struct pnode* pnode) {
 	bonsai_print("\n");
 }
 
-void dump_pnode_list() {
+void dump_pnode_list_summary() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
-	int i, j = 0, sum = 0;
+	int i, j = 0, pnode_sum = 0, key_sum = 0;
 
 	bonsai_print("====================================================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		bonsai_print("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
-		sum += pnode->slot[0];
+		key_sum += pnode->slot[0];
+		pnode_sum ++;
+	}
+	read_unlock(&layer->lock);
+
+	bonsai_print("total pnode [%d]\n", pnode_sum);
+	bonsai_print("pnode list total key [%d]\n", key_sum);
+}
+
+void dump_pnode_list() {
+	struct data_layer *layer = DATA(bonsai);
+	struct pnode* pnode;
+	int i, j = 0, pnode_sum = 0, key_sum = 0;
+
+	bonsai_print("====================================================================================\n");
+
+	read_lock(&layer->lock);
+	list_for_each_entry(pnode, &layer->pnode_list, list) {
+		bonsai_print("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		key_sum += pnode->slot[0];
+		pnode_sum ++;
 
 		for (i = 0; i <= pnode->slot[0]; i ++)
 			bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -546,7 +566,8 @@ void dump_pnode_list() {
 	}
 	read_unlock(&layer->lock);
 
-	bonsai_print("pnode list total key [%d]\n", sum);
+	bonsai_print("total pnode [%d]\n", pnode_sum);
+	bonsai_print("pnode list total key [%d]\n", key_sum);
 }
 
 /*
@@ -561,7 +582,7 @@ struct pnode* data_layer_search_key(pkey_t key) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
 			if (!key_cmp(pnode_entry_n_key(pnode, i), key)) {
 				bonsai_print("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
-				// print_pnode(pnode);
+				print_pnode(pnode);
 				return pnode;
 			}
 		}

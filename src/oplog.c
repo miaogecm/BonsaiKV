@@ -248,7 +248,7 @@ static int worker_oplog_flush(void* arg) {
 	struct mptable* m;
 	int ret = 0;
 
-	bonsai_debug("pflush thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
+	bonsai_print("pflush thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
 	for (i = fwork->min_index; i <= fwork->max_index; i ++, fwork->curr_index ++) {
 		bucket = &layer->buckets[i];

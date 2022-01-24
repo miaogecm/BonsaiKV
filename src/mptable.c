@@ -325,15 +325,10 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 
 	addr = __mptable_lookup(tables, key, cpu);
 	
-	// printf("!!!\n");
 	if (!addr && tables->forward) {
 		addr = __mptable_lookup(tables->forward, key, cpu);
 	}
-	// if (addr) {
-	// 	printf("fuck\n");
-	// 	printf("%016lx\n", addr);
-	// }
-
+	
 	if (addr_in_log((unsigned long)addr)) {
 		log = OPLOG(addr);
 		switch (log->o_type) {
@@ -366,7 +361,14 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}	
 	} else {
-		bonsai_print("invalid address %016lx\n", addr);
+		bonsai_print("invalid address %016lx %lu\n", addr, key);
+		stop_the_world();
+		numa_table_search_key(key);
+		log_layer_search_key(cpu, key);
+		data_layer_search_key(key);
+		dump_pnode_list_summary();
+		addr = __mptable_lookup(tables->forward, key, cpu);
+		
 		assert(0);
 	}
 
@@ -453,9 +455,8 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
 
-		hs_scan_and_ops(&old_m->hs, hs_split,
-			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), 
-			&old_m->hs, &new_m->hs, new_pnode);
+		hs_scan_and_split(&old_m->hs, &new_m->hs, 
+			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), new_pnode);
 	}
 
 	new_table->forward = NULL;
