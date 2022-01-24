@@ -434,7 +434,7 @@ static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new,
 			hs_insert(new, tid, key, addr);
 			return key;
 		} else if (addr_in_pnode(addr)) {
-			pnode_lookup(pnode, key);
+			addr = pnode_lookup(pnode, key);
 			hs_insert(new, tid, key, addr);
 			return key;
 		} else {

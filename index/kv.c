@@ -219,7 +219,7 @@ void* thread_fun(void* arg) {
 	 for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
 		if (v != a[i]) {
-			printf("%lu\n", v);
+			printf("%lu %lu\n", a[i], v);
 			assert(0);
 		}
 	 }

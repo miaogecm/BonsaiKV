@@ -334,6 +334,9 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		switch (log->o_type) {
 		case OP_INSERT:
 			*val = log->o_kv.v;
+			if (*val != key) {
+				assert(0);
+			}
 			return 0;
 		case OP_REMOVE:
 			assert(0);
@@ -344,6 +347,12 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {
 			*val = *addr;
+			if (*val != key) {
+				stop_the_world();
+				data_layer_search_key(key);
+				bonsai_print("%lu %lu\n", key, *val);
+				assert(0);
+			}
 			return 0;
 		} else {
 			/* FIXME */
@@ -366,9 +375,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		numa_table_search_key(key);
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);
-		dump_pnode_list_summary();
-		addr = __mptable_lookup(tables->forward, key, cpu);
-		
+		dump_pnode_list_summary();	
 		assert(0);
 	}
 

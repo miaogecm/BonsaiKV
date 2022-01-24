@@ -529,7 +529,7 @@ void print_pnode(struct pnode* pnode) {
 	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
-		bonsai_print("key[%d]: %lu; ", i, pnode->e[i].k);
+		bonsai_print("[%d]: <%lu, %lu> ", i, pnode->e[i].k, pnode->e[i].v);
 	bonsai_print("\n");
 }
 
