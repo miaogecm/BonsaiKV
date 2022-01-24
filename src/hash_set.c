@@ -430,7 +430,7 @@ void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max
 	pkey_t key;
 	pval_t* addr;
 
-	/* scan @old_m */
+	/* scan @old */
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
 		p_segment = old->main_array[i];
         if (p_segment == NULL)
@@ -449,13 +449,13 @@ void hs_split(struct hash_set* old, struct hash_set* new, pkey_t min, pkey_t max
                    	 break;
                 } else {
 					key = get_origin_key(curr->key);
-						if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
-							addr = curr->val;
-							hs_remove(&old, tid, key);
-							hs_insert(&new, tid, key, addr);
-						}
+					if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+						addr = curr->val;
+						hs_remove(&old, tid, key);
+						hs_insert(&new, tid, key, addr);
+					}
                 }
-                	curr = GET_NODE(STRIP_MARK(curr->next));
+                curr = GET_NODE(STRIP_MARK(curr->next));
             } 
 		}
 	}
