@@ -300,6 +300,7 @@ retry:
     }
     new_pnode->slot[0] = d;
    	new_pnode->bitmap = removed;
+	new_pnode->anchor_key = pnode_max_key(new_pnode);
 
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, pnode);
@@ -308,9 +309,8 @@ retry:
 
 	pnode->slot[0] = n - d;
     pnode->bitmap &= ~removed;
-	pnode->anchor_key = pnode_entry_n_key(pnode, n - d);
 
-	max_key = pnode_anchor_key(pnode);
+	max_key = pnode_anchor_key(new_pnode);
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);

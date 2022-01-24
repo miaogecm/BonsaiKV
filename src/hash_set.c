@@ -432,8 +432,8 @@ void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* ar
 	key = get_origin_key(node->key);
 	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
 		addr = node->val;
-		hs_remove(&old, tid, key);
-		hs_insert(&new, tid, key, addr);
+		hs_remove(old, tid, key);
+		hs_insert(new, tid, key, addr);
 	}
 }
 
