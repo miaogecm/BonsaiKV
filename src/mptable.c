@@ -210,13 +210,14 @@ static int mptable_insert_addr(struct numa_table* tables, int numa_node, pkey_t 
 	return ret;
 }
 
-static void __mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key, 
-		int* latest_op_type, int* found_in_pnode, unsigned long* max_op_t) {
+static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key, 
+		int* latest_op_type, int* found_in_pnode) {
+	unsigned long max_op_t = 0;
 	struct oplog* log;
 	pval_t val, *addr;
 	int tid = get_tid();
 	struct mptable* m;
-	int node;
+	int node, found = 0;
 		
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(tables, node);
@@ -225,30 +226,32 @@ static void __mptable_remove(struct numa_table* tables, int numa_node, int cpu, 
 			if (addr_in_log((unsigned long)addr)) {
 				log = OPLOG(addr);
 				if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
-					*max_op_t = log->o_stamp;
+					max_op_t = log->o_stamp;
 					*latest_op_type = log->o_type;
+					found = 1;
 				}
 			} else if (addr_in_pnode((unsigned long)addr)) {
 				*found_in_pnode = 1;
+				found = 1;
 			} else {
 				perror("invalid address\n");
 			}
-		} else {
-			perror("NULL address\n");
 		}
 	}
+
+	return found;
 }
 
 int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key) {
-	unsigned long max_op_t = 0;
 	int latest_op_type = OP_NONE, found_in_pnode = 0;
+	struct mptable* m = MPTABLE_NODE(tables, numa_node);
 	struct oplog* log;
 	int tid = get_tid();
-
-	__mptable_remove(tables, numa_node, cpu, key, &latest_op_type, &found_in_pnode, &max_op_t);
 	
-	if (unlikely(tables->forward)) {
-		__mptable_remove(tables->forward, numa_node, cpu, key, &latest_op_type, &found_in_pnode, &max_op_t);
+	if (unlikely(!__mptable_remove(tables, numa_node, cpu, key, &latest_op_type, &found_in_pnode) 
+				&& tables->forward)) {
+		/* search forward table */
+		__mptable_remove(tables->forward, numa_node, cpu, key, &latest_op_type, &found_in_pnode);
 	}
 
 	if (latest_op_type == OP_REMOVE) {
@@ -261,8 +264,8 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 		return -ENOENT;
 	}
 
-	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, MPTABLE_NODE(tables, numa_node), tables->pnode);
-	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, m, tables->pnode);
+	hs_insert(m, tid, key, &log->o_kv.v);
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -271,33 +274,33 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return 0;
 }
 
-static struct oplog* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu, 
-		int* latest_op_type, unsigned long* max_op_t, void* map_addrs) {
+static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	int node, tid = get_tid();
 	struct mptable *m;
-	pval_t *addr, *master_node_addr, *self_node_addr;
-	struct oplog *log, *latest_log = NULL;
+	pval_t *addr, *ret = NULL, *master_node_addr, *self_node_addr;
 	int numa_node = get_numa_node(cpu);
+	unsigned long max_op_t = 0;
+	struct oplog *log;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(mptables, node);
 		addr = hs_lookup(&m->hs, tid, key);
-		map_addrs[node] = addr;
 
 		if (addr_in_log((unsigned long)addr)) {
 			/* case I: mapping table entry points to an oplog */
 			log = OPLOG(addr);
-			if (ordo_cmp_clock(log->o_stamp, *max_op_t) == ORDO_GREATER_THAN) {
-				*max_op_t = log->o_stamp;
-				latest_log = log;
-				*latest_op_type = log->o_type;
+			if (ordo_cmp_clock(log->o_stamp, max_op_t) == ORDO_GREATER_THAN) {
+				ret = &log->o_kv.v;
 			}
 		} else if (addr_in_pnode((unsigned long)addr)) {
 			/* case II: mapping table entry points to a pnode entry */
 			if (node == 0)
 				master_node_addr = addr;
-			else if (node == numa_node)
+			else if (node == numa_node) {
 				self_node_addr = addr;
+				if (!ret)
+					ret = addr;
+			}
 		} else {
 			/* case III: mapping table entry is NULL */
 			if (node == numa_node)
@@ -305,42 +308,44 @@ static struct oplog* __mptable_lookup(struct numa_table* mptables, pkey_t key, i
 		}
 	}
 
-	return latest_log;
+	return ret;
 }
 
 int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) {
-	int tid = get_tid(), numa_node;
-	struct oplog* latest_log;
-	unsigned long max_op_t = 0;
-	int latest_op_type = OP_NONE;
+	int tid = get_tid(), numa_node = get_numa_node(cpu);
 	struct pnode* pnode;
 	void* map_addrs[NUM_SOCKET];
-	pval_t *addr;
 	struct mptable *m;
-	struct oplog *log[2];
+	pval_t *addr;
+	struct oplog* log;
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 
-	log[0] = __mptable_lookup(tables, key, cpu, &latest_op_type, &max_op_t, map_addrs);
+	addr = __mptable_lookup(tables, key, cpu);
+	
+	if (!addr && tables->forward) {
+		addr = __mptable_lookup(tables->forward, key, cpu);
+	}
 
-	if (tables->forward)
-		log[1] = __mptable_lookup(tables->forward, key, cpu, &latest_op_type, &max_op_t, map_addrs);
-
-	latest_log = log[0] ? log[0] : log[1];
-
-	if (latest_op_type == OP_INSERT) {
-		*val = latest_log->o_kv.v;
-		return 0;
-	} else if (latest_op_type == OP_REMOVE) {
-		return -ENOENT;
-	} else {
-		addr = map_addrs[numa_node];
+	if (addr_in_log((unsigned long)addr)) {
+		log = OPLOG(addr);
+		switch (log->o_type) {
+		case OP_INSERT:
+			*val = log->o_kv.v;
+			return;
+		case OP_REMOVE:
+			return -ENOENT;
+		default:
+			perror("invalid operation type\n");
+		}
+	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {
-			*val = *addr;
+			*val = addr;
 			return 0;
 		} else {
+			/* FIXME */
+			assert(0);
 			if (map_addrs[0]) {
-				numa_node = get_numa_node(cpu);
 				/* pull latest value */
 				m = MPTABLE_NODE(tables, numa_node);
 				hs_insert(&m->hs, tid, key, map_addrs[0]);
@@ -352,6 +357,8 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 				return 0;
 			}
 		}	
+	} else {
+		perror("NULL address\n");
 	}
 
 	return -ENOENT;

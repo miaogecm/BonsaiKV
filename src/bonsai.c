@@ -184,7 +184,7 @@ int bonsai_lookup(pkey_t key, pval_t* val) {
 
 	assert(table);
 
-	return mptable_lookup(table, key, cpu, val, 0);
+	return mptable_lookup(table, key, cpu, val);
 }
 
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
