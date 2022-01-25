@@ -248,7 +248,8 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  */
 int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
     int bucket_id, pos, i, n, d;
-    struct pnode *new_pnode;
+	struct data_layer *layer = DATA(bonsai);
+    struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
 
@@ -263,6 +264,13 @@ retry:
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
+	prev_node = list_prev_entry(pnode, list);
+
+	if (prev_node != head_node && key_cmp(pnode_anchor_key(prev_node), key) >= 0) {
+		write_unlock(pnode->bucket_lock[bucket_id]);
+		goto retry;
+	}
+
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
 	
     if (pos != -1) {
@@ -311,6 +319,8 @@ retry:
    	new_pnode->bitmap = removed;
 	new_pnode->anchor_key = pnode_max_key(new_pnode);
 
+	// print_pnode_summary(pnode);
+
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, pnode);
 
@@ -323,6 +333,11 @@ retry:
     pnode->bitmap &= ~removed;
 
 	max_key = pnode_anchor_key(new_pnode);
+
+	// print_pnode_summary(new_pnode);
+	// print_pnode_summary(pnode);
+	
+	// printf("///////////////////////////////\n");
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);

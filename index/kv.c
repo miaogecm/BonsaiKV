@@ -234,7 +234,7 @@ void* thread_fun(void* arg) {
 	// }
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
-#if 1
+#if 0
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
@@ -286,7 +286,7 @@ int main() {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
 
-	sleep(60);
+	sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

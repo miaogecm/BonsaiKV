@@ -336,7 +336,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			*val = log->o_kv.v;
 			return 0;
 		case OP_REMOVE:
-			assert(0);
+			// assert(0);
 			return -ENOENT;
 		default:
 			perror("invalid operation type\n");
@@ -359,7 +359,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 				*val = *addr;
 				return 0;
 			}
-		}	
+		}
 	} else {
 		bonsai_print("************invalid address %016lx %lu***********\n", addr, key);
 		print_pnode_summary(tables->pnode);
@@ -367,8 +367,10 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		if (tables->forward)
 			bonsai_print("%016lx\n", __mptable_lookup(tables->forward, key, cpu));
 		stop_the_world();
-		if (tables->pnode)
+		if (tables->pnode) {
+			print_pnode((struct pnode*)list_prev_entry(tables->pnode, list));
 			print_pnode(tables->pnode);
+		}
 		numa_table_search_key(key);
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);

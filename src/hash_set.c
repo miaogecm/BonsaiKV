@@ -211,7 +211,7 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     struct bucket_list* parent_bucket = get_bucket_list(hs, parent_index);
 	struct bucket_list* new_bucket;
 
-    if (parent_bucket == NULL) {
+    if (parent_bucket == NULL) { 
         initialize_bucket(hs, tid, parent_index);  //recursive call.
     }
 
@@ -428,7 +428,8 @@ static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new,
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-	if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+	// if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
+    if (key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
 			hs_insert(new, tid, key, addr);
@@ -473,9 +474,9 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					 key = hs_split_one(curr, new, min, max, pnode);
-					 if (key != -1)
-					 	array[cnt++] = key;
+    				key = hs_split_one(curr, new, min, max, pnode);
+					if (key != -1)
+				        array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 
