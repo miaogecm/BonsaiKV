@@ -242,7 +242,10 @@ void* thread_fun(void* arg) {
 	printf("thread[%ld]---------------------4---------------------\n", id);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	assert(bonsai_lookup((pkey_t)i, &v) == -ENOENT);
+	 	if (bonsai_lookup((pkey_t)i, &v) != 0) {
+			printf("ghost %d\n", i);
+			exit(1);
+		}
 	}
 
 	printf("thread[%ld]---------------------5---------------------\n", id);

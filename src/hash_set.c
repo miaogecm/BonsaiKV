@@ -211,12 +211,17 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     struct bucket_list* parent_bucket = get_bucket_list(hs, parent_index);
 	struct bucket_list* new_bucket;
 
-    if (parent_bucket == NULL) { 
+    if (parent_bucket == NULL) {
+retry:
         initialize_bucket(hs, tid, parent_index);  //recursive call.
     }
 
     //Second, find the insert point in the parent bucket's linked_list and use CAS to insert new_bucket->bucket_sentinel->ll_node into the parent bucket.
     parent_bucket = get_bucket_list(hs, parent_index);
+    
+    if (parent_bucket == NULL) {
+        goto retry;
+    }
     
     //Third, allocate a new bucket_list here.
     bucket_list_init(&new_bucket, bucket_index);
