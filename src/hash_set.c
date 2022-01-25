@@ -474,7 +474,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-    				key = hs_split_one(curr, new, min, max, pnode);
+    				key = hs_copy_one(curr, new, min, max, pnode);
 					if (key != -1)
 				        array[cnt++] = key;
                 }

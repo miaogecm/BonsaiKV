@@ -234,7 +234,7 @@ void* thread_fun(void* arg) {
 	// }
 
 	//printf("thread[%ld]---------------------3---------------------\n", id);
-#if 0
+#if 1
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
