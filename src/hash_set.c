@@ -443,7 +443,7 @@ static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new,
 		}
 	}
 	
-	return -1;
+	return -2;
 }
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
@@ -452,7 +452,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
-	int i, j, cnt = 0, tid = get_tid();;
+	int i, j, cnt = 0, tid = get_tid();
 	pkey_t* array =  malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 	pkey_t key;
 
@@ -474,7 +474,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                    	 break;
                 } else {
 					 key = hs_split_one(curr, new, min, max, pnode);
-					 if (key != -1)
+					 if (key != -2)
 					 	array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
@@ -495,7 +495,7 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	key = get_origin_key(node->key);
 	if (!key_cmp(key, target)) {
 		addr = node->val;
-		bonsai_print("hash set search key[%lu]: address: %016lx\n", key, addr);
+		bonsai_print("hash set search key[%lu]: address: %016lx <%lu %lu>\n", key, addr, key, *addr);
 	}
 }
 

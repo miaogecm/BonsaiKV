@@ -439,7 +439,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 }
 #endif
 
-void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
+void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
 	int i, j, node;
 	struct numa_table* new_table;
 	struct mptable *old_m, *new_m;
@@ -460,7 +460,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		new_m = MPTABLE_NODE(new_table, node);
 
 		hs_scan_and_split(&old_m->hs, &new_m->hs, 
-			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), new_pnode);
+			pnode_min_key(new_pnode), pnode_max_key(new_pnode), new_pnode);
 	}
 
 	new_table->forward = NULL;
@@ -603,7 +603,6 @@ void numa_table_search_key(pkey_t key) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
-			print_pnode_summary(table->pnode);
 			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
 		}
 	}
