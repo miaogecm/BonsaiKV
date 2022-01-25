@@ -302,7 +302,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	pval_t* addr = NULL;
 
-    if (bucket == NULL) {
+    while (bucket == NULL) {
         initialize_bucket(hs, tid, bucket_index);  
         bucket = get_bucket_list(hs, bucket_index);
     }

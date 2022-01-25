@@ -275,7 +275,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return 0;
 }
 
-static pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
+pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	int node, tid = get_tid();
 	struct mptable *m;
 	pval_t *addr, *ret = NULL, *master_node_addr, *self_node_addr;

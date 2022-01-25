@@ -44,6 +44,8 @@ extern void mptable_split(struct numa_table* old_table, struct pnode* new_pnode)
 
 extern void numa_table_search_key(pkey_t key);
 
+extern pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu);
+
 #ifdef __cplusplus
 }
 #endif

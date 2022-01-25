@@ -19,6 +19,7 @@
 #include "cpu.h"
 #include "arch.h"
 #include "bitmap.h"
+#include "ordo.h"
 
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
@@ -246,12 +247,17 @@ static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value) {
+int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, unsigned long time_stamp) {
     int bucket_id, pos, i, n, d;
 	struct data_layer *layer = DATA(bonsai);
     struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
+	int cpu = get_cpu();
+	pval_t* val = NULL;
+	struct oplog* log;
+	struct numa_table* tables;
+	pval_t* addr;
 
 	bucket_id = PNODE_BUCKET_HASH(key);
 
@@ -285,7 +291,22 @@ retry:
 		pentry_t e = {key, value};
         pnode->e[pos] = e;
 
-        mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+		tables = pnode->table;
+		addr = __mptable_lookup(tables, key, cpu);
+		if (!addr && tables->forward) {
+			addr = __mptable_lookup(tables->forward, key, cpu);
+		}
+
+		//FIXME: need lock 
+		if (addr_in_log((unsigned long)addr)) {
+			log = OPLOG(addr);
+			if (ordo_cmp_clock(log->o_stamp, time_stamp) == ORDO_LESS_THAN) {
+				mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+			}
+		}
+		else {
+			mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+		}
 
         write_lock(pnode->slot_lock);
         pnode_sort_slot(pnode, pos, key, OP_INSERT);
