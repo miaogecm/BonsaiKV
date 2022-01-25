@@ -421,7 +421,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new, 
+static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
 		pkey_t min, pkey_t max, struct pnode* pnode) {
 	pval_t* addr;
 	int tid = get_tid();
@@ -444,7 +444,7 @@ static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new,
 		}
 	}
 	
-	return -1;
+	return -2;
 }
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
@@ -453,7 +453,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
-	int i, j, cnt = 0, tid = get_tid();;
+	int i, j, cnt = 0, tid = get_tid();
 	pkey_t* array =  malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 	pkey_t key;
 
@@ -496,8 +496,14 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	key = get_origin_key(node->key);
 	if (!key_cmp(key, target)) {
 		addr = node->val;
-		bonsai_print("hash set search key[%lu]: address: %016lx\n", key, addr);
+		bonsai_print("hash set search key[%lu]: address: %016lx <%lu %lu>\n", key, addr, key, *addr);
 	}
+}
+
+void hs_print_entry(struct ll_node* node) {
+	pkey_t key = get_origin_key(node->key);
+
+	bonsai_print("<%lu %lu> ", key, *node->val);
 }
 
 void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {

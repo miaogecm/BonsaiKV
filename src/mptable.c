@@ -375,6 +375,8 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);
 		index_layer_dump();
+		dump_pnode_list();
+		//dump_numa_table();
 		assert(0);
 	}
 
@@ -441,7 +443,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 }
 #endif
 
-void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
+void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
 	int i, j, node;
 	struct numa_table* new_table;
 	struct mptable *old_m, *new_m;
@@ -461,8 +463,8 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
 
-		hs_scan_and_split(&old_m->hs, &new_m->hs, 
-			pnode_entry_n_key(new_pnode, 1), pnode_max_key(new_pnode), new_pnode);
+		hs_scan_and_split(&old_m->hs, &new_m->hs,
+			pnode_min_key(new_pnode), pnode_max_key(new_pnode), new_pnode);
 	}
 
 	new_table->forward = NULL;
@@ -605,10 +607,27 @@ void numa_table_search_key(pkey_t key) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
-			print_pnode_summary(table->pnode);
 			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
 		}
 	}
 
 	bonsai_print("numa table find no such key[%lu]\n", key);
+}
+
+void dump_numa_table() {
+	struct log_layer* layer = LOG(bonsai);
+	struct numa_table* table;
+	struct mptable* m;
+	int node, i = 0;
+
+	bonsai_print("====================================DUMP NUMA TABLE================================================\n");
+
+	list_for_each_entry(table, &layer->numa_table_list, list) {
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			m = MPTABLE_NODE(table, node);
+			bonsai_print("Node[%d] table %016lx\n", node, m);
+			hs_scan_and_ops(&m->hs, hs_print_entry, NULL, NULL, NULL, NULL, NULL);
+			bonsai_print("\n");
+		}
+	}
 }
