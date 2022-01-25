@@ -258,10 +258,17 @@ retry:
 	pnode = pnode_find_lowbound(pnode, key);
 	
 	assert(pnode);
+	assert(key_cmp(key, pnode_anchor_key(pnode)) <= 0);
 	
-	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", get_tid(), key, value, pnode, pnode_anchor_key(pnode));
+	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", 
+		get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
+
+	if (key_cmp(pnode_anchor_key(list_prev_entry(pnode, list)), key) >= 0) {
+		write_unlock(pnode->bucket_lock[bucket_id]);
+		goto retry;
+	}
 	
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
 	
@@ -325,7 +332,7 @@ retry:
 	pnode->anchor_key = pnode_max_key(pnode);
 
 	max_key = pnode_anchor_key(new_pnode);
-	
+
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
 
@@ -530,6 +537,10 @@ void print_pnode(struct pnode* pnode) {
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
 	bonsai_print("\n");
+
+	for (i = 1; i <= pnode->slot[0]; i ++)
+		bonsai_print("key[%d]: %d; ", i, pnode_entry_n_key(pnode, i));
+	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
 		bonsai_print("[%d]: <%lu, %lu> ", i, pnode->e[i].k, pnode->e[i].v);
@@ -563,17 +574,26 @@ void dump_pnode_list() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
 	int i, j = 0, pnode_sum = 0, key_sum = 0;
+	pkey_t prev = 0, curr = ULONG_MAX;
 
-	bonsai_print("====================================================================================\n");
+	bonsai_print("====================================DUMP PNODE LIST================================================\n");
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_print("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		bonsai_print("pnode[%d] == bitmap: %016lx slot[0]: %d [%lu %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
 		key_sum += pnode->slot[0];
 		pnode_sum ++;
 
-		for (i = 0; i <= pnode->slot[0]; i ++)
+		for (i = 1; i <= pnode->slot[0]; i ++) 
 			bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
+		bonsai_print("\n");
+
+		for (i = 1; i <= pnode->slot[0]; i ++) {
+			curr = pnode_entry_n_key(pnode, i);
+			bonsai_print("key[%d]: %lu; ", i, pnode_entry_n_key(pnode, i));
+			if (curr < prev) assert(0);
+			prev = curr;
+		}
 		bonsai_print("\n");
 	
 		for (i = 0; i < NUM_ENT_PER_PNODE; i ++)

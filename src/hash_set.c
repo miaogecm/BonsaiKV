@@ -421,7 +421,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-static pkey_t hs_split_one(struct ll_node* node, struct hash_set *new, 
+static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
 		pkey_t min, pkey_t max, struct pnode* pnode) {
 	pval_t* addr;
 	int tid = get_tid();
@@ -473,7 +473,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-					 key = hs_split_one(curr, new, min, max, pnode);
+					 key = hs_copy_one(curr, new, min, max, pnode);
 					 if (key != -2)
 					 	array[cnt++] = key;
                 }
@@ -497,6 +497,12 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 		addr = node->val;
 		bonsai_print("hash set search key[%lu]: address: %016lx <%lu %lu>\n", key, addr, key, *addr);
 	}
+}
+
+void hs_print_entry(struct ll_node* node) {
+	pkey_t key = get_origin_key(node->key);
+
+	bonsai_print("<%lu %lu> ", key, *node->val);
 }
 
 void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
