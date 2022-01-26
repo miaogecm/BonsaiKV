@@ -283,7 +283,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
                 //bonsai_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
             }
         } else {
-            perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
+            // perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
         }
     }
     return ret;

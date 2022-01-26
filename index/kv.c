@@ -254,7 +254,7 @@ void* thread_fun(void* arg) {
 	sleep(10);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	if (bonsai_lookup((pkey_t)i, &v) != 0)
+	 	if (bonsai_lookup((pkey_t)i, &v) == 0)
 			die();
 	}
 

@@ -77,7 +77,7 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 	region->free = page;
 	spin_unlock(&region->free_lock);
 
-	assert(page->p_num_blk = 0);
+	assert(page->p_num_blk == 0);
 
 	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
 }

@@ -8,9 +8,9 @@ extern "C" {
 #include "link_list.h"
 
 #define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
-#define LOAD_FACTOR_DEFAULT     4
-#define MAIN_ARRAY_LEN 			1024
-#define SEGMENT_SIZE 			2048
+#define LOAD_FACTOR_DEFAULT     8
+#define MAIN_ARRAY_LEN 			256
+#define SEGMENT_SIZE 			256
 #define MAX_NUM_BUCKETS 		MAIN_ARRAY_LEN * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
 
 struct bucket_list {
