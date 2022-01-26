@@ -9,3 +9,4 @@ log
 .DS_Store
 core*
 perf*
+kv
