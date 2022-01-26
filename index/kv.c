@@ -103,7 +103,7 @@ int kv_insert(void* index_struct, pkey_t key, void* value) {
 	write_lock(&__toy->lock);
 	next_node = __kv_lookup(index_struct, key);
 	if (&next_node->list != &__toy->head && next_node->kv.k == key) {
-		next_node->kv.v = value;
+		next_node->kv.v = (__le64)value;
 	} else {
 		ll_node = &next_node->list;
 		__list_add(&knode->list, ll_node->prev, ll_node);
@@ -204,8 +204,7 @@ static inline void die() {
 
 extern void bonsai_print_all();
 void* thread_fun(void* arg) {
-	unsigned long i;
-	long id = (long)arg;
+	long i, id = (long)arg;
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * 2 * N);
 

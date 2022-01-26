@@ -6,6 +6,5 @@
 log
 *.a
 .objs
-kv
 .DS_Store
 core*

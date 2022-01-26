@@ -68,9 +68,9 @@ typedef struct pentry {
 #define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args);
 
 #ifdef BONSAI_DEBUG
-#define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0)
+#define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0);
 #else
-#define bonsai_debug(fmt, args ...) do {} while(0)
+#define bonsai_debug(fmt, args ...) do {} while(0);
 #endif
 
 #ifdef __cplusplus

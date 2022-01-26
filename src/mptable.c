@@ -186,7 +186,7 @@ static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, p
 		int* latest_op_type, int* found_in_pnode) {
 	unsigned long max_op_t = 0;
 	struct oplog* log;
-	pval_t val, *addr;
+	pval_t *addr;
 	int tid = get_tid();
 	struct mptable* m;
 	int node, found = 0;
@@ -253,8 +253,9 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	int node, tid = get_tid();
 	struct mptable *m;
-	pval_t *addr, *ret = NULL, *master_node_addr, *self_node_addr;
-	int numa_node = get_numa_node(cpu);
+	pval_t *addr, *ret = NULL;
+	//pval_t *master_node_addr, *self_node_addr;
+	//int numa_node = get_numa_node(cpu);
 	unsigned long max_op_t = 0;
 	struct oplog *log;
 
@@ -271,17 +272,21 @@ pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 			}
 		} else if (addr_in_pnode((unsigned long)addr)) {
 			/* case II: mapping table entry points to a pnode entry */
+			#if 0
 			if (node == 0)
 				master_node_addr = addr;
 			else if (node == numa_node) {
 				self_node_addr = addr;
 			}
+			#endif
 			if (!ret)
 				ret = addr;
 		} else {
 			/* case III: mapping table entry is NULL */
+			/*
 			if (node == numa_node)
 				self_node_addr = addr;
+			*/
 		}
 	}
 
@@ -335,18 +340,6 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}
 	} else {
-		bonsai_print("************invalid address %016lx %lu***********\n", addr, key);
-		print_pnode_summary(tables->pnode);
-		bonsai_print("%016lx tables: %016lx hs: %016lx\n", __mptable_lookup(tables, key, cpu), tables, &tables->tables[0]->hs);
-		if (tables->forward)
-			bonsai_print("%016lx\n", __mptable_lookup(tables->forward, key, cpu));
-		stop_the_world();
-		numa_table_search_key(key);
-		log_layer_search_key(cpu, key);
-		data_layer_search_key(key);
-		index_layer_dump();
-		//dump_pnode_list();
-		dump_numa_table();
 		assert(0);
 	}
 
@@ -361,7 +354,7 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 }
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
-	int i, j, node;
+	int node;
 	struct numa_table* new_table;
 	struct mptable *old_m, *new_m;
 	struct index_layer* i_layer = INDEX(bonsai);
@@ -386,7 +379,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {
 	new_table->forward = NULL;
 }
 
-static void merge_one_log(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4) {
+static void merge_one_log(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pval_t* val = node->val;
 	struct hbucket* merge_buckets = (struct hbucket*)arg1;
 	pkey_t low = (pkey_t)arg2, high = (pkey_t)arg3;
@@ -440,7 +433,6 @@ int __compare(const void* a, const void* b) {
 #define MAX_LEN		(16 * 1024 * 1024)
 static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
 	struct hbucket* merge_buckets;
-	struct hash_set* hs;
 	struct mptable *m;
 	struct hlist_node *hnode, *n_hnode;
 	int node, i, j;
@@ -455,7 +447,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
-		hs_scan_and_ops(&m->hs, merge_one_log, merge_buckets, low, high, &max_key, NULL);
+		hs_scan_and_ops(&m->hs, merge_one_log, (void*)merge_buckets, (void*)low, (void*)high, (void*)&max_key, (void*)NULL);
 	}
 
 	/* 2. scan merge hash table and copy */
@@ -516,14 +508,13 @@ void numa_table_search_key(pkey_t key) {
 	struct log_layer* layer = LOG(bonsai);
 	struct numa_table* table;
 	struct mptable* m;
-	pkey_t find;
-	int node, i = 0;
+	int node;
 	
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			//bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
-			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
+			hs_scan_and_ops(&m->hs, hs_search_key, (void*)key, NULL, NULL, NULL, NULL);
 		}
 	}
 
@@ -534,7 +525,7 @@ void dump_numa_table() {
 	struct log_layer* layer = LOG(bonsai);
 	struct numa_table* table;
 	struct mptable* m;
-	int node, i = 0;
+	int node;
 
 	bonsai_print("====================================DUMP NUMA TABLE================================================\n");
 
@@ -552,7 +543,7 @@ void check_numa_table() {
 	struct log_layer* layer = LOG(bonsai);
 	struct numa_table* table;
 	struct mptable* m;
-	int node, i = 0;
+	int node;
 
 	bonsai_print("====================================CHECK NUMA TABLE================================================\n");
 

@@ -116,7 +116,7 @@ static int thread_register_stop_signal() {
 }
 
 void stop_the_world() {
-	int i, states[NUM_THREAD] = {0};
+	int states[NUM_THREAD] = {0};
 	struct thread_info* thread;
 	int num_interrupted = 0;
 	
@@ -276,7 +276,6 @@ void bonsai_self_thread_exit() {
 
 int bonsai_user_thread_init() {
 	struct thread_info* thread;
-	int ret;
 
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
@@ -335,7 +334,6 @@ int bonsai_pflushd_thread_init() {
 
 int bonsai_pflushd_thread_exit() {
 	struct log_layer* layer = LOG(bonsai);
-	volatile int num_exit = 0;
 	int i;
 
 	atomic_set(&layer->exit, 1);

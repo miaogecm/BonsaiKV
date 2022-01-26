@@ -40,11 +40,11 @@ enum {
 };
 
 struct merge_work {
-	unsigned int count;
+	int count;
 	struct list_head page_list;
 	struct log_layer* layer;
-	struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_WORKER];
-	struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_WORKER];
+	volatile struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_WORKER];
+	volatile struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_WORKER];
 };
 
 struct flush_work {

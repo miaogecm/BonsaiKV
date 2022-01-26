@@ -49,9 +49,9 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 
 	spin_lock(&region->inuse_lock);
 	if (!page->p_prev)
-		prev_page = LOG_REGION_OFF_TO_ADDR(region, page->p_prev);
+		prev_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_prev);
 	if (!page->p_next)
-		next_page = LOG_REGION_OFF_TO_ADDR(region, page->p_next);
+		next_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 
 	if (prev_page && next_page) {
 		prev_page->p_next = page->p_next;

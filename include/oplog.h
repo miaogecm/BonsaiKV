@@ -55,6 +55,7 @@ struct oplog_blk {
 struct pnode;
 struct mptable;
 struct log_region;
+struct log_layer;
 
 extern struct oplog* alloc_oplog(struct log_region* region, int cpu);
 

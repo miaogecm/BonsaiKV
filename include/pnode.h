@@ -14,7 +14,7 @@ extern "C" {
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
-#define PNODE_BITMAP_FULL			(~(1ULL<<64))
+#define PNODE_BITMAP_FULL			(~(1UL<<64))
 
 enum {
 	PNODE_DATA_CLEAN = 0,
@@ -63,8 +63,8 @@ static int key_cmp(pkey_t a, pkey_t b) {
 
 extern void sentinel_node_init();
 
-extern int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, unsigned long time_stamp);
-extern int pnode_remove(struct pnode* pnode, pkey_t key);
+extern int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node);
+extern int pnode_remove(pkey_t key);
 extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);

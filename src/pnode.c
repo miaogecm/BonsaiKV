@@ -232,17 +232,17 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, unsigned long time_stamp) {
+int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node) {
     int bucket_id, pos, i, n, d;
 	struct data_layer *layer = DATA(bonsai);
     struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
 	int ret, cpu = get_cpu();
-	pval_t* val = NULL;
 	struct oplog* log;
 	struct numa_table* tables;
 	pval_t* addr;
+	struct pnode* pnode;
 
 	bucket_id = PNODE_BUCKET_HASH(key);
 
@@ -360,12 +360,12 @@ retry:
  * @pnode: the pnode
  * @key: key to be removed
  */
-int pnode_remove(struct pnode* pnode, pkey_t key) {
+int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
-    int bucket_id, offset, i;
+  int bucket_id, offset, i, node;
 	uint64_t mask, bit;
-	int node;
 	struct mptable* m;
+	struct pnode* pnode;
 
 	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
 	
@@ -570,7 +570,7 @@ void print_pnode_summary(struct pnode* pnode) {
 void dump_pnode_list_summary() {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode;
-	int i, j = 0, pnode_sum = 0, key_sum = 0;
+	int j = 0, pnode_sum = 0, key_sum = 0;
 
 	bonsai_print("====================================================================================\n");
 

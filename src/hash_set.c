@@ -24,6 +24,7 @@
 #include "atomic.h"
 #include "pnode.h"
 #include "oplog.h"
+#include "mptable.h"
 
 #define MASK 	0x00FFFFFFFFFFFFFF  /* takes the lowest 3 bytes of the hashcode */
 #define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
@@ -449,10 +450,10 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	key = get_origin_key(node->key);
     if (key_cmp(key, max) <= 0) {
 		old = node->val;
-		if (addr_in_log(old)) {
+		if (addr_in_log((unsigned long)old)) {
 			hs_insert(new, tid, key, old);
 			return key;
-		} else if (addr_in_pnode(old)) {
+		} else if (addr_in_pnode((unsigned long)old)) {
 			old = pnode_lookup(pnode, key);
 			hs_insert(new, tid, key, old);
 			return key;		
@@ -468,7 +469,6 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
 			pkey_t max, struct pnode* pnode) {
 	struct bucket_list **buckets, *bucket;
-	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j, cnt = 0, tid = get_tid();
@@ -493,7 +493,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                    	 break;
                 } else {
     				key = hs_copy_one(curr, new, max, pnode);
-					if (key != -2)
+					if (key != (unsigned long)-2)
 				        array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
@@ -507,7 +507,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	free(array);
 }
 
-void hs_search_key(struct ll_node* node, void* arg1) {
+void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key, target = (pkey_t)arg1;
 	pval_t* addr;
 
@@ -518,13 +518,13 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	}
 }
 
-void hs_print_entry(struct ll_node* node) {
+void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key = get_origin_key(node->key);
 
 	bonsai_print("<%lu %lu> ", key, *node->val);
 }
 
-void hs_check_entry(struct ll_node* node) {
+void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key = get_origin_key(node->key);
 	pval_t* addr = node->val;
 	struct oplog* log;
@@ -538,7 +538,6 @@ void hs_check_entry(struct ll_node* node) {
 
 void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	struct bucket_list **buckets, *bucket;
-	struct mptable *m;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j;

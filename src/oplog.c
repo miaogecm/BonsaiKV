@@ -72,7 +72,7 @@ again:
 }
 
 struct oplog* alloc_oplog(struct log_region* region, int cpu) {
-	struct oplog_blk* block = region->curr_blk;
+	volatile struct oplog_blk* block = region->curr_blk;
 	struct log_layer* layer = LOG(bonsai);
 	struct oplog* log;
 
@@ -168,19 +168,18 @@ void clean_pflush_buckets(struct log_layer* layer) {
 static int worker_oplog_merge(void *arg) {
 	struct merge_work* mwork = (struct merge_work*)arg;
 	struct log_layer* layer;
-	struct oplog_blk* block;
+	volatile struct oplog_blk* block;
 	struct oplog *log;
 	struct hbucket* bucket;
 	struct hlist_node* hnode;
 	struct log_region* region;
 	merge_ent* e;
 	pkey_t key;
-	unsigned int i, j;
+	int i, j, count = 0, ret = 0;
 	int nlog = 0, nblk = 0;
-	int count = 0, ret = 0;
 
 	if (unlikely(!mwork))
-		return;
+		goto out;
 
 	layer = mwork->layer;
 
@@ -195,7 +194,7 @@ static int worker_oplog_merge(void *arg) {
 				key = log->o_kv.k;
 				bucket = &layer->buckets[p_hash(key)];
 
-				try_free_log_page(block, &mwork->page_list);
+				try_free_log_page((struct oplog_blk*)block, &mwork->page_list);
 
 				nlog++; atomic_dec(&layer->nlogs);
 				bonsai_debug("pflush thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
@@ -232,7 +231,7 @@ static int worker_oplog_merge(void *arg) {
 
 out:
 	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
-	return 0;
+	return ret;
 }
 
 static int worker_oplog_flush(void* arg) {
@@ -243,10 +242,7 @@ static int worker_oplog_flush(void* arg) {
 	struct oplog* log;
 	merge_ent* e;
 	unsigned int i;
-	int cpu, node, count = 0;
-	struct pnode* pnode;
-	struct mptable* m;
-	int ret = 0;
+	int count = 0, ret = 0;
 
 	bonsai_print("pflush thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
@@ -258,10 +254,10 @@ static int worker_oplog_flush(void* arg) {
 			
 			switch(log->o_type) {
 			case OP_INSERT:
-				pnode_insert((struct pnode*)log->o_addr, log->o_numa_node, log->o_kv.k, log->o_kv.v, log->o_stamp);		
+				pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);		
 				break;
 			case OP_REMOVE:
-				pnode_remove(pnode, log->o_kv.k);
+				pnode_remove(log->o_kv.k);
 				break;
 			default:
 				perror("bad operation type\n");
@@ -289,7 +285,7 @@ out:
 
 static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 	flush_page_struct *p, *n;
-	int i = 0;
+	//int i = 0;
 	
 	list_for_each_entry_safe(p, n, page_list, list) {
 		free_log_page(&layer->region[p->cpu], p->page);
@@ -305,9 +301,9 @@ void oplog_flush() {
 	struct log_layer *l_layer = LOG(bonsai);
 	struct data_layer *d_layer = DATA(bonsai);
 	struct log_region *region;
-	struct oplog_blk* first_blks[NUM_CPU];
-	struct oplog_blk* curr_blks[NUM_CPU];
-	struct oplog_blk* curr_blk;
+	volatile struct oplog_blk* first_blks[NUM_CPU];
+	volatile struct oplog_blk* curr_blks[NUM_CPU];
+	volatile struct oplog_blk* curr_blk;
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
@@ -447,7 +443,7 @@ out:
 }
 
 static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
-	struct oplog_blk* block;
+	volatile struct oplog_blk* block;
 	struct oplog *log;
 	int i;
 
@@ -466,6 +462,8 @@ static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t k
 			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
 		}
 	}
+
+	return NULL;
 }
 
 /*
@@ -484,9 +482,9 @@ struct oplog* log_layer_search_key(int cpu, pkey_t key) {
 	else {
 		for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 			region = &l_layer->region[cpu];
-			if (log = scan_one_cpu_log_region(region, key)) {
+			log = scan_one_cpu_log_region(region, key);
+			if (log) 
 				goto out;
-			}
 		}
 	}
 

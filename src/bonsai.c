@@ -29,6 +29,9 @@
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
+extern void* index_struct(void* index_struct);
+extern void kv_print(void* index_struct);
+
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
@@ -115,7 +118,7 @@ out:
 
 static void data_layer_deinit(struct data_layer* layer) {
 	struct pnode* pnode, *tmp;
-	int i, j = 0;
+	int i;
 
 	write_lock(&layer->lock);
 	list_for_each_entry_safe(pnode, tmp, &layer->pnode_list, list) {
@@ -133,7 +136,6 @@ static void data_layer_deinit(struct data_layer* layer) {
 	bonsai_print("data_layer_deinit\n");
 }
 
-extern void* index_struct(void* index_struct);
 void index_layer_dump() {
 	struct index_layer* i_layer = INDEX(bonsai);
 	kv_print(i_layer->index_struct);
