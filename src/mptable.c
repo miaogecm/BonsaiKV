@@ -342,7 +342,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);
 		index_layer_dump();
-		dump_pnode_list();
+		//dump_pnode_list();
 		//dump_numa_table();
 		assert(0);
 	}
@@ -519,7 +519,7 @@ void numa_table_search_key(pkey_t key) {
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
-			bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
+			//bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
 			hs_scan_and_ops(&m->hs, hs_search_key, key, NULL, NULL, NULL, NULL);
 		}
 	}

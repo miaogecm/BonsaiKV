@@ -187,7 +187,8 @@ static void pflush_worker(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu);
 
-	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
+	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", 
+			__this->t_id, __this->t_pid, get_cpu());
 
 	thread_block_alarm_signal();
 	thread_register_stop_signal();

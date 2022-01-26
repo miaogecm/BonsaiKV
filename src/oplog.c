@@ -301,6 +301,8 @@ static int worker_oplog_flush(void* arg) {
 out:
 	free(fwork);
 	bonsai_print("pflush thread[%d] flush %d logs\n", __this->t_id, count);
+
+	return ret;
 }
 
 static void free_pages(struct log_layer *layer, struct list_head* page_list) {

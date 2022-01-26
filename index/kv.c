@@ -214,9 +214,8 @@ void* thread_fun(void* arg) {
 		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
 	}
 
-	sleep(10);
-
 	printf("user thread[%ld]---------------------1---------------------\n", id);
+	sleep(10);
 
 	 for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
@@ -227,7 +226,9 @@ void* thread_fun(void* arg) {
 	 }
 
 	printf("user thread[%ld]---------------------2---------------------\n", id);
+	sleep(10);
 
+#if 0
 	for (int i = 0; i < 1; i++) {
 		int size;
 		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
@@ -235,14 +236,15 @@ void* thread_fun(void* arg) {
 		assert(size == N);
 	}
 
-	//printf("thread[%ld]---------------------3---------------------\n", id);
-#if 1
+	printf("thread[%ld]---------------------3---------------------\n", id);
+#endif
+
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 		assert(bonsai_remove((pkey_t)i) == 0);
 	}
 
-	sleep(10);
 	printf("user thread[%ld]---------------------4---------------------\n", id);
+	sleep(10);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	if (bonsai_lookup((pkey_t)i, &v) == 0) {
@@ -252,7 +254,7 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------5---------------------\n", id);
-#endif
+
 	bonsai_user_thread_exit();
 
 	free(val_arr);
