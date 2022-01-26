@@ -256,11 +256,6 @@ retry:
 		get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
-
-	if (key_cmp(pnode_anchor_key(list_prev_entry(pnode, list)), key) >= 0) {
-		write_unlock(pnode->bucket_lock[bucket_id]);
-		goto retry;
-	}
 	
 	prev_node = list_prev_entry(pnode, list);
 
