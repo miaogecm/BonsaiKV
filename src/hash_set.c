@@ -508,7 +508,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	free(array);
 }
 
-void hs_search_key(struct ll_node* node, void* arg1) {
+void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key, target = (pkey_t)arg1;
 	pval_t* addr;
 
@@ -519,13 +519,13 @@ void hs_search_key(struct ll_node* node, void* arg1) {
 	}
 }
 
-void hs_print_entry(struct ll_node* node) {
+void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key = get_origin_key(node->key);
 
 	bonsai_print("<%lu %lu> ", key, *node->val);
 }
 
-void hs_check_entry(struct ll_node* node) {
+void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key = get_origin_key(node->key);
 	pval_t* addr = node->val;
 	struct oplog* log;

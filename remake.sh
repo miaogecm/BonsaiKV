@@ -1,10 +1,10 @@
 #!/bin/bash
 
-cd index
+cd kv
 sudo ./clean.sh
 cd ../src
 make clean
 make
-cd ../index
+cd ../kv
 make clean
 make
