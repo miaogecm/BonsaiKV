@@ -243,7 +243,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);  //bucket will be initialized if needed in get_bucket_list()
 	unsigned long capacity_now, old_capacity;
 	int set_size_now;
-    int insert_ret;
+    int ret = 0;
 
     while (bucket == NULL) {
         //FIXME: It seems that the bucket will not always be initialized as we expected.
@@ -251,8 +251,8 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
         bucket = get_bucket_list(hs, bucket_index);
     }
 	
-    insert_ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val, update);
-    if (!update && insert_ret == -EEXIST) {
+    ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val, update);
+    if (!update && ret == -EEXIST) {
         // fail to insert the key into the hash_set
         // bonsai_debug("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
@@ -267,7 +267,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
     xadd(&hs_node_count, 1);
 #endif
 
-	set_size_now = (insert_ret != -EEXIST) ? xadd(&hs->set_size, 1) : hs->set_size;
+	set_size_now = (ret != -EEXIST) ? xadd(&hs->set_size, 1) : hs->set_size;
 
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_add_success_time, 1);
@@ -286,7 +286,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
             perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
         }
     }
-    return 0;
+    return ret;
 }
 
 
@@ -447,6 +447,8 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	pkey_t key;
 
 	key = get_origin_key(node->key);
+	assert(key != -EEXIST);
+	
     if (key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
