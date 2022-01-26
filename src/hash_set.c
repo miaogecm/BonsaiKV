@@ -237,7 +237,7 @@ retry:
     }
 }
 
-int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, int update) {
     //First, calculate the bucket index by key and capacity of the hash_set.
     int bucket_index = hash(key) % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);  //bucket will be initialized if needed in get_bucket_list()
@@ -251,14 +251,14 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
         bucket = get_bucket_list(hs, bucket_index);
     }
 	
-    insert_ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val);
-    if (insert_ret != 0) {
+    insert_ret = ll_insert(&bucket->bucket_sentinel, tid, make_ordinary_key(key), val, update);
+    if (!update && insert_ret == -EEXIST) {
         // fail to insert the key into the hash_set
         // bonsai_debug("thread [%d]: hs_insert(%lu) fail!\n", tid, key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&hs_add_fail_time, 1);
 #endif
-        // return -1;
+        return -EEXIST;
     }
 
     //bonsai_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
@@ -289,6 +289,20 @@ int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
     return 0;
 }
 
+
+/*
+ * hs_update: return 0
+ */
+int hs_update(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	return __hs_insert(hs, tid, key, val, 1);
+}
+
+/*
+ * hs_insert: return 0 if succeed else return -EEXIST
+ */
+int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	return __hs_insert(hs, tid, key, val, 0);
+}
 
 /* 
  * hs_lookup: return 1 if hs contains key, 0 otherwise.
@@ -436,19 +450,19 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
     if (key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
-			hs_insert(new, tid, key, addr);
-			return key;
+			if (hs_insert(new, tid, key, addr) < 0)
+				return -EEXIST; /* FIXME: key != -EEXIST */
 		} else if (addr_in_pnode(addr)) {
 			addr = pnode_lookup(pnode, key);
-			hs_insert(new, tid, key, addr);
-			return key;
+			if (hs_insert(new, tid, key, addr) < 0)
+				return -EEXIST; /* FIXME: key != -EEXIST */
 		} else {
 			perror("invalid address\n");
 			assert(0);
 		}
 	}
 	
-	return -2;
+	return key;
 }
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
@@ -479,7 +493,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                    	 break;
                 } else {
     				key = hs_copy_one(curr, new, min, max, pnode);
-					if (key != -1)
+					if (key != -EEXIST)
 				        array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));

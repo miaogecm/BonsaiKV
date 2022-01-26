@@ -122,10 +122,11 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
     }
 }
 
-int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
+int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int update) {
 	struct ll_node *pred, *item, *succ;
     struct hp_item* hp = ll->HP[tid];
 	markable_t old_value;
+	int ret = 0;
 
     if (hp == NULL)
 		hp = hp_item_setup(ll, tid);
@@ -137,8 +138,9 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
 			//bonsai_debug("ll_insert exist %016lx\n", key);
-			item->val = val;
-            return -EEXIST;
+			ret = -EEXIST;
+			if (!update)
+				return ret;     
         }
         item = (struct ll_node*) malloc(sizeof(struct ll_node));
     
@@ -159,7 +161,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val) {
         xadd(&node_count, 1);
 #endif
         hp_clear_all_addr(hp);
-        return 0;
+        return ret;
     }
 }
 

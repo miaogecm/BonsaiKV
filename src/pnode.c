@@ -253,7 +253,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, u
     struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
-	int cpu = get_cpu();
+	int ret, cpu = get_cpu();
 	pval_t* val = NULL;
 	struct oplog* log;
 	struct numa_table* tables;
@@ -293,14 +293,15 @@ retry:
 
 		tables = pnode->table;
 		addr = __mptable_lookup(tables, key, cpu);
-		if (!addr && tables->forward) {
+		if (!addr && ACCESS_ONCE(tables->forward)) {
 			addr = __mptable_lookup(tables->forward, key, cpu);
 		}
 
-		//FIXME: need lock 
+		//FIXME: need lock
 		if (addr_in_log((unsigned long)addr)) {
 			log = OPLOG(addr);
-			if (ordo_cmp_clock(log->o_stamp, time_stamp) == ORDO_LESS_THAN) {
+			ret = ordo_cmp_clock(log->o_stamp, time_stamp);
+			if (ret == ORDO_LESS_THAN || ret == ORDO_UNCERTAIN) {
 				mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 			}
 		} else {

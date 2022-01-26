@@ -23,6 +23,8 @@
 
 extern struct bonsai_info* bonsai;
 
+extern void kv_print(void* index_struct);
+
 #define NUM_MERGE_HASH_BUCKET		(16 * 1024 * 1024)
 
 typedef struct {
@@ -116,7 +118,7 @@ int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, tables->pnode);
 	read_lock(&table->rwlock);
-	ret = hs_insert(&table->hs, tid, key, &log->o_kv.v);
+	ret = hs_update(&table->hs, tid, key, &log->o_kv.v);
 	read_unlock(&table->rwlock);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
@@ -154,7 +156,7 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 #ifdef BONSAI_SUPPORT_UPDATE
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, mptable, tables->pnode);
 	read_lock(&mptable->rwlock);
-	hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
+	hs_update(&mptable->hs, tid, key, &log->o_kv.v);
 	read_unlock(&mptable->rwlock);
 #else
 	for (node = 0; node < NUM_SOCKET; node ++) {
@@ -179,36 +181,6 @@ int mptable_update(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	return 0;
 }
 #endif
-
-extern void kv_print(void* index_struct);
-
-static int mptable_insert_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* val) {
-	struct mptable* table = MPTABLE_NODE(tables, numa_node);
-	int ret = 0, tid = get_tid();
-
-#ifdef BONSAI_SUPPORT_UPDATE
-	read_lock(&table->rwlock);
-	ret = hs_insert(&table->hs, tid, key, val);
-	read_unlock(&table->rwlock);
-#else
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		table = MPTABLE_NODE(tables, node);
-		addr = hs_lookup(&table->hs, tid, key);
-		if (addr) {
-			read_unlock(&table->rwlock);
-			return -EEXIST;
-		}
-		read_unlock(&table->rwlock);
-	}
-	table = MPTABLE_NODE(tables, numa_node);
-	read_lock(&table->rwlock);
-	ret = hs_insert(&table->hs, tid, key, val);
-	read_unlock(&table->rwlock);
-#endif
-	tables->pnode->stale = PNODE_DATA_STALE;
-
-	return ret;
-}
 
 static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key, 
 		int* latest_op_type, int* found_in_pnode) {
@@ -266,7 +238,7 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	}
 
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, m, tables->pnode);
-	hs_insert(m, tid, key, &log->o_kv.v);
+	hs_update(m, tid, key, &log->o_kv.v);
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -386,7 +358,7 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 	struct mptable *table = tables->tables[numa_node];
 	int tid = get_tid();
 
-	hs_insert(&table->hs, tid, key, addr);
+	hs_update(&table->hs, tid, key, addr);
 }
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
