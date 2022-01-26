@@ -40,8 +40,7 @@ extern void hs_destroy(struct hash_set* hs);
 typedef void* (*hs_exec_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
 
 struct pnode;
-extern void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
-			pkey_t min, pkey_t max, struct pnode* pnode);
+extern void hs_scan_and_split(struct hash_set *old, struct hash_set *new, pkey_t max, struct pnode* pnode);
 
 extern void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
 extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);

@@ -338,10 +338,6 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		if (tables->forward)
 			bonsai_print("%016lx\n", __mptable_lookup(tables->forward, key, cpu));
 		stop_the_world();
-		if (tables->pnode) {
-			print_pnode((struct pnode*)list_prev_entry(tables->pnode, list));
-			print_pnode(tables->pnode);
-		}
 		numa_table_search_key(key);
 		log_layer_search_key(cpu, key);
 		data_layer_search_key(key);
@@ -381,8 +377,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
 
-		hs_scan_and_split(&old_m->hs, &new_m->hs,
-			pnode_min_key(new_pnode), pnode_max_key(new_pnode), new_pnode);
+		hs_scan_and_split(&old_m->hs, &new_m->hs, pnode_max_key(new_pnode), new_pnode);
 	}
 
 	new_table->forward = NULL;

@@ -291,7 +291,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
 
 
 /*
- * hs_update: return 0
+ * hs_update: return 0 if key does not exists else return -EEXIST
  */
 int hs_update(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
 	return __hs_insert(hs, tid, key, val, 1);
@@ -439,9 +439,9 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
     bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
 }
 #endif
-
+#if 1
 static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
-		pkey_t min, pkey_t max, struct pnode* pnode) {
+		pkey_t max, struct pnode* pnode) {
 	pval_t* addr;
 	int tid = get_tid();
 	pkey_t key;
@@ -466,9 +466,38 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	
 	return key;
 }
+#endif
+#if 0
+static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
+		pkey_t max, struct pnode* pnode) {
+	pval_t* addr;
+	int tid = get_tid();
+	pkey_t key;
+
+	key = get_origin_key(node->key);
+	assert(key != -EEXIST);
+	
+    if (key_cmp(key, max) <= 0) {
+		addr = node->val;
+		if (addr_in_log(addr)) {
+			key = hs_update(new, tid, key, addr);
+				return key; /* FIXME: key != -EEXIST */
+		} else if (addr_in_pnode(addr)) {
+			addr = pnode_lookup(pnode, key);
+			key = hs_update(new, tid, key, addr);
+				return key; /* FIXME: key != -EEXIST */
+		} else {
+			bonsai_print("invalid address: %016lx\n", addr);
+			assert(0);
+		}
+	}
+	
+	return -EEXIST;
+}
+#endif
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
-			pkey_t min, pkey_t max, struct pnode* pnode) {
+			pkey_t max, struct pnode* pnode) {
 	struct bucket_list **buckets, *bucket;
 	struct mptable *m;
 	segment_t* p_segment;
@@ -494,7 +523,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-    				key = hs_copy_one(curr, new, min, max, pnode);
+    				key = hs_copy_one(curr, new, max, pnode);
 					if (key != -EEXIST)
 				        array[cnt++] = key;
                 }

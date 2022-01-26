@@ -101,7 +101,6 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			// bonsai_debug("ll_insert exist %016lx\n", key);
             return -EEXIST;
         }
         node->next = (markable_t)succ;
@@ -113,7 +112,6 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
             continue;
         }
         //CAS succeed!
-        // bonsai_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
@@ -126,7 +124,6 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
 	struct ll_node *pred, *item, *succ;
     struct hp_item* hp = ll->HP[tid];
 	markable_t old_value;
-	int ret = 0;
 
     if (hp == NULL)
 		hp = hp_item_setup(ll, tid);
@@ -137,10 +134,10 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
         if (item && item->key == key) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			//bonsai_debug("ll_insert exist %016lx\n", key);
-			ret = -EEXIST;
-			if (!update)
-				return ret;     
+			if (update)
+				item->val = val;
+			
+			return -EEXIST;     
         }
         item = (struct ll_node*) malloc(sizeof(struct ll_node));
     
@@ -156,12 +153,11 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
             continue;
         }
         //CAS succeed!
-        //bonsai_debug("ll_insert %016lx\n", key);
 #ifdef BONSAI_HASHSET_DEBUG
         xadd(&node_count, 1);
 #endif
         hp_clear_all_addr(hp);
-        return ret;
+        return 0;
     }
 }
 
