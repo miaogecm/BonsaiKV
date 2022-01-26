@@ -4,7 +4,6 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
- *	   	   Shenming Liu
  *
  * A lock-free concurrent link list implementation with safe memory reclaimation.
  */
@@ -16,6 +15,7 @@
 #include "common.h"
 #include "hp.h"
 #include "atomic.h"
+#include "pnode.h"
 
 #ifdef BONSAI_HASHSET_DEBUG
 static int node_count = 0;
@@ -98,7 +98,7 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
     while (1) {
         pred = NULL, succ = NULL;
         item = ll_find(ll, tid, key, &pred, &succ);
-        if (item && item->key == key) {
+        if (item && key_cmp(item->key, key) == 0) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
             return -EEXIST;
@@ -131,7 +131,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
     while (1) {
         pred = NULL, succ = NULL;
         item = ll_find(ll, tid, key, &pred, &succ);
-        if (item && item->key == key) {
+        if (item && key_cmp(item->key, key) == 0) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
 			if (update)
@@ -173,7 +173,7 @@ int ll_remove(struct linked_list* ll, int tid, pkey_t key) {
     pred = NULL;
     while (1) {
         item = ll_find(ll, tid, key, &pred, NULL);
-        if (!item || item->key != key) {
+        if (!item || key_cmp(item->key, key) != 0) {
             //cannot find key int the ll.
             hp_clear_all_addr(hp);
             return -EEXIST;
@@ -204,7 +204,7 @@ struct ll_node* ll_lookup(struct linked_list* ll, int tid, pkey_t key) {
 
     ll_find(ll, tid, key, NULL, &curr);
  
-    if (curr && curr->key == key) {
+    if (curr && key_cmp(curr->key, key) == 0) {
         hp_clear_all_addr(hp);
         return curr;
     }

@@ -201,6 +201,8 @@ static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, p
 					max_op_t = log->o_stamp;
 					*latest_op_type = log->o_type;
 					found = 1;
+					if (log->o_type == OP_REMOVE) 
+						bonsai_print("log %016lx type %d <%lu %lu> %lu\n", log, log->o_type, log->o_kv.k, log->o_kv.v, key);
 				}
 			} else if (addr_in_pnode((unsigned long)addr)) {
 				*found_in_pnode = 1;
@@ -228,17 +230,18 @@ int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key
 	}
 
 	if (latest_op_type == OP_REMOVE) {
-		perror("latest_op_type == OP_REMOVE\n");
+		bonsai_print("latest_op_type == OP_REMOVE [%lu] %d %d\n", key, latest_op_type, found_in_pnode);
+		check_numa_table();
 		return -ENOENT;
 	}
 
 	if (latest_op_type == OP_NONE && !found_in_pnode) {
-		perror("no such entry\n");
+		bonsai_print("no such entry [%lu]\n", key);
 		return -ENOENT;
 	}
 
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, m, tables->pnode);
-	hs_update(m, tid, key, &log->o_kv.v);
+	hs_update(&m->hs, tid, key, &log->o_kv.v);
 
 	tables->pnode->stale = PNODE_DATA_STALE;
 
@@ -343,7 +346,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		data_layer_search_key(key);
 		index_layer_dump();
 		//dump_pnode_list();
-		//dump_numa_table();
+		dump_numa_table();
 		assert(0);
 	}
 
@@ -541,6 +544,22 @@ void dump_numa_table() {
 			bonsai_print("Node[%d] table %016lx\n", node, m);
 			hs_scan_and_ops(&m->hs, hs_print_entry, NULL, NULL, NULL, NULL, NULL);
 			bonsai_print("\n");
+		}
+	}
+}
+
+void check_numa_table() {
+	struct log_layer* layer = LOG(bonsai);
+	struct numa_table* table;
+	struct mptable* m;
+	int node, i = 0;
+
+	bonsai_print("====================================CHECK NUMA TABLE================================================\n");
+
+	list_for_each_entry(table, &layer->numa_table_list, list) {
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			m = MPTABLE_NODE(table, node);
+			hs_scan_and_ops(&m->hs, hs_check_entry, NULL, NULL, NULL, NULL, NULL);
 		}
 	}
 }

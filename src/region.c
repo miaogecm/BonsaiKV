@@ -44,22 +44,39 @@ static char* data_region_fpath[NUM_SOCKET] = {
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
+	struct log_page_desc* prev_page = NULL, next_page = NULL;
 
 	spin_lock(&region->inuse_lock);
-	page = region->inuse;
-	region->inuse = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-	region->inuse->p_prev = 0;
+	if (!page->p_prev)
+		prev_page = LOG_REGION_OFF_TO_ADDR(region, page->p_prev);
+	if (!page->p_next)
+		next_page = LOG_REGION_OFF_TO_ADDR(region, page->p_next);
+
+	if (prev_page && next_page) {
+		prev_page->p_next = page->p_next;
+		next_page->p_prev = page->p_prev;
+	} else if (!prev_page && next_page) {
+		/* I am the first */
+		next_page->p_prev = 0;
+		region->inuse = next_page;
+	} else if (prev_page && !next_page) {
+		/* I am the last */
+		prev_page->p_next = 0;
+	} else {
+		/* I am the only one */
+		region->inuse = NULL;
+	}
 	spin_unlock(&region->inuse_lock);
 
-	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
 	page->p_prev = 0;
 
 	spin_lock(&region->free_lock);
+	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
 	region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	region->free = page;
 	spin_unlock(&region->free_lock);
 
-	page->p_num_blk = 0;
+	assert(page->p_num_blk = 0);
 
 	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
 }
@@ -67,9 +84,8 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 struct log_page_desc* alloc_log_page(struct log_region *region) {
 	struct log_page_desc* page;
 
-	page = region->free;
-
 	spin_lock(&region->free_lock);
+	page = region->free;
 	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 	region->free->p_prev = 0;
 	spin_unlock(&region->free_lock);

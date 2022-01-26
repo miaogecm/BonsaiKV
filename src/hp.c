@@ -4,7 +4,6 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
- *	   	   Shenming Liu
  *
  * Safe memory reclaimation (SMR) of lock-free concurrent link list. 
  * The SMR technique uses hazard point technique, see "Hazard Pointers: Safe Memory 

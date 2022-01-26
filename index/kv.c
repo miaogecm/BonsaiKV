@@ -197,6 +197,11 @@ static inline void bind_to_cpu(int cpu) {
     }
 }
 
+static inline void die() {
+	assert(0);
+	exit(1);
+}
+
 extern void bonsai_print_all();
 void* thread_fun(void* arg) {
 	unsigned long i;
@@ -211,7 +216,8 @@ void* thread_fun(void* arg) {
 	bonsai_user_thread_init();
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_insert((pkey_t)i, (pval_t)i) == 0);
+		if (bonsai_insert((pkey_t)i, (pval_t)i) != 0)
+			die();
 	}
 
 	printf("user thread[%ld]---------------------1---------------------\n", id);
@@ -221,7 +227,7 @@ void* thread_fun(void* arg) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
 		if (v != a[i]) {
 			printf("%lu %lu\n", a[i], v);
-			assert(0);
+			die();
 		}
 	 }
 
@@ -240,17 +246,16 @@ void* thread_fun(void* arg) {
 #endif
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		assert(bonsai_remove((pkey_t)i) == 0);
+		if (bonsai_remove((pkey_t)i) != 0)
+			die();
 	}
 
 	printf("user thread[%ld]---------------------4---------------------\n", id);
 	sleep(10);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	if (bonsai_lookup((pkey_t)i, &v) == 0) {
-			printf("ghost %d\n", i);
-			exit(1);
-		}
+	 	if (bonsai_lookup((pkey_t)i, &v) != 0)
+			die();
 	}
 
 	printf("user thread[%ld]---------------------5---------------------\n", id);

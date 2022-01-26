@@ -4,7 +4,6 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
- *	   	   Shenming Liu
  *
  * A lock-free extendible hash table implementation. 
  * Split-Ordered Lists: Lock-Free Extensible Hash Tables. Ori Shalev, Nir Shavit. Journal of the ACM, Vol.53, No.3, 2006, pp.379�405
@@ -24,6 +23,7 @@
 #include "common.h"
 #include "atomic.h"
 #include "pnode.h"
+#include "oplog.h"
 
 #define MASK 	0x00FFFFFFFFFFFFFF  /* takes the lowest 3 bytes of the hashcode */
 #define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
@@ -442,20 +442,19 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 
 static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
 		pkey_t max, struct pnode* pnode) {
-	pval_t* addr;
+	pval_t* old;
 	int tid = get_tid();
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-	
     if (key_cmp(key, max) <= 0) {
-		addr = node->val;
-		if (addr_in_log(addr)) {
-			hs_insert(new, tid, key, addr);
+		old = node->val;
+		if (addr_in_log(old)) {
+			hs_insert(new, tid, key, old);
 			return key;
-		} else if (addr_in_pnode(addr)) {
-			addr = pnode_lookup(pnode, key);
-			hs_insert(new, tid, key, addr);
+		} else if (addr_in_pnode(old)) {
+			old = pnode_lookup(pnode, key);
+			hs_insert(new, tid, key, old);
 			return key;		
 		} else {
 			perror("invalid address\n");
@@ -523,6 +522,18 @@ void hs_print_entry(struct ll_node* node) {
 	pkey_t key = get_origin_key(node->key);
 
 	bonsai_print("<%lu %lu> ", key, *node->val);
+}
+
+void hs_check_entry(struct ll_node* node) {
+	pkey_t key = get_origin_key(node->key);
+	pval_t* addr = node->val;
+	struct oplog* log;
+
+	if (addr_in_log((unsigned long)addr)) {
+		log = OPLOG(addr);
+		if (key_cmp(key, log->o_kv.k) != 0) 
+			bonsai_print("bad hs entry: *%lu* <%lu %lu>\n", key, log->o_kv.k, log->o_kv.v);
+	}
 }
 
 void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
