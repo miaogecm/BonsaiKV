@@ -232,11 +232,10 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node) {
+int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, unsigned long time_stamp) {
     int bucket_id, pos, i, n, d;
 	struct data_layer *layer = DATA(bonsai);
-    struct pnode *pnode, *new_pnode, *prev_node;
-	struct pnode *head_node = list_entry(&layer->pnode_list, struct pnode, list);
+    struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
 	int ret, cpu = get_cpu();
@@ -363,7 +362,7 @@ retry:
  */
 int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
-    int bucket_id, offset, i, tid = get_tid();
+    int bucket_id, offset, i;
 	uint64_t mask, bit;
 	int node;
 	struct mptable* m;
@@ -375,7 +374,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 	
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m = MPTABLE_NODE(pnode->table, node);
-		hs_remove(&m->hs, tid, key);
+		hs_remove(&m->hs, get_tid(), key);
 	}
 
 	bucket_id = PNODE_BUCKET_HASH(key);

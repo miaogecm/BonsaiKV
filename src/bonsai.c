@@ -24,7 +24,7 @@
 #include "epoch.h"
 #include "cpu.h"
 
-#include "../kv/kv.h"
+#include "../index/kv.h"
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";

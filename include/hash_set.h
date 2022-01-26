@@ -10,7 +10,7 @@ extern "C" {
 #define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
 #define LOAD_FACTOR_DEFAULT     8
 #define MAIN_ARRAY_LEN 			256
-#define SEGMENT_SIZE 			1024
+#define SEGMENT_SIZE 			256
 #define MAX_NUM_BUCKETS 		MAIN_ARRAY_LEN * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
 
 struct bucket_list {
@@ -37,16 +37,16 @@ extern pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key);
 extern int hs_remove(struct hash_set* hs, int tid, pkey_t key); 
 extern void hs_destroy(struct hash_set* hs);
 
+typedef void* (*hs_exec_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
+
 struct pnode;
 extern void hs_scan_and_split(struct hash_set *old, struct hash_set *new, pkey_t max, struct pnode* pnode);
 
-typedef void* (*hs_exec_t)(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
-
-extern void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
 extern void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
-
-extern void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
-extern void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
+extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
+extern void hs_search_key(struct ll_node* node, void* arg1);
+extern void hs_print_entry(struct ll_node* node);
+extern void hs_check_entry(struct ll_node* node);
 
 #ifdef __cplusplus
 }

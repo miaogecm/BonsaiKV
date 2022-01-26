@@ -465,7 +465,6 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	return -2;
 }
 
-#define NUM_FREE_ENTRY		MAX_NUM_BUCKETS
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
 			pkey_t max, struct pnode* pnode) {
 	struct bucket_list **buckets, *bucket;
@@ -473,7 +472,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j, cnt = 0, tid = get_tid();
-	pkey_t* array = malloc(sizeof(pkey_t) * NUM_FREE_ENTRY);
+	pkey_t* array = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 	pkey_t key;
 
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
@@ -508,7 +507,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	free(array);
 }
 
-void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+void hs_search_key(struct ll_node* node, void* arg1) {
 	pkey_t key, target = (pkey_t)arg1;
 	pval_t* addr;
 
@@ -519,13 +518,13 @@ void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, voi
 	}
 }
 
-void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+void hs_print_entry(struct ll_node* node) {
 	pkey_t key = get_origin_key(node->key);
 
 	bonsai_print("<%lu %lu> ", key, *node->val);
 }
 
-void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+void hs_check_entry(struct ll_node* node) {
 	pkey_t key = get_origin_key(node->key);
 	pval_t* addr = node->val;
 	struct oplog* log;

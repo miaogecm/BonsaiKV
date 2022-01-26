@@ -73,8 +73,7 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 
 	spin_lock(&region->free_lock);
 	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
-	if (region->free)
-		region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
+	region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	region->free = page;
 	spin_unlock(&region->free_lock);
 
@@ -88,11 +87,8 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 
 	spin_lock(&region->free_lock);
 	page = region->free;
-	if (page->p_next) {
-		region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-		region->free->p_prev = 0;
-	} else
-		region->free = NULL;
+	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
+	region->free->p_prev = 0;
 	spin_unlock(&region->free_lock);
 
 	page->p_prev = 0;
