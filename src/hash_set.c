@@ -433,7 +433,6 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-	// if (key_cmp(key, min) >= 0 && key_cmp(key, max) <= 0) {
     if (key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
@@ -459,7 +458,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j, cnt = 0, tid = get_tid();
-	pkey_t* array =  malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+	pkey_t* array = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 	pkey_t key;
 
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {

@@ -336,7 +336,6 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			*val = log->o_kv.v;
 			return 0;
 		case OP_REMOVE:
-			// assert(0);
 			return -ENOENT;
 		default:
 			perror("invalid operation type\n");
@@ -389,59 +388,6 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 
 	hs_insert(&table->hs, tid, key, addr);
 }
-
-#if 0
-void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* old_pnode) {	
-	int tid = get_tid(), i, node;
-	int N = new_pnode->slot[0];
-	int old_N = old_pnode->slot[0] - N;
-	struct numa_table* new_table;
-	struct mptable *old_m, *new_m;
-	struct index_layer* i_layer = INDEX(bonsai);
-	pkey_t key;
-	pval_t *addr;
-	uint8_t* slot = new_pnode->slot;
-	pval_t* old_addr[NUM_SOCKET][NUM_ENT_PER_PNODE];
-
-	new_table = numa_mptable_alloc(LOG(bonsai));
-	new_pnode->table = new_table;
-	new_table->pnode = new_pnode;
-
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		old_m = MPTABLE_NODE(old_table, node);
-		for (i = 1; i <= N; i ++) {
-			key = pnode_entry_n_key(new_pnode, i);
-			addr = hs_lookup(&old_m->hs, tid, key);
-			old_addr[node][i] = addr;
-			if (addr != NULL) {
-				hs_insert(&new_table->tables[node]->hs, tid, key, addr);
-			}		
-		}
-	}
-	
-	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
-	i_layer->insert(i_layer->index_struct, pnode_entry_n_key(old_pnode, old_N), old_table);
-	
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		new_m = MPTABLE_NODE(new_table, node);
-		write_lock(&new_m->rwlock);
-	}
-
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		old_m = MPTABLE_NODE(old_table, node);
-		new_m = MPTABLE_NODE(new_table, node);
-		for (i = 1; i <= N; i ++) {
-			key = pnode_entry_n_key(new_pnode, i);
-			addr = hs_lookup(&old_m->hs, tid, key);
-			if (addr != old_addr[node][i]) {
-				hs_insert(&new_m->hs, tid, key, addr);
-			}
-			hs_remove(&old_m->hs, tid, key);
-		}
-		write_unlock(&new_m->rwlock);
-	}
-}
-#endif
 
 void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
 	int i, j, node;

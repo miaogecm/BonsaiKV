@@ -303,8 +303,7 @@ retry:
 			if (ordo_cmp_clock(log->o_stamp, time_stamp) == ORDO_LESS_THAN) {
 				mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 			}
-		}
-		else {
+		} else {
 			mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 		}
 
@@ -348,8 +347,6 @@ retry:
    	new_pnode->bitmap = removed;
 	new_pnode->anchor_key = pnode_max_key(new_pnode);
 
-	// print_pnode_summary(pnode);
-
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode);
 
@@ -363,11 +360,6 @@ retry:
 	pnode->anchor_key = pnode_max_key(pnode);
 
 	max_key = pnode_anchor_key(new_pnode);
-
-	// print_pnode_summary(new_pnode);
-	// print_pnode_summary(pnode);
-	
-	// printf("///////////////////////////////\n");
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
