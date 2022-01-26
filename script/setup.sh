@@ -8,4 +8,4 @@ mkdir /mnt/ext4/node0
 
 ulimit -c unlimited
 
-echo "$PWD/./index/core" > /proc/sys/kernel/core_pattern
+echo "$PWD/../index/core" > /proc/sys/kernel/core_pattern

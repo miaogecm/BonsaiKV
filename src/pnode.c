@@ -213,22 +213,7 @@ static void pnode_sort_slot(struct pnode* pnode, int pos_e, pkey_t key, optype_t
 /*
  * pnode_find_lowbound: find first pnode whose maximum key is equal or greater than @key
  */
-static struct pnode* pnode_find_lowbound(struct pnode* pnode, pkey_t key) {
-#if 0
-	struct data_layer *layer = DATA(bonsai);
-
-	read_lock(&layer->lock);
-	list_for_each_entry_from(pnode, &layer->pnode_list, list) {
-		if (key_cmp(pnode_anchor_key(pnode), key) >= 0) {
-			read_unlock(&layer->lock);
-			return pnode;
-		}
-	}
-	read_unlock(&layer->lock);
-
-	return NULL;
-#endif
-
+static struct pnode* pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
 	struct numa_table* table;
 
@@ -262,7 +247,7 @@ int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, u
 	bucket_id = PNODE_BUCKET_HASH(key);
 
 retry:
-	pnode = pnode_find_lowbound(pnode, key);
+	pnode = pnode_find_lowbound(key);
 	
 	assert(pnode);
 	assert(key_cmp(key, pnode_anchor_key(pnode)) <= 0);
@@ -387,7 +372,7 @@ int pnode_remove(struct pnode* pnode, pkey_t key) {
 
 	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
 
-	pnode = pnode_find_lowbound(pnode, key);
+	pnode = pnode_find_lowbound(key);
 	assert(pnode);
 	
 	bucket_id = PNODE_BUCKET_HASH(key);

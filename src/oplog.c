@@ -291,7 +291,7 @@ static int worker_oplog_flush(void* arg) {
 
 			count ++;
 		}
-		
+
 		if (unlikely(atomic_read(&layer->exit))) {
 			ret = -EEXIT;
 			goto out;
