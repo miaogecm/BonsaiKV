@@ -363,14 +363,21 @@ retry:
  */
 int pnode_remove(struct pnode* pnode, pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
-    int bucket_id, offset, i;
+    int bucket_id, offset, i, tid = get_tid();
 	uint64_t mask, bit;
+	int node;
+	struct mptable* m;
 
 	bonsai_debug("thread[%d] pnode_remove: <%lu>\n", __this->t_id, key);
-
+	
 	pnode = pnode_find_lowbound(key);
 	assert(pnode);
 	
+	for (node = 0; node < NUM_SOCKET; node ++) {
+		m = MPTABLE_NODE(pnode->table, node);
+		hs_remove(&m->hs, tid, key);
+	}
+
 	bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
 	mask = (1ULL << (offset + NUM_ENT_PER_BUCKET)) - (1ULL << offset);

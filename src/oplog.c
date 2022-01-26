@@ -247,8 +247,6 @@ static int worker_oplog_flush(void* arg) {
 	struct pnode* pnode;
 	struct mptable* m;
 	int ret = 0;
-	struct numa_table* tables;
-	pval_t* addr;
 
 	bonsai_print("pflush thread[%d] flush bucket [%u %u]\n", __this->t_id, fwork->min_index, fwork->max_index);
 
@@ -263,22 +261,6 @@ static int worker_oplog_flush(void* arg) {
 				pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);		
 				break;
 			case OP_REMOVE:
-				pnode = (struct pnode*)log->o_addr;
-				tables = pnode->table;
-				cpu = get_cpu();
-				addr = __mptable_lookup(tables, log->o_kv.k, cpu);
-				if (!addr && tables->forward) {
-					addr = __mptable_lookup(tables->forward, log->o_kv.k, cpu);
-				}
-
-				//FIXME: need lock
-				if (addr == &log->o_kv.v) {
-					for (node = 0; node < NUM_SOCKET; node ++) {
-						m = MPTABLE_NODE(pnode->table, node);
-						hs_remove(&m->hs, get_tid(), log->o_kv.k);
-					}
-				}
-
 				pnode_remove(pnode, log->o_kv.k);
 				break;
 			default:
