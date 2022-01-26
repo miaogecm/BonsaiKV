@@ -13,6 +13,7 @@
 #include <libpmem.h>
 #include <libpmemobj.h>
 #include <string.h>
+#include <assert.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -44,7 +45,7 @@ static char* data_region_fpath[NUM_SOCKET] = {
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
-	struct log_page_desc* prev_page = NULL, next_page = NULL;
+	struct log_page_desc* prev_page = NULL, *next_page = NULL;
 
 	spin_lock(&region->inuse_lock);
 	if (!page->p_prev)
