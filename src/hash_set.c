@@ -283,7 +283,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
                 //bonsai_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
             }
         } else {
-            perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
+            //perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
         }
     }
     return ret;
@@ -465,6 +465,7 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	return -2;
 }
 
+#define NUM_FREE_ENTRY		MAX_NUM_BUCKETS
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
 			pkey_t max, struct pnode* pnode) {
 	struct bucket_list **buckets, *bucket;
@@ -472,7 +473,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
 	int i, j, cnt = 0, tid = get_tid();
-	pkey_t* array = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+	pkey_t* array = malloc(sizeof(pkey_t) * NUM_FREE_ENTRY);
 	pkey_t key;
 
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {

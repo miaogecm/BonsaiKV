@@ -8,9 +8,9 @@ extern "C" {
 #include "link_list.h"
 
 #define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
-#define LOAD_FACTOR_DEFAULT     4
-#define MAIN_ARRAY_LEN 			1024
-#define SEGMENT_SIZE 			2048
+#define LOAD_FACTOR_DEFAULT     8
+#define MAIN_ARRAY_LEN 			256
+#define SEGMENT_SIZE 			1024
 #define MAX_NUM_BUCKETS 		MAIN_ARRAY_LEN * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
 
 struct bucket_list {
@@ -43,7 +43,6 @@ struct pnode;
 extern void hs_scan_and_split(struct hash_set *old, struct hash_set *new, pkey_t max, struct pnode* pnode);
 
 extern void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
-extern void hs_split(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5);
 extern void hs_search_key(struct ll_node* node, void* arg1);
 extern void hs_print_entry(struct ll_node* node);
 extern void hs_check_entry(struct ll_node* node);

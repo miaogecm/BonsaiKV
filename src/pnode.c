@@ -232,10 +232,11 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
  * @val: value
  * return 0 if successful
  */
-int pnode_insert(struct pnode* pnode, int numa_node, pkey_t key, pval_t value, unsigned long time_stamp) {
+int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node) {
     int bucket_id, pos, i, n, d;
 	struct data_layer *layer = DATA(bonsai);
-    struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
+    struct pnode *pnode, *new_pnode, *prev_node;
+	struct pnode *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t removed;
 	pkey_t max_key;
 	int ret, cpu = get_cpu();

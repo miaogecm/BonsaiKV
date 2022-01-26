@@ -260,7 +260,7 @@ static int worker_oplog_flush(void* arg) {
 			
 			switch(log->o_type) {
 			case OP_INSERT:
-				pnode_insert((struct pnode*)log->o_addr, log->o_numa_node, log->o_kv.k, log->o_kv.v, log->o_stamp);		
+				pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);		
 				break;
 			case OP_REMOVE:
 				pnode = (struct pnode*)log->o_addr;
