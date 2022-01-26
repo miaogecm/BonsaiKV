@@ -447,24 +447,23 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-	assert(key != -EEXIST);
 	
     if (key_cmp(key, max) <= 0) {
 		addr = node->val;
 		if (addr_in_log(addr)) {
-			if (hs_insert(new, tid, key, addr) < 0)
-				return -EEXIST; /* FIXME: key != -EEXIST */
+			hs_insert(new, tid, key, addr);
+			return key;
 		} else if (addr_in_pnode(addr)) {
 			addr = pnode_lookup(pnode, key);
-			if (hs_insert(new, tid, key, addr) < 0)
-				return -EEXIST; /* FIXME: key != -EEXIST */
+			hs_insert(new, tid, key, addr);
+			return key;		
 		} else {
 			perror("invalid address\n");
 			assert(0);
 		}
 	}
 	
-	return key;
+	return -2;
 }
 #endif
 #if 0
@@ -481,11 +480,11 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 		addr = node->val;
 		if (addr_in_log(addr)) {
 			key = hs_update(new, tid, key, addr);
-				return key; /* FIXME: key != -EEXIST */
+			return key; /* FIXME: key != -EEXIST */
 		} else if (addr_in_pnode(addr)) {
 			addr = pnode_lookup(pnode, key);
 			key = hs_update(new, tid, key, addr);
-				return key; /* FIXME: key != -EEXIST */
+			return key; /* FIXME: key != -EEXIST */
 		} else {
 			bonsai_print("invalid address: %016lx\n", addr);
 			assert(0);
@@ -524,7 +523,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                    	 break;
                 } else {
     				key = hs_copy_one(curr, new, max, pnode);
-					if (key != -EEXIST)
+					if (key != -2)
 				        array[cnt++] = key;
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
