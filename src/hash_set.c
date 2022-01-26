@@ -439,7 +439,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
     bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
 }
 #endif
-#if 1
+
 static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
 		pkey_t max, struct pnode* pnode) {
 	pval_t* addr;
@@ -465,35 +465,6 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new,
 	
 	return -2;
 }
-#endif
-#if 0
-static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
-		pkey_t max, struct pnode* pnode) {
-	pval_t* addr;
-	int tid = get_tid();
-	pkey_t key;
-
-	key = get_origin_key(node->key);
-	assert(key != -EEXIST);
-	
-    if (key_cmp(key, max) <= 0) {
-		addr = node->val;
-		if (addr_in_log(addr)) {
-			key = hs_update(new, tid, key, addr);
-			return key; /* FIXME: key != -EEXIST */
-		} else if (addr_in_pnode(addr)) {
-			addr = pnode_lookup(pnode, key);
-			key = hs_update(new, tid, key, addr);
-			return key; /* FIXME: key != -EEXIST */
-		} else {
-			bonsai_print("invalid address: %016lx\n", addr);
-			assert(0);
-		}
-	}
-	
-	return -EEXIST;
-}
-#endif
 
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
 			pkey_t max, struct pnode* pnode) {
