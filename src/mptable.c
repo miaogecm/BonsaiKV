@@ -340,6 +340,10 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			}
 		}
 	} else {
+		stop_the_world();
+		bonsai_print("***************************key: %lu; addr: %016lx*****************************\n", key, addr);
+		numa_table_search_key(key);
+		data_layer_search_key(key);
 		assert(0);
 	}
 

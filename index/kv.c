@@ -21,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			100001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -164,13 +164,18 @@ int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
 void kv_print(void* index_struct) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
+	int count = 0;
 
 	printf("index layer:\n");
 
+	read_lock(&__toy->lock);
 	list_for_each_entry(knode, &__toy->head, list) {
-		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+		//printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+		count++;
 	}
-	printf("NULL\n");
+	read_unlock(&__toy->lock);
+	//printf("NULL\n");
+	printf("total entries: %d\n", count);
 }
 
 static inline int get_cpu() {
@@ -220,18 +225,18 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------1---------------------\n", id);
-	sleep(1);
+	sleep(10);
 
-	 for (i = (0 + N * id); i < (N + N * id); i ++) {
+	for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
 		if (v != a[i]) {
 			printf("%lu %lu\n", a[i], v);
 			die();
 		}
-	 }
+	}
 
 	printf("user thread[%ld]---------------------2---------------------\n", id);
-	sleep(1);
+	sleep(10);
 
 #if 0
 	for (int i = 0; i < 1; i++) {
@@ -250,7 +255,7 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------4---------------------\n", id);
-	sleep(1);
+	sleep(10);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	if (bonsai_lookup((pkey_t)i, &v) == 0)

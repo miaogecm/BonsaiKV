@@ -11,6 +11,7 @@ extern "C" {
 
 #include "numa_config.h"
 #include "list.h"
+#include "common.h"
 
 #define NUM_USER_THREAD		4
 
@@ -20,7 +21,7 @@ extern "C" {
 #define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
 
 #define CHKPT_TIME_INTERVAL		700000
-#define CHKPT_NLOG_INTERVAL		10000
+#define CHKPT_NLOG_INTERVAL		100000
 
 struct log_layer;
 struct oplog_blk;
@@ -51,6 +52,10 @@ struct flush_work {
 	unsigned int min_index;
 	unsigned int max_index;
 	unsigned int curr_index;
+	unsigned int small_free_cnt;
+	unsigned int big_free_cnt;
+	pkey_t* small_free_set;
+	pkey_t* big_free_set;
 	struct log_layer* layer;
 };
 
@@ -75,6 +80,7 @@ struct thread_info {
 	unsigned int 			t_cpu;
 	volatile unsigned long 	t_epoch;
 	void* 					t_data;
+	struct work_struct*		t_work;
 	struct workqueue_struct t_wq;
 	struct list_head		list;
 };

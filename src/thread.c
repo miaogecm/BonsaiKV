@@ -157,6 +157,7 @@ static void thread_work(struct workqueue_struct* wq) {
 		return;
 
 	list_for_each_entry_safe(work, tmp, &wq->head, list) {
+		__this->t_work = work;
 		ret = work->exec(work->exec_arg);
 		workqueue_del(work);
 

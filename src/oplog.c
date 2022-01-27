@@ -277,6 +277,8 @@ static int worker_oplog_flush(void* arg) {
 	}
 
 out:
+	free(fwork->small_free_set);
+	free(fwork->big_free_set);
 	free(fwork);
 	bonsai_print("pflush thread[%d] flush %d logs\n", __this->t_id, count);
 
@@ -405,6 +407,10 @@ void oplog_flush() {
 		fwork->min_index = (cnt - 1) * num_bucket_per_thread;
 		fwork->max_index = cnt * num_bucket_per_thread - 1;
 		fwork->curr_index = fwork->min_index;
+		fwork->small_free_cnt = 0;
+		fwork->big_free_cnt = 0;
+		fwork->small_free_set = malloc(sizeof(pkey_t) * MAIN_ARRAY_LEN * LOAD_FACTOR_DEFAULT);
+		fwork->big_free_set = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 		fwork->layer = l_layer;
 
 		work = malloc(sizeof(struct work_struct));

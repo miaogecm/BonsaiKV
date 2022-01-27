@@ -471,9 +471,10 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	struct bucket_list **buckets, *bucket;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
-	int i, j, cnt = 0, tid = get_tid();
-	pkey_t* array = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+	int i, j, tid = get_tid();
+	int use_big = 0;
 	pkey_t key;
+	struct flush_work* fwork = (struct flush_work*)__this->t_work->exec_arg;
 
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
 		p_segment = old->main_array[i];
@@ -493,18 +494,32 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                    	 break;
                 } else {
     				key = hs_copy_one(curr, new, max, pnode);
-					if (key != (unsigned long)-2)
-				        array[cnt++] = key;
+					if (key != (unsigned long)-2) {
+						if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
+				        	fwork->small_free_set[fwork->small_free_cnt++] = key;
+						if (fwork->small_free_cnt == SEGMENT_SIZE) {
+							use_big = 1;
+						}
+						if (use_big)
+							fwork->big_free_set[fwork->big_free_cnt++] = key;
+					}
                 }
                 curr = GET_NODE(STRIP_MARK(curr->next));
             } 
 		}
 	}
 
-	for (i = 0; i < cnt; i ++)
-		hs_remove(old, tid, array[i]);
+	for (i = 0; i < fwork->small_free_cnt; i ++)
+		hs_remove(old, tid, fwork->small_free_set[i]);
 
-	free(array);
+	fwork->small_free_cnt = 0;
+
+	if (use_big) {
+		for (i = 0; i < fwork->big_free_cnt; i ++)
+			hs_remove(old, tid, fwork->big_free_set[i]);
+
+		fwork->big_free_cnt = 0;
+	}
 }
 
 void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
