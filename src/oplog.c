@@ -612,7 +612,15 @@ void oplog_flush() {
 	if (unlikely(atomic_read(&l_layer->exit)))
 		goto out;
 
-	/* 3. flush all logs */
+	/* 3. split sort list */
+	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
+		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
+			list_del(&e->list);
+			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
+		}
+	}
+
+	/* 4. flush all logs */
 	//num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
@@ -634,13 +642,6 @@ void oplog_flush() {
 
 		fworks[cnt - 1] = fwork;
 	}
-
-	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
-		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
-			list_del(&e->list);
-			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
-		}
-	}
 	
 	wakeup_workers();
 
@@ -649,13 +650,13 @@ void oplog_flush() {
 	if (unlikely(atomic_read(&l_layer->exit)))
 		goto out;
 
-	/* 4. traverse the pnode list */
+	/* 5. traverse the pnode list */
 	write_lock(&d_layer->lock);
 	list_for_each_entry(pnode, &d_layer->pnode_list, list)
 		pnode->stale = PNODE_DATA_CLEAN;
 	write_unlock(&d_layer->lock);
 
-	/* 5. free all pages */
+	/* 6. free all pages */
 	for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
 		free_pages(l_layer, &mworks[i]->page_list);
 		free(mworks[i]);
