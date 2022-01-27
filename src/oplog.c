@@ -195,8 +195,6 @@ static void worker_scan_buckets(struct log_layer* layer) {
 		}
 		spin_unlock(&bucket->lock);
 	}
-
-	bonsai_print("pflush thread[%d] scan %d\n", id, count);
 }
 
 static int list_sort_cmp(void *priv, struct list_head *a, struct list_head *b) {
@@ -638,14 +636,11 @@ void oplog_flush() {
 	}
 
 	
-	for (i = 1, n = 0; i < NUM_PFLUSH_THREAD; i ++) {
-		bonsai_print("sort list[%d]\n", i);
+	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
-			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_THREAD]->flush_list);
-			bonsai_print("%lu->", e->log->o_kv.k);
+			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
 		}
-		bonsai_print("\n");
 	}
 	
 	wakeup_workers();
