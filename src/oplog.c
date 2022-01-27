@@ -458,8 +458,9 @@ static int worker_oplog_flush(void* arg) {
 
 	list_for_each_entry_safe(e, tmp, &fwork->flush_list, list) {
 		log = e->log;
-		bonsai_debug("pflush thread[%d] flush <%lu %lu>[%s] in bucket[%d]\n", 
-			__this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert", i);
+		
+		bonsai_debug("pflush thread[%d] flush <%lu %lu> [%s]\n", 
+			__this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert");
 
 		switch(log->o_type) {
 		case OP_INSERT:
@@ -478,7 +479,7 @@ static int worker_oplog_flush(void* arg) {
 
 		count ++;
 
-		if (unlikely(count % 1000 == 0 && atomic_read(&layer->exit))) {
+		if (unlikely(count % 10000 == 0 && atomic_read(&layer->exit))) {
 			ret = -EEXIT;
 			goto out;
 		}
@@ -667,7 +668,6 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 0);
 
 out:
-	stat_numa_table();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 	return;
 }

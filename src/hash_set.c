@@ -512,11 +512,15 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	for (i = 0; i < fwork->small_free_cnt; i ++)
 		hs_remove(old, tid, fwork->small_free_set[i]);
 
+	bonsai_print("hs copy [%d]\n", fwork->small_free_cnt);
+
 	fwork->small_free_cnt = 0;
 
 	if (use_big) {
 		for (i = 0; i < fwork->big_free_cnt; i ++)
 			hs_remove(old, tid, fwork->big_free_set[i]);
+
+		bonsai_print("free big\n");
 
 		fwork->big_free_cnt = 0;
 	}
