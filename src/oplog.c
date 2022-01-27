@@ -174,7 +174,7 @@ static void worker_scan_buckets(struct log_layer* layer) {
 	int max_index = (id - 1) * num_bucket_per_thread - 1;
 	struct hbucket* bucket;
 	struct hlist_node *hnode, *tmp;
-	struct list_head* head = &layer->sort_list[id];
+	struct list_head* head = &layer->sort_list[id - 2];
 	merge_ent* e;
 	int count = 0;
 
