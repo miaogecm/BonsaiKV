@@ -635,7 +635,6 @@ void oplog_flush() {
 		fworks[cnt - 1] = fwork;
 	}
 
-	
 	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
