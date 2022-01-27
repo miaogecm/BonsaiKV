@@ -612,15 +612,7 @@ void oplog_flush() {
 	if (unlikely(atomic_read(&l_layer->exit)))
 		goto out;
 
-	/* 3. split sort list */
-	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
-		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
-			list_del(&e->list);
-			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
-		}
-	}
-
-	/* 4. flush all logs */
+	/* 3. flush all logs */
 	//num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
@@ -641,6 +633,14 @@ void oplog_flush() {
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 
 		fworks[cnt - 1] = fwork;
+	}
+
+	/* 4. split sort list */
+	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
+		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
+			list_del(&e->list);
+			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
+		}
 	}
 	
 	wakeup_workers();
