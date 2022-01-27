@@ -637,10 +637,9 @@ void oplog_flush() {
 		fworks[cnt - 1] = fwork;
 	}
 
-	
 	for (i = 1, n = 0; i < NUM_PFLUSH_THREAD; i ++) {
-		bonsai_print("sort list[%d]\n", i);
-		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
+		bonsai_print("sort list[%d]\n", i - 1);
+		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i - 1], list) {
 			list_del(&e->list);
 			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_THREAD]->flush_list);
 			bonsai_print("%lu->", e->log->o_kv.k);
