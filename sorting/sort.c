@@ -8,7 +8,7 @@
 #define MAX     100000	
 #define MIN	0
 
-#define N 100
+#define N 100000
 
 #define NUM_THREAD		4
 struct list_head heads[NUM_THREAD];
