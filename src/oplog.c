@@ -207,7 +207,7 @@ static int list_sort_cmp(void *priv, struct list_head *a, struct list_head *b) {
 }
 
 static void __list_sort(struct list_head* head) {
-	list_sort(NULL, head, key_cmp);
+	list_sort(NULL, head, list_sort_cmp);
 }
 
 static void copy_list(struct list_head* dst, struct list_head* src) {
@@ -647,8 +647,6 @@ void oplog_flush() {
 		}
 		bonsai_print("\n");
 	}
-
-	exit(1);
 	
 	wakeup_workers();
 
