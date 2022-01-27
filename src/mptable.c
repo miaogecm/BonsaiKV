@@ -568,6 +568,7 @@ void stat_numa_table() {
 	struct numa_table* table;
 	struct mptable* m;
 	int node, i = 0, sum = 0;
+	pkey_t max = 0;
 
 	bonsai_print("====================================COUNT NUMA TABLE================================================\n");
 
@@ -575,9 +576,10 @@ void stat_numa_table() {
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
-			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, NULL, NULL, NULL, NULL);
-			bonsai_print("Table[%d] total entries: %d\n", i++, sum);
+			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
+			bonsai_print("Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}
+		max = 0;
 	}
 	spin_unlock(&layer->table_lock);
 }

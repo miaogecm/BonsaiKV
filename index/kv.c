@@ -170,11 +170,11 @@ void kv_print(void* index_struct) {
 
 	read_lock(&__toy->lock);
 	list_for_each_entry(knode, &__toy->head, list) {
-		//printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
 		count++;
 	}
 	read_unlock(&__toy->lock);
-	//printf("NULL\n");
+	printf("NULL\n");
 	printf("total entries: %d\n", count);
 }
 

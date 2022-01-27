@@ -668,6 +668,8 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 0);
 
 out:
+	stat_numa_table();
+	index_layer_dump();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 	return;
 }

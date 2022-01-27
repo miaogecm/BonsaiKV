@@ -512,15 +512,11 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	for (i = 0; i < fwork->small_free_cnt; i ++)
 		hs_remove(old, tid, fwork->small_free_set[i]);
 
-	bonsai_print("hs copy [%d]\n", fwork->small_free_cnt);
-
 	fwork->small_free_cnt = 0;
 
 	if (use_big) {
 		for (i = 0; i < fwork->big_free_cnt; i ++)
 			hs_remove(old, tid, fwork->big_free_set[i]);
-
-		bonsai_print("free big\n");
 
 		fwork->big_free_cnt = 0;
 	}
@@ -544,7 +540,12 @@ void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, vo
 
 void hs_count_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	int* total = (int*)arg1;
+	pkey_t* max = (pkey_t*)arg2;
+	pkey_t key = get_origin_key(node->key);
+	
 	*total += 1;
+	if (key_cmp(key, *max) > 0)
+		*max = key;
 }
 
 void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
