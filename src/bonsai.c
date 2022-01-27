@@ -68,7 +68,7 @@ static int log_layer_init(struct log_layer* layer) {
 	INIT_LIST_HEAD(&layer->numa_table_list);
 
 	pthread_barrier_init(&layer->barrier, NULL, NUM_PFLUSH_WORKER);
-	for (i = 0; i < NUM_PFLUSH_THREAD; i ++)
+	for (i = 0; i < NUM_PFLUSH_WORKER; i ++)
 		INIT_LIST_HEAD(&layer->sort_list[i]);
 
 	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
