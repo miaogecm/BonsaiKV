@@ -25,8 +25,6 @@ extern struct bonsai_info* bonsai;
 
 extern void kv_print(void* index_struct);
 
-#define NUM_MERGE_HASH_BUCKET		(16 * 1024 * 1024)
-
 typedef struct {
 	int flag; /* 0:log; 1:pnode */
 	pentry_t* kv;

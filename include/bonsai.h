@@ -26,7 +26,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-#define NUM_PFLUSH_HASH_BUCKET		131072
+#define NUM_MERGE_HASH_BUCKET		131072
 
 struct index_layer {
 	void *index_struct;
@@ -57,7 +57,7 @@ struct log_layer {
 	pthread_barrier_t barrier; /* sorting barrier */
 	struct list_head sort_list[NUM_PFLUSH_WORKER]; 
 
-	struct hbucket buckets[NUM_PFLUSH_HASH_BUCKET]; /* hash table used in log flush */
+	struct hbucket buckets[NUM_MERGE_HASH_BUCKET]; /* hash table used in log flush */
 };
 
 struct data_layer {

@@ -71,7 +71,7 @@ static int log_layer_init(struct log_layer* layer) {
 	for (i = 0; i < NUM_PFLUSH_WORKER; i ++)
 		INIT_LIST_HEAD(&layer->sort_list[i]);
 
-	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
+	for (i = 0; i < NUM_MERGE_HASH_BUCKET; i ++) {
 		INIT_HLIST_HEAD(&layer->buckets[i].head);
 		spin_lock_init(&layer->buckets[i].lock);
 	}

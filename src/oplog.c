@@ -154,7 +154,7 @@ void clean_pflush_buckets(struct log_layer* layer) {
 	merge_ent* e = NULL;
 	int i;
  
-	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
+	for (i = 0; i < NUM_MERGE_HASH_BUCKET; i ++) {
 		bucket = &layer->buckets[i];
 		spin_lock(&bucket->lock);
 		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
@@ -169,27 +169,34 @@ void clean_pflush_buckets(struct log_layer* layer) {
  * worker_merge_scan_buckets: scan buckets and put entries into the list
  */
 static void worker_scan_buckets(struct log_layer* layer) {
-	int i, id = __this->t_id, num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
+	int i, id = __this->t_id, num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	int min_index = (id - 2) * num_bucket_per_thread;
 	int max_index = (id - 1) * num_bucket_per_thread - 1;
 	struct hbucket* bucket;
 	struct hlist_node *hnode, *tmp;
 	struct list_head* head = &layer->sort_list[id];
 	merge_ent* e;
+	int count = 0;
 
 	INIT_LIST_HEAD(head);
 
 	bonsai_print("pflush thread[%d] scan bucket [%u %u]\n", id, min_index, max_index);
+
+	pthread_barrier_wait(&layer->barrier);
 	
 	for (i = min_index; i <= max_index; i ++) {
 		bucket = &layer->buckets[i];
+		
 		spin_lock(&bucket->lock);
 		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
 			hlist_del(&e->node);
 			list_add(&e->list, head);
+			count++;
 		}
 		spin_unlock(&bucket->lock);
 	}
+
+	bonsai_print("pflush thread[%d] scan %d\n", id, count);
 }
 
 static int list_sort_cmp(void *priv, struct list_head *a, struct list_head *b) {
@@ -259,6 +266,8 @@ static void free_first_half_list(struct list_head* head) {
  */
 static void worker_sort(struct log_layer* layer) {
 	int i, N = NUM_PFLUSH_WORKER, id = __this->t_id - 2;
+
+	bonsai_print("pflush thread[%d] sort\n", __this->t_id);
 	
 	pthread_barrier_wait(&layer->barrier);
 
@@ -309,7 +318,7 @@ static void worker_sort(struct log_layer* layer) {
 	}
 }
 
-static int worker_oplog_merge(void *arg) {
+static int worker_oplog_merge_and_sort(void *arg) {
 	struct merge_work* mwork = (struct merge_work*)arg;
 	struct log_layer* layer;
 	volatile struct oplog_blk* block;
@@ -329,7 +338,7 @@ static int worker_oplog_merge(void *arg) {
 
 	bonsai_print("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 
-	/* 1. merge */
+	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
 		do {
@@ -337,7 +346,8 @@ static int worker_oplog_merge(void *arg) {
 			for (j = 0; j < count; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
-				bucket = &layer->buckets[p_hash(key)];
+				int hash = p_hash(key);
+				bucket = &layer->buckets[hash];
 
 				try_free_log_page((struct oplog_blk*)block, &mwork->page_list);
 
@@ -357,6 +367,7 @@ static int worker_oplog_merge(void *arg) {
 
 				e = malloc(sizeof(merge_ent));
 				e->log = log;
+				INIT_HLIST_NODE(&e->node);
 				hlist_add_head(&e->node, &bucket->head);
 				spin_unlock(&bucket->lock);
 			}
@@ -591,7 +602,7 @@ void oplog_flush() {
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		work = malloc(sizeof(struct work_struct));
 		INIT_LIST_HEAD(&work->list);
-		work->exec = worker_oplog_merge;
+		work->exec = worker_oplog_merge_and_sort;
 		work->exec_arg = (void*)(mworks[cnt]);
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
 	}
@@ -604,7 +615,7 @@ void oplog_flush() {
 		goto out;
 
 	/* 3. flush all logs */
-	//num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
+	//num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
 		//fwork->min_index = (cnt - 1) * num_bucket_per_thread;
@@ -636,6 +647,8 @@ void oplog_flush() {
 		}
 		bonsai_print("\n");
 	}
+
+	exit(1);
 	
 	wakeup_workers();
 
