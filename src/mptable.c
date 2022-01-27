@@ -579,7 +579,7 @@ void stat_numa_table() {
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
 			bonsai_print("Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}
-		max = 0;
+		max = 0; sum = 0;
 	}
 	spin_unlock(&layer->table_lock);
 }
