@@ -42,12 +42,12 @@ extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t
 
 extern void mptable_split(struct numa_table* old_table, struct pnode* new_pnode);
 
-extern void numa_table_search_key(pkey_t key);
-
 extern pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu);
 
+extern void numa_table_search_key(pkey_t key);
 extern void check_numa_table();
 extern void dump_numa_table();
+extern void stat_numa_table();
 
 #ifdef __cplusplus
 }

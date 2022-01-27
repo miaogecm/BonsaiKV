@@ -205,39 +205,3 @@ void hp_scan(struct linked_list* ll, struct hp_item* hp) {
     hp->d_list = new_d_list;
     hp->d_count = new_d_count;
 }
-
-#if 0
-void thread_clean_hp_list(struct log_layer* layer, struct thread_info* thread) {
-	struct numa_table* table;
-	struct hash_set* hs;
-	segment_t* segments;
-	struct bucket_list** buckets;
-	int node, j;
-	unsigned int i;
-
-	bonsai_debug("thread[%d] clean hp list\n", thread->t_id);
-	
-	spin_lock(&layer->lock);
-	list_for_each_entry(table, &layer->numa_table_list, list) {
-		bonsai_debug("thread table %016lx\n", table);
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			hs = &MPTABLE_NODE(table, node)->hs;
-			bonsai_debug("capacity %lu\n", hs->capacity);
-			for (i = 0; i < MAIN_ARRAY_LEN; i ++) {
-				segments = hs->main_array[i];
-				if (!segments) continue;
-				bonsai_debug("main_array[%i] %016lx\n", i, segments);
-				buckets = (struct bucket_list**)segments;
-				for (j = 0; j < SEGMENT_SIZE; j ++) {
-					bonsai_debug("buckets[%d] %016lx\n", j, buckets[j]);
-					if (!buckets[j]) continue;
-					hp_retire_hp_item(&buckets[j]->bucket_sentinel, thread->t_id);
-				}
-			}
-		}
-	}
-	spin_unlock(&layer->lock);
-
-	bonsai_debug("thread[%d] finish clean hp list\n", thread->t_id);
-}
-#endif

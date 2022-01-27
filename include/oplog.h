@@ -12,6 +12,7 @@ extern "C" {
 
 typedef struct {
 	struct oplog* log;
+	struct list_head list;
 	struct hlist_node node;
 } merge_ent;
 
@@ -67,6 +68,10 @@ extern void oplog_flush();
 extern struct oplog* log_layer_search_key(int cpu, pkey_t key);
 
 extern void clean_pflush_buckets(struct log_layer* layer);
+
+extern void list_sort(void *priv, struct list_head *head,
+		int (*cmp)(void *priv, struct list_head *a,
+			struct list_head *b));
 
 #ifdef __cplusplus
 }

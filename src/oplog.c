@@ -165,6 +165,141 @@ void clean_pflush_buckets(struct log_layer* layer) {
 	}
 }
 
+/*
+ * worker_merge_scan_buckets: scan buckets and put entries into the list
+ */
+static void worker_merge_scan_buckets(struct log_layer* layer) {
+	int i, id = __this->t_id, num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
+	int min_index = (id - 1) * num_bucket_per_thread;
+	int max_index = id * num_bucket_per_thread - 1;
+	struct hbucket* bucket;
+	struct hlist_node *hnode, *tmp;
+	struct list_head* head = &layer->sort_list[id];
+	merge_ent* e;
+
+	INIT_LIST_HEAD(head);
+	
+	for (i = min_index; i <= max_index; i ++) {
+		bucket = &layer->buckets[i];
+		spin_lock(&bucket->lock);
+		hlist_for_each_entry_safe(e, hnode, tmp, &bucket->head, node) {
+			hlist_del(&e->node);
+			list_add(&e->list, head);
+		}
+		spin_unlock(&bucket->lock);
+	}
+}
+
+static void __list_sort(struct list_head* head) {
+	list_sort(NULL, head, key_cmp);
+}
+
+static void copy_list(struct list_head* dst, struct list_head* src) {
+	merge_ent *e, *n;
+
+	list_for_each_entry(n, src, list) {
+		e = malloc(sizeof(merge_ent));
+		*e = *n;
+		
+		list_add_tail(&e->list, dst);
+	}
+}
+
+static void free_second_half_list(struct list_head* head) {
+	struct list_head* pos;
+	merge_ent *e, *tmp;
+	int sum = 0, half, i = 0;
+
+	list_for_each(pos, head) {
+		sum ++;
+	}
+
+	half = sum / 2;
+	list_for_each_entry_safe_reverse(e, tmp, head, list) {
+		if (i ++ < half) {
+			list_del(&e->list);
+			free(e);
+		} else {
+			break;
+		}
+	}
+}
+
+static void free_first_half_list(struct list_head* head) {
+	struct list_head* pos;
+	merge_ent *e, *tmp;
+	int sum = 0, half, i = 0;
+
+	list_for_each(pos, head) {
+		sum ++;
+	}
+
+	half = sum / 2;
+	list_for_each_entry_safe(e, tmp, head, list) {
+		if (i ++ < half) {
+			list_del(&e->list);
+			free(e);
+		} else {
+			break;
+		}
+	}
+}
+
+/*
+ * worker_merge_sort: multi-threading parallel sorting
+ */
+static void worker_merge_sort(struct log_layer* layer) {
+	int i, N = NUM_PFLUSH_WORKER, id = __this->t_id;
+	
+	pthread_barrier_wait(&layer->barrier);
+
+	__list_sort(&layer->sort_list[id]);
+
+	pthread_barrier_wait(&layer->barrier);
+
+	for (i = 0; i < N; i ++) {
+		if (i % 2 == 0) {
+			if (id % 2 == 0) {
+				list_splice(&layer->sort_list[id], &layer->sort_list[id + 1]);
+				INIT_LIST_HEAD(&layer->sort_list[id]);
+				copy_list(&layer->sort_list[id], &layer->sort_list[id + 1]);
+				pthread_barrier_wait(&layer->barrier);
+				
+				__list_sort(&layer->sort_list[id]);
+				free_second_half_list(&layer->sort_list[id]);
+				pthread_barrier_wait(&layer->barrier);	
+			} else {
+				pthread_barrier_wait(&layer->barrier);
+				__list_sort(&layer->sort_list[id]);
+				free_first_half_list(&layer->sort_list[id]);
+				pthread_barrier_wait(&layer->barrier);	
+			}
+		} else {
+			if (id % 2 == 0) {
+				pthread_barrier_wait(&layer->barrier);
+				if (id != 0) {
+					__list_sort(&layer->sort_list[id]);
+					free_first_half_list(&layer->sort_list[id]);
+				}
+				pthread_barrier_wait(&layer->barrier);	
+			} else {
+				if (id != NUM_PFLUSH_WORKER - 1) {
+					list_splice(&layer->sort_list[id], &layer->sort_list[id + 1]);
+					INIT_LIST_HEAD(&layer->sort_list[id]);
+					copy_list(&layer->sort_list[id], &layer->sort_list[id + 1]);
+				}
+
+				pthread_barrier_wait(&layer->barrier);
+				if (id != NUM_PFLUSH_WORKER - 1) {
+					__list_sort(&layer->sort_list[id]);
+					free_second_half_list(&layer->sort_list[id]);
+				}
+				pthread_barrier_wait(&layer->barrier);	
+			}
+		}
+	}
+}
+
 static int worker_oplog_merge(void *arg) {
 	struct merge_work* mwork = (struct merge_work*)arg;
 	struct log_layer* layer;
@@ -184,7 +319,8 @@ static int worker_oplog_merge(void *arg) {
 	layer = mwork->layer;
 
 	bonsai_print("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
-	
+
+	/* 1. merge */
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
 		do {
@@ -229,11 +365,18 @@ static int worker_oplog_merge(void *arg) {
 		} while(block != mwork->last_blks[i]);
 	}
 
+	/* 2. copy */
+	worker_merge_scan_buckets(layer);
+
+	/* 3. sort */
+	worker_merge_sort(layer);
+
 out:
 	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
 	return ret;
 }
 
+#if 0
 static int worker_oplog_flush(void* arg) {
 	struct flush_work* fwork = (struct flush_work*)arg;
 	struct log_layer* layer = fwork->layer;
@@ -284,6 +427,53 @@ out:
 
 	return ret;
 }
+#endif
+
+static int worker_oplog_flush(void* arg) {
+	struct flush_work* fwork = (struct flush_work*)arg;
+	struct log_layer* layer = fwork->layer;
+	struct oplog* log;
+	merge_ent* e, *tmp;
+	int count = 0, ret = 0;
+
+	bonsai_print("pflush thread[%d] start flush\n", __this->t_id);
+
+	list_for_each_entry_safe(e, tmp, &fwork->flush_list, list) {
+		log = e->log;
+		bonsai_debug("pflush thread[%d] flush <%lu %lu>[%s] in bucket[%d]\n", 
+			__this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert", i);
+
+		switch(log->o_type) {
+		case OP_INSERT:
+			pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);		
+			break;
+		case OP_REMOVE:
+			pnode_remove(log->o_kv.k);
+			break;
+		default:
+			perror("bad operation type\n");
+			break;
+		}
+
+		list_del(&e->list);
+		free(e);
+
+		count ++;
+
+		if (unlikely(count % 1000 == 0 && atomic_read(&layer->exit))) {
+			ret = -EEXIT;
+			goto out;
+		}
+	}
+
+out:
+	free(fwork->small_free_set);
+	free(fwork->big_free_set);
+	free(fwork);
+	bonsai_print("pflush thread[%d] flush %d logs\n", __this->t_id, count);
+
+	return ret;
+}
 
 static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 	flush_page_struct *p, *n;
@@ -309,10 +499,14 @@ void oplog_flush() {
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
+	struct flush_work* fworks[NUM_PFLUSH_THREAD];
 	struct work_struct* work;
+	merge_ent *e, *tmp;
 	struct pnode* pnode;
 	int i, j, cpu, cnt = 0, total = 0;
-	int num_bucket_per_thread, num_region_per_thread, num_region_rest;
+	unsigned long n;
+	int num_region_per_thread, num_region_rest;
+	//int num_bucket_per_thread;
 
 	bonsai_print("thread[%d]: start oplog flush [%d]\n", __this->t_id, l_layer->nflush);
 
@@ -401,23 +595,34 @@ void oplog_flush() {
 		goto out;
 
 	/* 3. flush all logs */
-	num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
+	//num_bucket_per_thread = NUM_PFLUSH_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
 	for (cnt = 1; cnt < NUM_PFLUSH_THREAD; cnt ++) {
 		fwork = malloc(sizeof(struct flush_work));
-		fwork->min_index = (cnt - 1) * num_bucket_per_thread;
-		fwork->max_index = cnt * num_bucket_per_thread - 1;
-		fwork->curr_index = fwork->min_index;
+		//fwork->min_index = (cnt - 1) * num_bucket_per_thread;
+		//fwork->max_index = cnt * num_bucket_per_thread - 1;
+		//fwork->curr_index = fwork->min_index;
 		fwork->small_free_cnt = 0;
 		fwork->big_free_cnt = 0;
 		fwork->small_free_set = malloc(sizeof(pkey_t) * MAIN_ARRAY_LEN * LOAD_FACTOR_DEFAULT);
 		fwork->big_free_set = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 		fwork->layer = l_layer;
+		INIT_LIST_HEAD(&fwork->flush_list);
 
 		work = malloc(sizeof(struct work_struct));
 		INIT_LIST_HEAD(&work->list);
 		work->exec = worker_oplog_flush;
 		work->exec_arg = (void*)fwork;
 		workqueue_add(&bonsai->pflushd[cnt]->t_wq, work);
+
+		fworks[cnt] = fwork;
+	}
+
+	
+	for (i = 1, n = 0; i < NUM_PFLUSH_THREAD; i ++) {
+		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
+			list_del(&e->list);
+			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_THREAD]->flush_list);
+		}
 	}
 	
 	wakeup_workers();
@@ -444,6 +649,7 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 0);
 
 out:
+	stat_numa_table();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 	return;
 }

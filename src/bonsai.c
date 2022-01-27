@@ -64,8 +64,12 @@ static int log_layer_init(struct log_layer* layer) {
 	if (err)
 		goto out;
 
-	spin_lock_init(&layer->lock);
+	spin_lock_init(&layer->table_lock);
 	INIT_LIST_HEAD(&layer->numa_table_list);
+
+	pthread_barrier_init(&layer->barrier, NULL, NUM_PFLUSH_WORKER);
+	for (i = 0; i < NUM_PFLUSH_THREAD; i ++)
+		INIT_LIST_HEAD(&layer->sort_list[i]);
 
 	for (i = 0; i < NUM_PFLUSH_HASH_BUCKET; i ++) {
 		INIT_HLIST_HEAD(&layer->buckets[i].head);
@@ -87,6 +91,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 
 	log_region_deinit(layer);
 
+	spin_lock(&layer->table_lock);
 	list_for_each_entry_safe(table, tmp, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
@@ -96,6 +101,7 @@ static void log_layer_deinit(struct log_layer* layer) {
 		list_del(&table->list);
 		numa_mptable_free(table);
 	}
+	spin_unlock(&layer->table_lock);
 
 	bonsai_print("log_layer_deinit\n");
 }

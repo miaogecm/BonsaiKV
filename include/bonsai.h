@@ -51,8 +51,11 @@ struct log_layer {
 
 	struct log_region region[NUM_CPU]; /* per-cpu log region */
 
-	spinlock_t lock;
-	struct list_head numa_table_list;
+	spinlock_t table_lock; /* protect numa_table_list */
+	struct list_head numa_table_list; /* all numa tables */
+
+	pthread_barrier_t barrier; /* sorting barrier */
+	struct list_head sort_list[NUM_PFLUSH_THREAD]; /* sort_list[0] is unused */
 
 	struct hbucket buckets[NUM_PFLUSH_HASH_BUCKET]; /* hash table used in log flush */
 };

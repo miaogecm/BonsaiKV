@@ -89,9 +89,9 @@ struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
 	tables->pnode = NULL;
 	tables->forward = NULL;
 
-	spin_lock(&layer->lock);
+	spin_lock(&layer->table_lock);
 	list_add_tail(&tables->list, &layer->numa_table_list);
-	spin_unlock(&layer->lock);
+	spin_unlock(&layer->table_lock);
 
 	return tables;
 }
@@ -513,7 +513,8 @@ void numa_table_search_key(pkey_t key) {
 	struct numa_table* table;
 	struct mptable* m;
 	int node;
-	
+
+	spin_lock(&layer->table_lock);
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
@@ -521,6 +522,7 @@ void numa_table_search_key(pkey_t key) {
 			hs_scan_and_ops(&m->hs, hs_search_key, (void*)key, NULL, NULL, NULL, NULL);
 		}
 	}
+	spin_unlock(&layer->table_lock);
 
 	bonsai_print("numa table find no such key[%lu]\n", key);
 }
@@ -533,6 +535,7 @@ void dump_numa_table() {
 
 	bonsai_print("====================================DUMP NUMA TABLE================================================\n");
 
+	spin_lock(&layer->table_lock);
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
@@ -541,6 +544,7 @@ void dump_numa_table() {
 			bonsai_print("\n");
 		}
 	}
+	spin_unlock(&layer->table_lock);
 }
 
 void check_numa_table() {
@@ -551,10 +555,31 @@ void check_numa_table() {
 
 	bonsai_print("====================================CHECK NUMA TABLE================================================\n");
 
+	spin_lock(&layer->table_lock);
 	list_for_each_entry(table, &layer->numa_table_list, list) {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			hs_scan_and_ops(&m->hs, hs_check_entry, NULL, NULL, NULL, NULL, NULL);
 		}
 	}
+	spin_unlock(&layer->table_lock);
+}
+
+void stat_numa_table() {
+	struct log_layer* layer = LOG(bonsai);
+	struct numa_table* table;
+	struct mptable* m;
+	int node, i = 0, sum = 0;
+
+	bonsai_print("====================================COUNT NUMA TABLE================================================\n");
+
+	spin_lock(&layer->table_lock);
+	list_for_each_entry(table, &layer->numa_table_list, list) {
+		for (node = 0; node < NUM_SOCKET; node ++) {
+			m = MPTABLE_NODE(table, node);
+			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, NULL, NULL, NULL, NULL);
+			bonsai_print("Table[%d] total entries: %d\n", i++, sum);
+		}
+	}
+	spin_unlock(&layer->table_lock);
 }

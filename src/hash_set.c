@@ -535,8 +535,12 @@ void hs_search_key(struct ll_node* node, void* arg1, void* arg2, void* arg3, voi
 
 void hs_print_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
 	pkey_t key = get_origin_key(node->key);
-
 	bonsai_print("<%lu %lu> ", key, *node->val);
+}
+
+void hs_count_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+	int* total = (int*)arg1;
+	*total += 1;
 }
 
 void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {

@@ -207,7 +207,6 @@ static inline void die() {
 	exit(1);
 }
 
-extern void bonsai_print_all();
 void* thread_fun(void* arg) {
 	long i, id = (long)arg;
 	pval_t v = 0;
@@ -225,6 +224,7 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------1---------------------\n", id);
+
 	sleep(10);
 
 	for (i = (0 + N * id); i < (N + N * id); i ++) {

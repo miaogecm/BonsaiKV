@@ -49,13 +49,14 @@ struct merge_work {
 };
 
 struct flush_work {
-	unsigned int min_index;
-	unsigned int max_index;
-	unsigned int curr_index;
-	unsigned int small_free_cnt;
-	unsigned int big_free_cnt;
+	//unsigned int min_index;
+	//unsigned int max_index;
+	//unsigned int curr_index;
+	int small_free_cnt;
+	int big_free_cnt;
 	pkey_t* small_free_set;
 	pkey_t* big_free_set;
+	struct list_head flush_list;
 	struct log_layer* layer;
 };
 
