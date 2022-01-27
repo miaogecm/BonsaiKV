@@ -476,6 +476,31 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	pkey_t key;
 	struct flush_work* fwork = (struct flush_work*)__this->t_work->exec_arg;
 
+#if 1
+    p_segment = old->main_array[0];
+    if (p_segment == NULL) {
+        return;
+    }
+    buckets = (struct bucket_list**) p_segment;
+    bucket = buckets[0];
+    head = &(bucket->bucket_sentinel.ll_head);
+    curr = GET_NODE(head->next);
+    while(curr) {
+        if (!is_sentinel_key(curr->key)) {
+            key = hs_copy_one(curr, new, max, pnode);
+            if (key != (unsigned long)-2) {
+                if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
+                    fwork->small_free_set[fwork->small_free_cnt++] = key;
+                if (fwork->small_free_cnt == SEGMENT_SIZE) {
+                    use_big = 1;
+                }
+                if (use_big)
+                    fwork->big_free_set[fwork->big_free_cnt++] = key;
+            }
+        }
+        curr = GET_NODE(STRIP_MARK(curr->next));
+    }
+#else
 	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
 		p_segment = old->main_array[i];
         if (p_segment == NULL)
@@ -508,6 +533,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
             } 
 		}
 	}
+#endif
 
 	for (i = 0; i < fwork->small_free_cnt; i ++)
 		hs_remove(old, tid, fwork->small_free_set[i]);
