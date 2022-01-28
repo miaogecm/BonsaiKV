@@ -1,3 +1,5 @@
+#ifndef ATOMIC128_H
+#define ATOMIC128_H
 #include <stdint.h>
 
 union atomic_u128 {
@@ -40,3 +42,5 @@ __attribute__((always_inline)) inline int AtomicCAS128(
 
   return result;
 }
+
+#endif

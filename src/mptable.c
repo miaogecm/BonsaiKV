@@ -342,6 +342,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 		bonsai_print("***************************key: %lu; addr: %016lx*****************************\n", key, addr);
 		numa_table_search_key(key);
 		data_layer_search_key(key);
+		dump_pnode_list_summary();
 		assert(0);
 	}
 
@@ -369,7 +370,7 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 
 	mid_table = numa_mptable_alloc(LOG(bonsai));
 	new_pnode->table = mid_table;
-	mid_table->pnode = new_pnode;
+	mid_table->pnode = mid_pnode;
 	mid_table->forward = old_table;
 
 	/* 2. update the index layer */

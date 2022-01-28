@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <thread.h>
 #include <assert.h>
+#include <limits.h>
 
 #include "hash_set.h"
 #include "common.h"
@@ -265,10 +266,14 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
     }
 
     while(1) {
+        if (unlikely(key == ULONG_MAX)) {
+            break;
+        }
         old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
         new_avg.hi = old_avg.hi + 1;
         new_avg.lo = (old_avg.lo * old_avg.hi + key) / new_avg.hi;
         if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
+            // printf("key: %lu cnt:%d avg:%.0lf\n", key, new_avg.hi, new_avg.lo);
             break;
         }
     }

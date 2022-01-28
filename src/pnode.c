@@ -20,6 +20,7 @@
 #include "arch.h"
 #include "bitmap.h"
 #include "ordo.h"
+#include "atomic128.h"
 
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
@@ -245,7 +246,7 @@ int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_no
 	pval_t* addr;
 	struct pnode* pnode;
 	union atomic_u128 avg;
-	double avg_key;
+	pkey_t avg_key;
 
 	bucket_id = PNODE_BUCKET_HASH(key);
 
@@ -334,10 +335,10 @@ retry:
 	mid_pnode = alloc_pnode(numa_node);
     memcpy(mid_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
 	mid_removed = 0;
-	avg = pnode->table->tables[0]->hs.avg;
-	avg_key = avg.lo;
+	avg = (union atomic_u128) AtomicLoad128(&pnode->table->tables[0]->hs.avg);
+	avg_key = (pkey_t) avg.lo;
 
-	for (i = d + 1; i <= d; i++) {
+	for (i = d + 1; i <= n; i++) {
 		if (key_cmp(pnode_entry_n_key(pnode, i), avg_key) > 0) {
 			mid_n = i - d - 1;
 			break;
@@ -348,7 +349,7 @@ retry:
 	mid_pnode->slot[0] = mid_n;
 	mid_pnode->bitmap = mid_removed;
 	mid_pnode->anchor_key = avg_key;
-
+	
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, mid_pnode, avg_key);
 
@@ -599,7 +600,7 @@ void dump_pnode_list_summary() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_print("[pnode[%d] == bitmap: %016lx slot[0]: %d max: %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode));
+		bonsai_print("[pnode[%d]{%016lx} == bitmap: %016lx slot[0]: %d max: %lu anchor: %lu]\n", j++, pnode, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode), pnode_anchor_key(pnode));
 		key_sum += pnode->slot[0];
 		pnode_sum ++;
 	}
