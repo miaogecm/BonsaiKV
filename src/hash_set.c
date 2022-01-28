@@ -8,8 +8,8 @@
  * A lock-free extendible hash table implementation. 
  * Split-Ordered Lists: Lock-Free Extensible Hash Tables. Ori Shalev, Nir Shavit. Journal of the ACM, Vol.53, No.3, 2006, pp.379�405
  *
- * A lock-free hash table consists of two
- * components: 
+ * A lock-free hash table consists of two components: 
+ * 
  * (1) a lock-free linked list
  * (2) an expanding array of references into the list
  */
@@ -476,7 +476,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
 	pkey_t key;
 	struct flush_work* fwork = (struct flush_work*)__this->t_work->exec_arg;
 
-#if 1
+#if 0
     p_segment = old->main_array[0];
     if (p_segment == NULL) {
         return;

@@ -577,7 +577,7 @@ void stat_numa_table() {
 		for (node = 0; node < NUM_SOCKET; node ++) {
 			m = MPTABLE_NODE(table, node);
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
-			bonsai_print("Table[%d] total entries: %d max: %lu\n", i++, sum, max);
+			bonsai_print("Mapping Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}
 		max = 0; sum = 0;
 	}

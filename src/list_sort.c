@@ -131,7 +131,7 @@ void list_sort(void *priv, struct list_head *head,
 			part[lev] = NULL;
 		}
 		if (lev > max_lev) {
-			if (unlikely(lev >= ARRAY_SIZE(part)-1)) {
+			if (unlikely((unsigned int)lev >= ARRAY_SIZE(part)-1)) {
 				perror("list too long for efficiency\n");
 				lev--;
 			}

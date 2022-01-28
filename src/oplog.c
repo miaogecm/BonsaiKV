@@ -344,8 +344,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 			for (j = 0; j < count; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
-				int hash = p_hash(key);
-				bucket = &layer->buckets[hash];
+				bucket = &layer->buckets[p_hash(key)];
 
 				try_free_log_page((struct oplog_blk*)block, &mwork->page_list);
 
