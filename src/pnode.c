@@ -233,16 +233,19 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
  * return 0 if successful
  */
 int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node) {
-    int bucket_id, pos, i, n, d;
+    int bucket_id, pos, i, n, d, mid_n;
 	struct data_layer *layer = DATA(bonsai);
-    struct pnode *new_pnode, *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
-	uint64_t removed;
+    struct pnode *new_pnode, *mid_pnode; 
+	struct pnode *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
+	uint64_t new_removed, mid_removed;
 	pkey_t max_key;
 	int ret, cpu = get_cpu();
 	struct oplog* log;
 	struct numa_table* tables;
 	pval_t* addr;
 	struct pnode* pnode;
+	union atomic_u128 avg;
+	double avg_key;
 
 	bucket_id = PNODE_BUCKET_HASH(key);
 
@@ -318,29 +321,49 @@ retry:
     memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
     n = pnode->slot[0]; 
 	d = n / 2;
-    removed = 0;
+    new_removed = 0;
 
     for (i = 1; i <= d; i++) {
-    	removed |= (1ULL << pnode->slot[i]);
+    	new_removed |= (1ULL << pnode->slot[i]);
 		new_pnode->slot[i] = pnode->slot[i];
     }
     new_pnode->slot[0] = d;
-   	new_pnode->bitmap = removed;
+   	new_pnode->bitmap = new_removed;
 	new_pnode->anchor_key = pnode_max_key(new_pnode);
 
+	mid_pnode = alloc_pnode(numa_node);
+    memcpy(mid_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
+	mid_removed = 0;
+	avg = pnode->table->tables[0]->hs.avg;
+	avg_key = avg.lo;
+
+	for (i = d + 1; i <= d; i++) {
+		if (key_cmp(pnode_entry_n_key(pnode, i), avg_key) > 0) {
+			mid_n = i - d - 1;
+			break;
+		}
+		mid_removed |= (1ULL << pnode->slot[i]);
+		mid_pnode->slot[i - d] = pnode->slot[i];
+	}
+	mid_pnode->slot[0] = mid_n;
+	mid_pnode->bitmap = mid_removed;
+	mid_pnode->anchor_key = avg_key;
+
 	/* split the mapping table */
-    mptable_split(pnode->table, new_pnode);
+    mptable_split(pnode->table, new_pnode, mid_pnode, avg_key);
 
 	insert_pnode_list_fast(new_pnode, pnode);
+	insert_pnode_list_fast(mid_pnode, pnode);
 
-	for (i = 1; i <= n - d; i ++) {
-		pnode->slot[i] = pnode->slot[d + i];
+	for (i = 1; i <= n - d - mid_n; i ++) {
+		pnode->slot[i] = pnode->slot[d + mid_n + i];
 	}
-	pnode->slot[0] = n - d;
-    pnode->bitmap &= ~removed;
+	pnode->slot[0] = n - d - mid_n;
+    pnode->bitmap &= ~new_removed;
+	pnode->bitmap &= ~mid_removed;
 	pnode->anchor_key = pnode_max_key(pnode);
 
-	max_key = pnode_anchor_key(new_pnode);
+	// max_key = pnode_anchor_key(new_pnode);
 	
     for (i = NUM_BUCKET - 1; i >= 0; i --) 
         write_unlock(pnode->bucket_lock[i]);
@@ -350,7 +373,7 @@ retry:
 	bonsai_flush((void*)&new_pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush((void*)&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
-    pnode = key_cmp(key, max_key) <= 0 ? new_pnode : pnode;
+    // pnode = key_cmp(key, max_key) <= 0 ? new_pnode : pnode;
 
     goto retry;
 }
@@ -358,7 +381,7 @@ retry:
 /*
  * pnode_remove: remove an entry of a pnode
  * @pnode: the pnode
- * @key: key to be removed
+ * @key: key to be new_removed
  */
 int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);

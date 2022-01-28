@@ -40,7 +40,7 @@ extern int mptable_scan(struct numa_table* table, pkey_t high, pkey_t low, pval_
 
 extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);
 
-extern void mptable_split(struct numa_table* old_table, struct pnode* new_pnode);
+extern void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key);
 
 extern pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu);
 

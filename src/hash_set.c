@@ -137,7 +137,8 @@ void hs_init(struct hash_set* hs) {
     hs->load_factor = LOAD_FACTOR_DEFAULT;  // 2
     hs->capacity = INIT_NUM_BUCKETS;  // 2 at first
     hs->set_size = 0;
-	
+    hs->avg.val = 0;
+
     get_bucket_list(hs, 0);  //allocate the memory of the very first segment
     segment = (struct bucket_list **)hs->main_array[0];
 
@@ -245,6 +246,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
 	unsigned long capacity_now, old_capacity;
 	int set_size_now;
     int ret = 0;
+    union atomic_u128 old_avg, new_avg;
 
     while (bucket == NULL) {
         //FIXME: It seems that the bucket will not always be initialized as we expected.
@@ -262,6 +264,15 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
         return -EEXIST;
     }
 
+    while(1) {
+        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
+        new_avg.hi = old_avg.hi + 1;
+        new_avg.lo = (old_avg.lo * old_avg.hi + key) / new_avg.hi;
+        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
+            break;
+        }
+    }
+    
     //bonsai_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
 	
 #ifdef BONSAI_HASHSET_DEBUG
@@ -336,6 +347,7 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     int bucket_index = hash(key) % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	int ret;
+    union atomic_u128 old_avg, new_avg;
 
     if (bucket == NULL) {
         initialize_bucket(hs, tid, bucket_index);  
@@ -359,6 +371,15 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
         xadd(&hs_remove_fail_time, 1);
     }
 #endif
+
+    while(1) {
+        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
+        new_avg.hi = old_avg.hi - 1;
+        new_avg.lo = (old_avg.lo * old_avg.hi - key) / new_avg.hi;
+        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
+            break;
+        }
+    }
 
     return ret;
 }
@@ -441,33 +462,48 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 }
 #endif
 
-static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, 
-		pkey_t max, struct pnode* pnode) {
+static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct hash_set *mid, 
+		pkey_t max, pkey_t avg_key, struct pnode* new_pnode, struct pnode* mid_pnode) {
 	pval_t* old;
 	int tid = get_tid();
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-    if (key_cmp(key, max) <= 0) {
-		old = node->val;
-		if (addr_in_log((unsigned long)old)) {
-			hs_insert(new, tid, key, old);
-			return key;
-		} else if (addr_in_pnode((unsigned long)old)) {
-			old = pnode_lookup(pnode, key);
-			hs_insert(new, tid, key, old);
-			return key;		
-		} else {
-			perror("invalid address\n");
-			assert(0);
-		}
-	}
+    if (key_cmp(key, avg_key) <= 0) {
+        if (key_cmp(key, max) <= 0) {
+            old = node->val;
+            if (addr_in_log((unsigned long)old)) {
+                hs_insert(new, tid, key, old);
+                return key;
+            } else if (addr_in_pnode((unsigned long)old)) {
+                old = pnode_lookup(new_pnode, key);
+                hs_insert(new, tid, key, old);
+                return key;		
+            } else {
+                perror("invalid address\n");
+                assert(0);
+            }
+        } else {
+            old = node->val;
+            if (addr_in_log((unsigned long)old)) {
+                hs_insert(mid, tid, key, old);
+                return key;
+            } else if (addr_in_pnode((unsigned long)old)) {
+                old = pnode_lookup(mid_pnode, key);
+                hs_insert(mid, tid, key, old);
+                return key;		
+            } else {
+                perror("invalid address\n");
+                assert(0);
+            }
+        }
+    }
 	
 	return -2;
 }
 
-void hs_scan_and_split(struct hash_set *old, struct hash_set *new, 
-			pkey_t max, struct pnode* pnode) {
+void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_set *mid,
+			pkey_t max, pkey_t avg_key, struct pnode* new_pnode, struct pnode* mid_pnode) {
 	struct bucket_list **buckets, *bucket;
 	segment_t* p_segment;
 	struct ll_node *head, *curr;
@@ -518,7 +554,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new,
                 if (is_sentinel_key(curr->key)) {
                    	 break;
                 } else {
-    				key = hs_copy_one(curr, new, max, pnode);
+    				key = hs_copy_one(curr, new, mid, max, avg_key, new_pnode, mid_pnode);
 					if (key != (unsigned long)-2) {
 						if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
 				        	fwork->small_free_set[fwork->small_free_cnt++] = key;

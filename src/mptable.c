@@ -355,10 +355,10 @@ void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, p
 	hs_update(&table->hs, tid, key, addr);
 }
 
-void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {	
+void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key) {	
 	int node;
-	struct numa_table* new_table;
-	struct mptable *old_m, *new_m;
+	struct numa_table *new_table, *mid_table;
+	struct mptable *old_m, *new_m, *mid_m;
 	struct index_layer* i_layer = INDEX(bonsai);
 
 	/* 1. allocate a new mapping table */
@@ -367,18 +367,26 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode) {
 	new_table->pnode = new_pnode;
 	new_table->forward = old_table;
 
+	mid_table = numa_mptable_alloc(LOG(bonsai));
+	new_pnode->table = mid_table;
+	mid_table->pnode = new_pnode;
+	mid_table->forward = old_table;
+
 	/* 2. update the index layer */
 	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+	i_layer->insert(i_layer->index_struct, avg_key, mid_table);
 
 	/* 3. copy entries from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		old_m = MPTABLE_NODE(old_table, node);
 		new_m = MPTABLE_NODE(new_table, node);
+		mid_m = MPTABLE_NODE(mid_table, node);
 
-		hs_scan_and_split(&old_m->hs, &new_m->hs, pnode_max_key(new_pnode), new_pnode);
+		hs_scan_and_split(&old_m->hs, &new_m->hs, &mid_m->hs, pnode_max_key(new_pnode), avg_key, new_pnode, mid_pnode);
 	}
 
 	new_table->forward = NULL;
+	mid_table->forward = NULL;
 }
 
 static void merge_one_log(struct ll_node* node, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
