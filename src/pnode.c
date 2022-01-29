@@ -617,7 +617,7 @@ void dump_pnode_list_summary() {
 	read_unlock(&layer->lock);
 
 	bonsai_print("total pnode [%d]\n", pnode_sum);
-	bonsai_print("pnode list total key [%d]\n", key_sum);
+	bonsai_print("data layer total entries [%d]\n", key_sum);
 }
 
 void dump_pnode_list() {
@@ -662,7 +662,7 @@ void dump_pnode_list() {
 struct pnode* data_layer_search_key(pkey_t key) {
 	struct data_layer *layer = DATA(bonsai);
 	struct pnode* pnode = NULL;
-	int i;
+	int i, total = 0;
 	
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		for (i = 1; i < pnode->slot[0]; i ++) {

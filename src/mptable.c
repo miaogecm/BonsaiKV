@@ -587,7 +587,7 @@ void stat_numa_table() {
 	struct log_layer* layer = LOG(bonsai);
 	struct numa_table* table;
 	struct mptable* m;
-	int node, i = 0, sum = 0;
+	int node, i = 0, sum = 0, total = 0;
 	pkey_t max = 0;
 
 	bonsai_print("====================================COUNT NUMA TABLE================================================\n");
@@ -599,7 +599,10 @@ void stat_numa_table() {
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
 			bonsai_print("Mapping Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}
+		total += sum;
 		max = 0; sum = 0;
 	}
 	spin_unlock(&layer->table_lock);
+
+	bonsai_print("log layer total entries: %d\n", total);
 }

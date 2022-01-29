@@ -175,7 +175,7 @@ void kv_print(void* index_struct) {
 	}
 	read_unlock(&__toy->lock);
 	printf("NULL\n");
-	printf("total entries: %d\n", count);
+	printf("index layer total entries: %d\n", count - 1);
 }
 
 static inline int get_cpu() {
