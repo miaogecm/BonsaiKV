@@ -340,21 +340,29 @@ retry:
 
 	for (i = d + 1; i <= n; i++) {
 		if (key_cmp(pnode_entry_n_key(pnode, i), avg_key) > 0) {
-			mid_n = i - d - 1;
 			break;
 		}
 		mid_removed |= (1ULL << pnode->slot[i]);
 		mid_pnode->slot[i - d] = pnode->slot[i];
 	}
+	mid_n = i - d - 1;
 	mid_pnode->slot[0] = mid_n;
 	mid_pnode->bitmap = mid_removed;
 	mid_pnode->anchor_key = avg_key;
-	
+
+	if (mid_n == 0 || mid_n == n - d) {
+		free_pnode(mid_pnode);
+		mid_n = 0;
+		mid_removed = 0;
+		mid_pnode = NULL;
+	}
 	/* split the mapping table */
     mptable_split(pnode->table, new_pnode, mid_pnode, avg_key);
 
 	insert_pnode_list_fast(new_pnode, pnode);
-	insert_pnode_list_fast(mid_pnode, pnode);
+	if (mid_pnode) {
+		insert_pnode_list_fast(mid_pnode, pnode);
+	}
 
 	for (i = 1; i <= n - d - mid_n; i ++) {
 		pnode->slot[i] = pnode->slot[d + mid_n + i];
@@ -362,7 +370,7 @@ retry:
 	pnode->slot[0] = n - d - mid_n;
     pnode->bitmap &= ~new_removed;
 	pnode->bitmap &= ~mid_removed;
-	pnode->anchor_key = pnode_max_key(pnode);
+	// pnode->anchor_key = pnode_max_key(pnode);
 
 	// max_key = pnode_anchor_key(new_pnode);
 	
@@ -374,6 +382,8 @@ retry:
 	bonsai_flush((void*)&new_pnode->bitmap, sizeof(__le64), 0);
 	bonsai_flush((void*)&new_pnode->slot, sizeof(NUM_ENT_PER_PNODE + 1), 1);
 
+	// index_layer_dump();
+	// dump_pnode_list_summary();
     // pnode = key_cmp(key, max_key) <= 0 ? new_pnode : pnode;
 
     goto retry;

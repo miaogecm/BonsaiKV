@@ -474,7 +474,7 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
 	pkey_t key;
 
 	key = get_origin_key(node->key);
-    if (key_cmp(key, avg_key) <= 0) {
+    if (mid_pnode && key_cmp(key, avg_key) <= 0) {
         if (key_cmp(key, max) <= 0) {
             old = node->val;
             if (addr_in_log((unsigned long)old)) {
@@ -496,6 +496,22 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
             } else if (addr_in_pnode((unsigned long)old)) {
                 old = pnode_lookup(mid_pnode, key);
                 hs_insert(mid, tid, key, old);
+                return key;		
+            } else {
+                printf("addr: %016lx\n", old);
+                perror("invalid address\n");
+                assert(0);
+            }
+        }
+    } else {
+        if (key_cmp(key, max) <= 0) {
+            old = node->val;
+            if (addr_in_log((unsigned long)old)) {
+                hs_insert(new, tid, key, old);
+                return key;
+            } else if (addr_in_pnode((unsigned long)old)) {
+                old = pnode_lookup(new_pnode, key);
+                hs_insert(new, tid, key, old);
                 return key;		
             } else {
                 perror("invalid address\n");
@@ -557,7 +573,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_s
 			curr = GET_NODE(head->next);
 			while (curr) {
                 if (is_sentinel_key(curr->key)) {
-                   	 break;
+                   	break;
                 } else {
     				key = hs_copy_one(curr, new, mid, max, avg_key, new_pnode, mid_pnode);
 					if (key != (unsigned long)-2) {
