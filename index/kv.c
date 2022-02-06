@@ -292,6 +292,7 @@ int kv_remove(struct sl_kv* sl, pkey_t key) {
     struct kv_node *victim, *pred;
     int found_l, i, is_marked, high_l, full_locked;
 
+    is_marked = 0;
     while(1) {
         found_l = kv_find(sl, key, preds, succs);
         if (found_l != -1) {
