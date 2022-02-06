@@ -165,12 +165,16 @@ void kv_print(void* index_struct) {
 	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 	struct kv_node* knode;
 	int count = 0;
+	pkey_t prev = 0, curr;
 
 	printf("index layer:\n");
 
 	read_lock(&__toy->lock);
 	list_for_each_entry(knode, &__toy->head, list) {
 		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+		curr = knode->kv.k;
+		assert(!prev || curr > prev);
+		prev = curr;
 		count++;
 	}
 	read_unlock(&__toy->lock);
