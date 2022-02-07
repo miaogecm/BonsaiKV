@@ -65,7 +65,8 @@ typedef struct pentry {
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
 #endif
 
-#define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args);
+//#define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args);
+#define bonsai_print(fmt, args ...)
 
 #ifdef BONSAI_DEBUG
 #define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0);

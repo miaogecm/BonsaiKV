@@ -1,3 +1,10 @@
+/*
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ *
+ * Hohai University
+ *
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ */
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,7 +21,7 @@
 // #define RAND
 
 #ifndef N
-#define N			10001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -46,320 +53,129 @@ extern int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr);
 extern void bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
 
+struct toy_kv *toy;
 pthread_t tids[NUM_THREAD];
 
-int sl_cmp(pkey_t a, pkey_t b) {
-    if (a > b) return 1;
-    if (a == b) return 0;
-    return -1;
+void* kv_init() {
+	toy = malloc(sizeof(struct toy_kv));
+	
+	rwlock_init(&toy->lock);
+	INIT_LIST_HEAD(&toy->head);
+
+	return toy;
 }
 
-static int random_levels(struct sl_kv* sl) {
-    int levels = 1;
-    
-    while (levels <= sl->levels && (rand() & 1)) {
-        levels++;
-    }
-    
-    if (levels > MAX_LEVELS)
-        levels = MAX_LEVELS;
+void kv_destory(void* index_struct) {
+	struct kv_node* knode, *tmp;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
 
-    if (levels > sl->levels) {
-        SYNC_ADD(&sl->levels, 1);
-    }
-    
-    return levels;
+	list_for_each_entry_safe(knode, tmp, &__toy->head, list) {
+		list_del(&knode->list);
+		free(knode);
+	}
+
+	free(toy);
 }
 
-static struct kv_node* alloc_node(int levels) {
-    struct kv_node* node;
-    int size = sizeof(struct kv_node) + levels * sizeof(struct kv_node*);
-    node = (struct kv_node*)malloc(size);
-    assert(node);
+struct kv_node* __kv_lookup(void* index_struct, pkey_t key) {
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node *knode;
 
-    node->marked = 0;
-    node->fully_linked = 0;
+	list_for_each_entry(knode, &__toy->head, list) {
+		if (knode->kv.k >= key) {
+			break;
+		}
+	}
 
-    spin_lock_init(&node->lock);
-    memset(node->next, 0, sizeof(struct kv_node*) * levels);
-    node->levels = levels;
-    
-    return node;
+	return knode;
 }
 
-static void free_node(struct kv_node* node) {
-    // free(node);
+/*must support update*/
+int kv_insert(void* index_struct, pkey_t key, void* value) {
+	struct kv_node *knode, *next_node;
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct list_head* ll_node;
+
+	knode = malloc(sizeof(struct kv_node));
+	knode->kv.k = key;
+	knode->kv.v = (__le64)value;
+
+	write_lock(&__toy->lock);
+	next_node = __kv_lookup(index_struct, key);
+	if (&next_node->list != &__toy->head && next_node->kv.k == key) {
+		next_node->kv.v = (__le64)value;
+	} else {
+		ll_node = &next_node->list;
+		__list_add(&knode->list, ll_node->prev, ll_node);
+	}
+	write_unlock(&__toy->lock);
+
+	//bonsai_debug("kv insert <%lu %016lx>\n", key, value);
+
+	return 0;
 }
 
-struct sl_kv* kv_init() {
-    #ifndef UNRAND
-    srand(time(0));
-    #endif
-    struct sl_kv* sl = (struct sl_kv*)malloc(sizeof(struct sl_kv));
-    sl_head(sl) = alloc_node(MAX_LEVELS);
-    sl_head(sl)->fully_linked = 1;
-    sl_tail(sl) = alloc_node(MAX_LEVELS);
-    sl_tail(sl)->fully_linked = 1;
-    int i;
-    for (i = 0; i < MAX_LEVELS; i++)
-        sl_head(sl)->next[i] = sl_tail(sl);
-    sl->levels = 1;
+int kv_remove(void* index_struct, pkey_t key) {
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node* knode;
 
-    return sl;
+	read_lock(&__toy->lock);
+	list_for_each_entry(knode, &__toy->head, list) {
+		if (knode->kv.k == key)
+			goto out;
+	}
+	read_unlock(&__toy->lock);
+	return -ENOENT;
+
+out:
+	read_unlock(&__toy->lock);
+
+	write_lock(&__toy->lock);
+	list_del(&knode->list);
+	write_unlock(&__toy->lock);
+	free(knode);
+
+	bonsai_debug("kv remove <%lu>\n", key);
+
+	return 0;
 }
 
-void kv_destory(struct sl_kv* sl) {
-    struct kv_node* curr, *prev;
+void* kv_lookup(void* index_struct, pkey_t key) {
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node* knode;
 
-    curr = sl_head(sl);
-    while(curr != sl_tail(sl)) {
-        prev = curr;
-        curr = curr->next[0];
-        free(prev);
-    }
-    free(sl_tail(sl));
-    free(sl);
+	read_lock(&__toy->lock);
+	list_for_each_entry(knode, &__toy->head, list) {
+		if (knode->kv.k >= key) {
+			read_unlock(&__toy->lock);
+			//bonsai_debug("kv lookup <%lu %016lx>\n", knode->kv.k, knode->kv.v);
+			return (void*)knode->kv.v;
+		}
+	}
+	read_unlock(&__toy->lock);
+
+	return NULL;
 }
 
-// lowerbound in fact
-void* kv_lookup(struct sl_kv* sl, pkey_t key) {
-    struct kv_node *pred, *curr;
-    int i;
-    
-    pred = sl_head(sl);
-    for (i = sl_level(sl); i >= 0; i--) {
-        curr = pred->next[i];
-        while(curr != sl_tail(sl) && sl_cmp(key, node_key(curr)) > 0) {
-            pred = curr;
-            curr = pred->next[i];
-        }
-    }
-
-    return node_val(curr);
+int kv_scan(void* index_struct, pkey_t min, pkey_t max) {
+	return 0;
 }
 
-static int kv_find(struct sl_kv* sl, pkey_t key, struct kv_node** preds, struct kv_node** succs) {
-    struct kv_node *pred, *curr;
-    int i, found_l = -1;
-
-    pred = sl_head(sl);
-    for (i = sl_level(sl); i >= 0; i--) {
-        curr = pred->next[i];
-        while(curr != sl_tail(sl) && sl_cmp(key, node_key(curr)) > 0) {
-            pred = curr;
-            curr = pred->next[i];
-        }
-        if (!found_l && sl_cmp(key, node_key(curr)) == 0) {
-            found_l = i;
-        }
-        preds[i] = pred;
-        succs[i] = curr;
-    }
-    
-    return found_l;
-}
-
-int kv_insert(struct sl_kv* sl, pkey_t key, void* val) {
-    int levels;
-    struct kv_node* preds[MAX_LEVELS];
-    struct kv_node* succs[MAX_LEVELS];
-    struct kv_node *pred, *curr, *succ, *new_node;
-    int found_l, i, high_l, full_locked;
-
-    levels = random_levels(sl);
-    while(1) {
-        found_l = kv_find(sl, key, preds, succs);
-        if (found_l != -1) {
-            curr = succs[found_l];
-            if (!curr->marked) {
-                while(!curr->fully_linked);
-                return -EEXIST;
-            }
-            continue;
-        }
-
-        full_locked = 1;
-        for (i = 0; i < levels; i++) {
-            pred = preds[i];
-            succ = succs[i];
-            if (i == 0 || pred != preds[i - 1]) {
-                spin_lock(&pred->lock);
-            }
-            high_l = i;
-            if (pred->marked || succ->marked || pred->next[i] != succ) {
-                full_locked = 0;
-                break;
-            }
-        }
-        if (!full_locked) {
-            for (i = 0; i <= high_l; i++) {
-                pred = preds[i];
-                if (i == 0 || pred != preds[i - 1]) {
-                    spin_unlock(&pred->lock);
-                }
-            }
-            continue;
-        }
-
-        new_node = alloc_node(levels);
-        node_key(new_node) = key;
-        node_val(new_node) = val;
-
-        for (i = 0; i < levels; i++) {
-            new_node->next[i] = succs[i];
-            preds[i]->next[i] = new_node;
-        }
-        new_node->fully_linked = 1;
-
-        for (i = 0; i < levels; i++) {
-            pred = preds[i];
-            if (i == 0 || pred != preds[i - 1]) {
-                spin_unlock(&pred->lock);
-            }
-        }
-
-        return 0;
-    }
-}
-
-int kv_update(struct sl_kv* sl, pkey_t key, void* val) {
-    int levels;
-    struct kv_node* preds[MAX_LEVELS];
-    struct kv_node* succs[MAX_LEVELS];
-    struct kv_node *pred, *curr, *succ, *new_node;
-    int found_l, i, high_l, full_locked;
-
-    levels = random_levels(sl);
-    while(1) {
-        found_l = kv_find(sl, key, preds, succs);
-        if (found_l != -1) {
-            curr = succs[found_l];
-            if (!curr->marked) {
-                while(!curr->fully_linked);
-                node_key(curr) = val;
-                return 0;
-            }
-            continue;
-        }
-
-        full_locked = 1;
-        for (i = 0; i < levels; i++) {
-            pred = preds[i];
-            succ = succs[i];
-            if (i == 0 || pred != preds[i - 1]) {
-                spin_lock(&pred->lock);
-            }
-            high_l = i;
-            if (pred->marked || succ->marked || pred->next[i] != succ) {
-                full_locked = 0;
-                break;
-            }
-        }
-        if (!full_locked) {
-            for (i = 0; i <= high_l; i++) {
-                pred = preds[i];
-                if (i == 0 || pred != preds[i - 1]) {
-                    spin_unlock(&pred->lock);
-                }
-            }
-            continue;
-        }
-
-        new_node = alloc_node(levels);
-        node_key(new_node) = key;
-        node_val(new_node) = val;
-
-        for (i = 0; i < levels; i++) {
-            new_node->next[i] = succs[i];
-            preds[i]->next[i] = new_node;
-        }
-        new_node->fully_linked = 1;
-
-        for (i = 0; i < levels; i++) {
-            pred = preds[i];
-            if (i == 0 || pred != preds[i - 1]) {
-                spin_unlock(&pred->lock);
-            }
-        }
-
-        return 0;
-    }
-}
-
-int kv_remove(struct sl_kv* sl, pkey_t key) {
-    struct kv_node* preds[MAX_LEVELS];
-    struct kv_node* succs[MAX_LEVELS];
-    struct kv_node *victim, *pred;
-    int found_l, i, is_marked, high_l, full_locked;
-
-    is_marked = 0;
-    while(1) {
-        found_l = kv_find(sl, key, preds, succs);
-        if (found_l != -1) {
-            victim = succs[found_l];
-        }
-        if (is_marked || 
-        (found_l != -1 && victim->fully_linked && victim->marked)) {
-            if (!is_marked) {
-                assert(found_l == victim->levels - 1);
-                spin_lock(&victim->lock);
-                if (victim->marked) {
-                    spin_unlock(&victim->lock);
-                    return -ENONET;
-                }
-                victim->marked = 1;
-                is_marked = 1;
-            }
-
-            full_locked = 1;
-            for (i = 0; i <= found_l; i++) {
-                pred = preds[i];
-                if (i == 0 || pred != preds[i]) {
-                    spin_lock(&pred->lock);
-                }
-                high_l = i;
-                if (pred->marked || pred->next[i] != victim) {
-                    full_locked = 0;
-                    break;
-                }
-            }
-            if (!full_locked) {
-                for (i = 0; i <= high_l; i++) {
-                    if (i == 0 || pred != preds[i - 1]) {
-                        spin_unlock(&pred->lock);
-                    }
-                }
-                continue;
-            }
-            for (i = 0; i <= found_l; i++) {
-                preds[i]->next[i] = victim->next[i];
-            }
-            spin_unlock(&victim->lock);
-            free_node(victim);
-
-            return 0;
-        } else {
-            return -ENOENT;
-        }
-    }
-}
-
-int kv_scan(struct sl_kv* sl, pkey_t min, pkey_t max) {
-    return 0;
-}
-
-// single-thread ONLY
 void kv_print(void* index_struct) {
-	struct sl_kv *sl = (struct sl_kv*)index_struct;
-    struct kv_node* node = sl_head(sl)->next[0];
+	struct toy_kv *__toy = (struct toy_kv*)index_struct;
+	struct kv_node* knode;
+	int count = 0;
 
 	printf("index layer:\n");
-    while(node != sl_tail(sl)) {
-        printf("<%lu, %016lx> -> ", node->kv.k, node->kv.v);
-        node = node->next[0];
-    }
 
+	read_lock(&__toy->lock);
+	list_for_each_entry(knode, &__toy->head, list) {
+		printf("<%lu, %016lx> -> ", knode->kv.k, knode->kv.v);
+		count++;
+	}
+	read_unlock(&__toy->lock);
 	printf("NULL\n");
+	printf("index layer total entries: %d\n", count - 1);
 }
 
 static inline int get_cpu() {
@@ -391,10 +207,8 @@ static inline void die() {
 	exit(1);
 }
 
-extern void bonsai_print_all();
 void* thread_fun(void* arg) {
-	unsigned long i;
-	long id = (long)arg;
+	long i, id = (long)arg;
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * 2 * N);
 
@@ -410,15 +224,16 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------1---------------------\n", id);
+
 	sleep(10);
 
-	 for (i = (0 + N * id); i < (N + N * id); i ++) {
+	for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
 		if (v != a[i]) {
 			printf("%lu %lu\n", a[i], v);
 			die();
 		}
-	 }
+	}
 
 	printf("user thread[%ld]---------------------2---------------------\n", id);
 	sleep(10);
@@ -482,7 +297,7 @@ int main() {
 
 	bind_to_cpu(0);
 
-	if (bonsai_init("sl kv", kv_init, kv_destory, kv_insert,
+	if (bonsai_init("toy kv", kv_init, kv_destory, kv_insert,
 				kv_remove, kv_lookup, kv_scan) < 0)
 		goto out;
 
@@ -493,8 +308,7 @@ int main() {
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
-    
-    sleep(10);
+	
 	bonsai_deinit();
 
 out:

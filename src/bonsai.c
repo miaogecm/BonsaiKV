@@ -24,7 +24,7 @@
 #include "epoch.h"
 #include "cpu.h"
 
-#include "../index/kv.h"
+#include "../index/skiplist.h"
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
@@ -259,8 +259,10 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 
     if (!bonsai->desc->init) {
 		/* 1. initialize index layer */
-        index_layer_init(index_name, &bonsai->i_layer, kv_init, 
-			kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
+        //index_layer_init(index_name, &bonsai->i_layer, kv_init, 
+						//kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
+					index_layer_init(index_name, &bonsai->i_layer, sl_init, 
+						sl_insert, sl_remove, sl_lookup, sl_scan, sl_destory);
 
 		/* 2. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);

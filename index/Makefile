@@ -13,7 +13,7 @@ CFLAGS += ${LOCAL}
 
 LDFLAGS += -pthread -lpmem -lpmemobj -lnuma
 
-SRCS = $(PWD)/kv.c $(LIB_DIR)/libbonsai.a 
+SRCS = $(PWD)/skiplist.c $(LIB_DIR)/libbonsai.a 
 
 TARGETS = kv
 
