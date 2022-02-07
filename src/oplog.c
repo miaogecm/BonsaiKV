@@ -260,7 +260,7 @@ static void free_first_half_list(struct list_head* head) {
 }
 
 /*
- * worker_merge_sort: multi-threading parallel sorting
+ * worker_sort_log: multi-threading parallel sorting
  */
 static void worker_sort_log(struct log_layer* layer) {
 	int i, N = NUM_PFLUSH_WORKER, id = __this->t_id - 2;

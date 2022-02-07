@@ -484,6 +484,7 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 old = pnode_lookup(new_pnode, key);
                 if (!old) {
                     data_layer_search_key(key);
+                    print_pnode(new_pnode);
                     assert(0);
                 }
                 hs_insert(new, tid, key, old);
@@ -499,11 +500,14 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 return key;
             } else if (addr_in_pnode((unsigned long)old)) {
                 old = pnode_lookup(mid_pnode, key);
-                assert(old);
+                if (!old) {
+                    data_layer_search_key(key);
+                    print_pnode(mid_pnode);
+                    assert(0);
+                }
                 hs_insert(mid, tid, key, old);
                 return key;		
             } else {
-                printf("addr: %016lx\n", old);
                 perror("invalid address\n");
                 assert(0);
             }
@@ -518,6 +522,7 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 old = pnode_lookup(new_pnode, key);
                 if (!old) {
                     data_layer_search_key(key);
+                    print_pnode(new_pnode);
                     assert(0);
                 }
                 //assert(old);

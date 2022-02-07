@@ -501,7 +501,7 @@ int main() {
 
 	bind_to_cpu(0);
 
-	if (bonsai_init("sl kv", sl_init, sl_destory, sl_insert,
+	if (bonsai_init("skiplist", sl_init, sl_destory, sl_insert,
 				sl_remove, sl_lookup, sl_scan) < 0)
 		goto out;
 
