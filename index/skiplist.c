@@ -1,3 +1,12 @@
+/*
+ * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ *
+ * Hohai University
+ *
+ * Author: Miao Cai, mcai@hhu.edu.cn
+ * 
+ * A skip list implementation.
+ */
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
@@ -245,7 +254,6 @@ int kv_update(void* index_struct, pkey_t key, void* val) {
             curr = succs[found_l];
             if (!curr->marked) {
                 while(!curr->fully_linked);
-                /* FIXME: node_val */
                 node_val(curr) = (pval_t)val;
                 return 0;
             }

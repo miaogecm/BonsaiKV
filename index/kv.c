@@ -4,6 +4,8 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
+ * 
+ * A toy key-value store
  */
 #define _GNU_SOURCE
 #include <stdlib.h>

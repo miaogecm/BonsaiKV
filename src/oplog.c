@@ -262,10 +262,15 @@ static void free_first_half_list(struct list_head* head) {
 /*
  * worker_merge_sort: multi-threading parallel sorting
  */
-static void worker_sort(struct log_layer* layer) {
+static void worker_sort_log(struct log_layer* layer) {
 	int i, N = NUM_PFLUSH_WORKER, id = __this->t_id - 2;
 
 	bonsai_debug("pflush thread[%d] sort\n", __this->t_id);
+
+	if (unlikely(NUM_PFLUSH_WORKER == 1)) {
+		__list_sort(&layer->sort_list[id]);
+		return;
+	}
 	
 	pthread_barrier_wait(&layer->barrier);
 
@@ -386,7 +391,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 	worker_scan_buckets(layer);
 
 	/* 3. sort */
-	worker_sort(layer);
+	worker_sort_log(layer);
 
 out:
 	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);

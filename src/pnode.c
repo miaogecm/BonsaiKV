@@ -683,7 +683,7 @@ struct pnode* data_layer_search_key(pkey_t key) {
 		}
 	}
 
-	bonsai_print("data layer search key[%lu]: pnode %016lx\n", key, NULL);
+	bonsai_print("data layer find no such key[%lu]\n", key);
 
 	return NULL;
 }
