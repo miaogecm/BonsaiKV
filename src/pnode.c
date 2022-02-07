@@ -271,7 +271,7 @@ retry:
 	
 	assert(pnode);
 	assert(key_cmp(key, pnode_anchor_key(pnode)) <= 0);
-	
+
 	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", 
 		get_tid(), key, value, pnode, pnode_anchor_key(pnode));
 	
@@ -308,12 +308,12 @@ retry:
 			mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 		}
 
-        write_lock(pnode->slot_lock);
-        pnode_sort_slot(pnode, pos, key, OP_INSERT);
-        write_unlock(pnode->slot_lock);
+    write_lock(pnode->slot_lock);
+    pnode_sort_slot(pnode, pos, key, OP_INSERT);
+    write_unlock(pnode->slot_lock);
 
 		set_bit(pos, &pnode->bitmap);
-        write_unlock(pnode->bucket_lock[bucket_id]);
+    write_unlock(pnode->bucket_lock[bucket_id]);
 		
 		bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 0);
@@ -337,7 +337,7 @@ retry:
     new_pnode = alloc_pnode(numa_node);
     memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
     n = pnode->slot[0]; 
-	d = n / 2;
+		d = n / 2;
     new_removed = 0;
 
     for (i = 1; i <= d; i++) {
@@ -366,7 +366,8 @@ retry:
 	mid_pnode->bitmap = mid_removed;
 	mid_pnode->anchor_key = avg_key;
 
-	if (key_cmp(avg_key, new_pnode->anchor_key) <= 0 || key_cmp(avg_key, pnode->anchor_key) >= 0) {
+	if (key_cmp(avg_key, new_pnode->anchor_key) <= 0 
+				|| key_cmp(avg_key, pnode->anchor_key) >= 0) {
 		free_pnode(mid_pnode);
 		mid_n = 0;
 		mid_removed = 0;
@@ -588,10 +589,48 @@ void sentinel_node_init() {
 	bonsai_debug("sentinel_node_init\n");
 }
 
+/*
+ * check_pnode: validate this pnode
+ */
+void check_pnode(pkey_t key, struct pnode* pnode) {
+	unsigned long bitmap = 0;
+	pkey_t prev = 0, curr = ULONG_MAX;
+	int i, die = 0;
+
+	for (i = 1; i <= pnode->slot[0]; i ++) {
+		bitmap |= (1<<pnode->slot[i]);
+	}
+
+#if 0
+	/* check bitmap */
+	if (bitmap != pnode->bitmap) {
+		bonsai_print("pnode bitmap mismatch: %016lx %016lx\n", bitmap, pnode->bitmap);
+		goto die;
+	}
+#endif
+
+	/* check pnode entries */
+	for (i = 1; i <= pnode->slot[0]; i ++) {
+			curr = pnode_entry_n_key(pnode, i);
+			if (curr < prev) {
+				bonsai_print("pnode bad key order key[%d]:%lu key[%d]:%lu [%lu]\n", 
+							i - 1, prev, i, curr, key);
+				goto die;	
+			}
+			prev = curr;
+	}
+	return;
+
+die:
+	print_pnode(pnode);
+	assert(0);
+}
+
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", 
+			pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -619,7 +658,7 @@ void dump_pnode_list_summary() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_print("[pnode[%d]{%016lx} == bitmap: %016lx slot[0]: %d max: %lu anchor: %lu]\n", j++, pnode, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode), pnode_anchor_key(pnode));
+		bonsai_debug("[pnode[%d]{%016lx} == bitmap: %016lx slot[0]: %d max: %lu anchor: %lu]\n", j++, pnode, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode), pnode_anchor_key(pnode));
 		key_sum += pnode->slot[0];
 		pnode_sum ++;
 	}

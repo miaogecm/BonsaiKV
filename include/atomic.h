@@ -240,6 +240,22 @@ static inline int atomic_sub_return(int i, atomic_t *v)
     return atomic_add_return(-i, v);
 }
 
+static inline void atomic_or(int i, atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "orl %1,%0"
+			: "+m" (v->counter)
+			: "ir" (i)
+			: "memory");
+}
+
+static inline void atomic_and(int i, atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "andl %1,%0"
+			: "+m" (v->counter)
+			: "ir" (i)
+			: "memory");
+}
+
 #ifdef __cplusplus
 }
 #endif

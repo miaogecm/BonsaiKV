@@ -33,22 +33,20 @@ static __always_inline unsigned long __ffs(unsigned long word)
 
 static inline void set_bit(int nr, unsigned long *addr)
 {
-	addr[nr / __BITS_PER_LONG] |= 1UL << (nr % __BITS_PER_LONG);
+	//addr[nr / __BITS_PER_LONG] |= 1UL << (nr % __BITS_PER_LONG);
+	asm volatile("lock; orq %1,%0"
+							: "+m" (*addr)
+							: "er" (1UL << nr)
+							: "memory");
 }
 
 static inline void clear_bit(int nr, unsigned long *addr)
 {
-	addr[nr / __BITS_PER_LONG] &= ~(1UL << (nr % __BITS_PER_LONG));
-}
-
-static inline void set_bit_le(int nr, void *addr)
-{
-	set_bit(nr ^ BITOP_LE_SWIZZLE, addr);
-}
-
-static inline void clear_bit_le(int nr, void *addr)
-{
-	clear_bit(nr ^ BITOP_LE_SWIZZLE, addr);
+	//addr[nr / __BITS_PER_LONG] &= ~(1UL << (nr % __BITS_PER_LONG));
+	asm volatile("lock; andq %1,%0"
+							: "+m" (*addr)
+							: "er" (~(1UL << nr))
+							: "memory");
 }
 
 #define ___constant_swab64(x) ((__u64)(				\
