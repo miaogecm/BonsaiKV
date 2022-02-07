@@ -30,7 +30,7 @@ __thread struct thread_info* __this = NULL;
 static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
-static atomic_t STATUS = ATOMIC_INIT(WORKER_SLEEP);
+static atomic_t STATUS = ATOMIC_INIT(MASTER_SLEEP);
 static atomic_t tids = ATOMIC_INIT(-1);
 
 extern struct bonsai_info* bonsai;
@@ -61,6 +61,7 @@ static void try_wakeup_master() {
 
 void wakeup_master() {
 	pthread_mutex_lock(&work_mutex);
+	atomic_set(&STATUS, MASTER_WORK);
 	pthread_cond_broadcast(&work_cond);
 	pthread_mutex_unlock(&work_mutex);
 }
@@ -74,7 +75,8 @@ void park_workers() {
 void park_master() {
 	pthread_mutex_lock(&work_mutex);
 	while (atomic_read(&STATUS) != WORKER_SLEEP 
-			&& atomic_read(&STATUS) != ALL_WAKEUP) 
+			&& atomic_read(&STATUS) != ALL_WAKEUP
+			&& atomic_read(&STATUS) != MASTER_WORK)
 		pthread_cond_wait(&work_cond, &work_mutex);
 	pthread_mutex_unlock(&work_mutex);
 }
@@ -238,6 +240,8 @@ static void pflush_master(struct thread_info* this) {
 
 	thread_block_alarm_signal();
 	thread_register_stop_signal();
+
+	master_wait_workers(this);
 
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;

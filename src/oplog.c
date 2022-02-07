@@ -645,9 +645,10 @@ void oplog_flush() {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
 			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
+			bonsai_print("%lu\n", e->log->o_kv.k);
 		}
 	}
-	
+
 	wakeup_workers();
 
 	park_master();
