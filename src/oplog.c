@@ -180,7 +180,7 @@ static void worker_scan_buckets(struct log_layer* layer) {
 
 	INIT_LIST_HEAD(head);
 
-	bonsai_print("pflush thread[%d] scan bucket [%u %u]\n", id, min_index, max_index);
+	bonsai_debug("pflush thread[%d] scan bucket [%u %u]\n", id, min_index, max_index);
 
 	pthread_barrier_wait(&layer->barrier);
 	
@@ -265,7 +265,7 @@ static void free_first_half_list(struct list_head* head) {
 static void worker_sort(struct log_layer* layer) {
 	int i, N = NUM_PFLUSH_WORKER, id = __this->t_id - 2;
 
-	bonsai_print("pflush thread[%d] sort\n", __this->t_id);
+	bonsai_debug("pflush thread[%d] sort\n", __this->t_id);
 	
 	pthread_barrier_wait(&layer->barrier);
 
@@ -334,7 +334,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 	layer = mwork->layer;
 
-	bonsai_print("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
+	bonsai_debug("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 
 	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
@@ -453,7 +453,7 @@ static int worker_oplog_flush(void* arg) {
 	merge_ent* e, *tmp;
 	int count = 0, ret = 0;
 
-	bonsai_print("pflush thread[%d] start flush\n", __this->t_id);
+	bonsai_debug("pflush thread[%d] start flush\n", __this->t_id);
 
 	list_for_each_entry_safe(e, tmp, &fwork->flush_list, list) {
 		log = e->log;
@@ -526,7 +526,7 @@ void oplog_flush() {
 	int num_region_per_thread, num_region_rest;
 	//int num_bucket_per_thread;
 
-	bonsai_print("thread[%d]: start oplog flush [%d]\n", __this->t_id, l_layer->nflush);
+	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 
 	atomic_set(&l_layer->checkpoint, 1);
 

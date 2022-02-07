@@ -212,7 +212,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 void bonsai_deinit() {
 	bonsai_print("bonsai deinit\n");
 
-	//dump_pnode_list_summary();
+	dump_pnode_list_summary();
 	
 	bonsai_self_thread_exit();
 

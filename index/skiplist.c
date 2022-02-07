@@ -15,7 +15,7 @@
 // #define RAND
 
 #ifndef N
-#define N			10001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -246,7 +246,7 @@ int kv_update(void* index_struct, pkey_t key, void* val) {
             if (!curr->marked) {
                 while(!curr->fully_linked);
                 /* FIXME: node_val */
-                node_key(curr) = (pval_t)val;
+                node_val(curr) = (pval_t)val;
                 return 0;
             }
             continue;
