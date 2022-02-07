@@ -33,7 +33,6 @@ static __always_inline unsigned long __ffs(unsigned long word)
 
 static inline void set_bit(int nr, unsigned long *addr)
 {
-	//addr[nr / __BITS_PER_LONG] |= 1UL << (nr % __BITS_PER_LONG);
 	asm volatile("lock; orq %1,%0"
 							: "+m" (*addr)
 							: "er" (1UL << nr)
@@ -42,7 +41,6 @@ static inline void set_bit(int nr, unsigned long *addr)
 
 static inline void clear_bit(int nr, unsigned long *addr)
 {
-	//addr[nr / __BITS_PER_LONG] &= ~(1UL << (nr % __BITS_PER_LONG));
 	asm volatile("lock; andq %1,%0"
 							: "+m" (*addr)
 							: "er" (~(1UL << nr))
