@@ -458,7 +458,7 @@ static int worker_oplog_flush(void* arg) {
 	merge_ent* e, *tmp;
 	int count = 0, ret = 0;
 
-	bonsai_debug("pflush thread[%d] start flush\n", __this->t_id);
+	bonsai_print("pflush thread[%d] start flush\n", __this->t_id);
 
 	list_for_each_entry_safe(e, tmp, &fwork->flush_list, list) {
 		log = e->log;
@@ -547,7 +547,7 @@ void oplog_flush() {
 		}
 	}
 
-	if (unlikely(!total))
+	if (unlikely(!total)) 
 		goto out;
 
 	if (unlikely(atomic_read(&l_layer->exit)))
@@ -614,7 +614,7 @@ void oplog_flush() {
 
 	park_master();
 
-	if (unlikely(atomic_read(&l_layer->exit)))
+	if (unlikely(atomic_read(&l_layer->exit))) 
 		goto out;
 
 	/* 3. flush all logs */
@@ -645,7 +645,6 @@ void oplog_flush() {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
 			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
-			bonsai_print("%lu\n", e->log->o_kv.k);
 		}
 	}
 
@@ -653,7 +652,7 @@ void oplog_flush() {
 
 	park_master();
 
-	if (unlikely(atomic_read(&l_layer->exit)))
+	if (unlikely(atomic_read(&l_layer->exit))) 
 		goto out;
 
 	/* 5. traverse the pnode list */
@@ -673,7 +672,7 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 0);
 
 out:
-	// dump_pnode_list_summary();
+	//dump_pnode_list_summary();
 	// stat_numa_table();
 	// index_layer_dump();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);

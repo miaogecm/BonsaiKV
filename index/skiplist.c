@@ -24,7 +24,7 @@
 // #define RAND
 
 #ifndef N
-#define N			100001
+#define N			1000001
 #endif
 
 pkey_t a[5 * N];
@@ -429,7 +429,7 @@ void* thread_fun(void* arg) {
 	}
 
 	printf("user thread[%ld]---------------------1---------------------\n", id);
-	sleep(60);
+	sleep(10);
 
 	 for (i = (0 + N * id); i < (N + N * id); i ++) {
 	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);

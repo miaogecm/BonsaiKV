@@ -245,6 +245,7 @@ static void pflush_master(struct thread_info* this) {
 
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
+		atomic_set(&STATUS, MASTER_SLEEP);
 		//usleep(CHKPT_TIME_INTERVAL);
 		park_master();
 
