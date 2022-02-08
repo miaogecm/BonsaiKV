@@ -60,6 +60,9 @@ static void try_wakeup_master() {
 }
 
 void wakeup_master() {
+	if (atomic_read(&STATUS) != MASTER_SLEEP)
+		return;
+	
 	pthread_mutex_lock(&work_mutex);
 	atomic_set(&STATUS, MASTER_WORK);
 	pthread_cond_broadcast(&work_cond);
@@ -146,6 +149,29 @@ void stop_the_world() {
 				return;
 			}
 		}
+	}
+}
+
+static void wait_pflush_thread() {
+	int states[NUM_PFLUSH_THREAD] = {0};
+	int i, num_sleep = 0;
+
+	while (1) {
+		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
+			if (bonsai->pflushd[i]->t_state != S_SLEEPING)
+				usleep(20);
+			else
+				states[i] = 1;
+		}
+
+		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
+			if (states[i]) num_sleep ++;
+		}
+
+		if (num_sleep == NUM_PFLUSH_THREAD)
+			return;
+
+		num_sleep = 0;
 	}
 }
 
@@ -236,7 +262,8 @@ static void pflush_master(struct thread_info* this) {
 
 	bind_to_cpu(__this->t_cpu);
 	
-	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
+	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", 
+		__this->t_id, __this->t_pid, get_cpu());
 
 	thread_block_alarm_signal();
 	thread_register_stop_signal();
@@ -334,6 +361,8 @@ int bonsai_pflushd_thread_init() {
 
 		bonsai->pflushd[i] = thread;
 	}
+
+	wait_pflush_thread();
 	
 	return 0;
 }

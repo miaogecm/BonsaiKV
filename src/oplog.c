@@ -341,7 +341,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 	layer = mwork->layer;
 
-	bonsai_debug("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
+	bonsai_print("pflush thread[%d] merge %d log lists\n", __this->t_id, mwork->count);
 
 	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
@@ -510,6 +510,8 @@ static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 		free(p);
 	}
 }
+
+extern atomic_t STATUS;
 
 /*
  * oplog_flush: perform a full log flush

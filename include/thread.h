@@ -27,11 +27,11 @@ struct log_layer;
 struct oplog_blk;
 
 enum {
-	MASTER_SLEEP = -100,
-	MASTER_WORK,
 	WORKER_SLEEP = 0,
 	WORKER_RUNNING = NUM_PFLUSH_THREAD - 1,
 	ALL_WAKEUP = NUM_PFLUSH_THREAD,
+	MASTER_SLEEP = 100,
+	MASTER_WORK,
 };
 
 enum {
