@@ -411,7 +411,6 @@ static inline void die() {
 	exit(1);
 }
 
-extern void bonsai_print_all();
 void* thread_fun(void* arg) {
 	long i, id = (long)arg;
 	pval_t v = 0;

@@ -3,12 +3,15 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <sched.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
 #include "list.h"
 
 #define MAX     100000	
 #define MIN	0
 
-#define N 100000
+static int N[4] = {3024,2681,2352,2716};
 
 #define NUM_THREAD		4
 struct list_head heads[NUM_THREAD];
@@ -16,10 +19,14 @@ pthread_t tids[NUM_THREAD];
 
 pthread_barrier_t barrier;
 
+static int x = 0;
+
 struct data {
 	int i;
 	struct list_head list;
 };
+
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 extern void list_sort(void *priv, struct list_head *head,
 		int (*cmp)(void *priv, struct list_head *a,
@@ -39,6 +46,20 @@ static void bind_to_cpu(int cpu) {
     }
 }
 
+static int print_list(struct list_head* head, int id) {
+	struct data *d;
+	int sum = 0;
+
+	printf("thread[%d]: ", id);
+	list_for_each_entry(d, head, list) {
+		printf("%d ->", d->i);
+		sum++;
+	}
+	printf("\n");
+
+	return sum;
+}
+
 static void list_init() {
 	struct data *data;
 	int i, j;
@@ -47,9 +68,10 @@ static void list_init() {
 
 	for (i = 0; i < NUM_THREAD; i ++) {
 		INIT_LIST_HEAD(&heads[i]);
-		for (j = 0; j < N; j ++) {
+		for (j = 0; j < N[i]; j ++) {
 			data = malloc(sizeof(struct data));
-			data->i = __random();
+			//data->i = __random();
+			data->i = x; x++;
 			list_add(&data->list, &heads[i]);
 		}
 		printf("list [%d] init\n", i);
@@ -66,12 +88,44 @@ static int cmp(void *priv, struct list_head *a, struct list_head *b) {
 	else return 0;
 }
 
+static void check(struct list_head* head) {
+	int i=0,j, a[10000], sum = 0;
+	struct data* pos;
+
+	if (list_empty(head))
+		return;
+
+	list_for_each_entry(pos, head, list) {
+		a[i] = pos->i;
+		sum ++; i ++;
+	}
+
+	for (i=0;i<sum;i++){
+		for(j=0;j<sum;j++) {
+			if (i!=j){
+				if (a[i] == a[j]) {
+					printf("%d a[%d]:%d a[%d]:%d a[%d]:%d a[%d]:%d\n", gettid(), i-1,a[i-1],i,a[i],j,a[j],j+1,a[j+1]);
+					//print_list(head, 1);					
+					exit(0);
+				}
+			}
+		}
+	}
+}
+
 static void __list_sort(struct list_head* head) {
+	printf("----------before------------\n");
+	check(head);
 	list_sort(NULL, head, cmp);
+	printf("----------after------------\n");
+	check(head);
 }
 
 static void copy_list(struct list_head* dst, struct list_head* src) {
 	struct data *d, *tmp, *n;
+
+	printf("----------copy_list before------------\n");
+	check(src);
 
 	list_for_each_entry(n, src, list) {
 		d = malloc(sizeof(struct data));
@@ -79,6 +133,8 @@ static void copy_list(struct list_head* dst, struct list_head* src) {
 		
 		list_add_tail(&d->list, dst);
 	}
+	printf("----------copy_list after------------\n");
+	check(dst);
 }
 
 static void free_second_half_list(struct list_head* head) {
@@ -99,6 +155,9 @@ static void free_second_half_list(struct list_head* head) {
 			break;
 		}
 	}
+
+	printf("----------free_second_half_list------------\n");
+	check(head);
 }
 
 static void free_first_half_list(struct list_head* head) {
@@ -119,17 +178,11 @@ static void free_first_half_list(struct list_head* head) {
 			break;
 		}
 	}
+
+	printf("----------free_first_half_list------------\n");
+	check(head);
 }
 
-static void print_list(struct list_head* head, int id) {
-	struct data *d;
-
-	printf("thread[%d]: ", id);
-	list_for_each_entry(d, head, list) {
-		printf("%d ->", d->i);
-	}
-	printf("\n");
-}
 #if 1
 static void pflush_master(void *arg) {
 	int cpu = (int)arg;
@@ -231,7 +284,13 @@ static void pflush_worker(void *arg) {
 		//printf("thread[%d]-----------------phase [%d]---------------\n", id, i);
 		if (i % 2 == 0) {
 			if (id % 2 == 0) {
+				printf("--------------list_splice before[%d]----------------\n",gettid());				
+				check(&heads[id]);check(&heads[id+1]);
+				print_list(&heads[id],gettid());
+				print_list(&heads[id+1],gettid());
 				list_splice(&heads[id], &heads[id + 1]);
+				printf("--------------list_splice after[%d]----------------\n",gettid());
+				check(&heads[id+1]);
 				INIT_LIST_HEAD(&heads[id]);
 				copy_list(&heads[id], &heads[id + 1]);
 				pthread_barrier_wait(&barrier);
@@ -294,7 +353,7 @@ static void thread_init() {
 }
 
 int main() {
-	int i;
+	int i, sum = 0;
 	
 	list_init();
 	thread_init();
@@ -304,8 +363,11 @@ int main() {
 	}
 
 	for (i = 0; i < NUM_THREAD; i ++) {
-		print_list(&heads[i], i);
+		sum += print_list(&heads[i], i);
 	}
+
+	printf("sum: %d\n", sum);
+
 /*
 	struct list_head head1,head2;
 	struct data a,b,c,d,*pos;

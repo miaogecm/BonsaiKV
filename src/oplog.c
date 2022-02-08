@@ -510,7 +510,7 @@ static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 }
 
 /*
- * oplog_flush: perform a full operation log flush
+ * oplog_flush: perform a full log flush
  */
 void oplog_flush() {
 	struct log_layer *l_layer = LOG(bonsai);
@@ -640,13 +640,17 @@ void oplog_flush() {
 		fworks[cnt - 1] = fwork;
 	}
 
+	long sum = 0;
 	/* 4. split sort list */
 	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
 			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
+			sum++;
 		}
 	}
+	bonsai_print("**********************%ld**********************\n", sum);
+	exit(0);
 
 	wakeup_workers();
 
@@ -667,7 +671,7 @@ void oplog_flush() {
 		free(mworks[i]);
 	}
 
-	/* 6. finish */
+	/* 7. finish */
 	l_layer->nflush ++;
 	atomic_set(&l_layer->checkpoint, 0);
 
