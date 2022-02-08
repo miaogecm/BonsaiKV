@@ -11,7 +11,7 @@
 #define MAX     100000	
 #define MIN	0
 
-static int N[4] = {3024,2681,2352,2716};
+static int N[4] = {3021,2959,3026,2875};
 
 #define NUM_THREAD		4
 struct list_head heads[NUM_THREAD];
@@ -114,18 +114,13 @@ static void check(struct list_head* head) {
 }
 
 static void __list_sort(struct list_head* head) {
-	printf("----------before------------\n");
-	check(head);
 	list_sort(NULL, head, cmp);
-	printf("----------after------------\n");
+	printf("[%d]----------__list_sort------------\n",gettid());
 	check(head);
 }
 
 static void copy_list(struct list_head* dst, struct list_head* src) {
 	struct data *d, *tmp, *n;
-
-	printf("----------copy_list before------------\n");
-	check(src);
 
 	list_for_each_entry(n, src, list) {
 		d = malloc(sizeof(struct data));
@@ -133,7 +128,7 @@ static void copy_list(struct list_head* dst, struct list_head* src) {
 		
 		list_add_tail(&d->list, dst);
 	}
-	printf("----------copy_list after------------\n");
+	printf("[%d]----------copy_list------------\n",gettid());
 	check(dst);
 }
 
@@ -147,6 +142,8 @@ static void free_second_half_list(struct list_head* head) {
 	}
 
 	half = sum / 2;
+	if (sum % 2) half += 1;
+
 	list_for_each_entry_safe_reverse(d, tmp, head, list) {
 		if (i ++ < half) {
 			list_del(&d->list);
@@ -155,9 +152,6 @@ static void free_second_half_list(struct list_head* head) {
 			break;
 		}
 	}
-
-	printf("----------free_second_half_list------------\n");
-	check(head);
 }
 
 static void free_first_half_list(struct list_head* head) {
@@ -178,90 +172,8 @@ static void free_first_half_list(struct list_head* head) {
 			break;
 		}
 	}
-
-	printf("----------free_first_half_list------------\n");
-	check(head);
 }
 
-#if 1
-static void pflush_master(void *arg) {
-	int cpu = (int)arg;
-	int id = cpu, i, n = NUM_THREAD;
-	struct data *d;
-
-	bind_to_cpu(cpu);
-
-	__list_sort(&heads[id]);
-}
-#endif
-#if 0
-static void pflush_master(void *arg) {
-	int cpu = (int)arg;
-	int id = cpu, i, n = NUM_THREAD;
-	struct data *d;
-
-	bind_to_cpu(cpu);
-	//printf("thread[%d] running on cpu[%d]\n", id, cpu);
-
-	pthread_barrier_wait(&barrier);
-
-	__list_sort(&heads[id]);
-
-/*
-	list_for_each_entry(d, &heads[id], list) {
-		printf("thread[%d]: %d\n", id, d->i);
-	}
-*/
-	pthread_barrier_wait(&barrier);
-
-	for (i = 0; i < n; i ++) {
-		//printf("thread[%d]-----------------phase [%d]---------------\n", id, i);
-		if (i % 2 == 0) {
-			if (id % 2 == 0) {
-				list_splice(&heads[id], &heads[id + 1]);
-				INIT_LIST_HEAD(&heads[id]);
-				copy_list(&heads[id], &heads[id + 1]);
-				pthread_barrier_wait(&barrier);
-				
-				__list_sort(&heads[id]);
-				free_second_half_list(&heads[id]);
-				pthread_barrier_wait(&barrier);	
-			} else {
-				pthread_barrier_wait(&barrier);
-				__list_sort(&heads[id]);
-				free_first_half_list(&heads[id]);
-				pthread_barrier_wait(&barrier);	
-			}
-		} else {
-			if (id % 2 == 0) {
-				pthread_barrier_wait(&barrier);
-				if (id != 0) {
-					__list_sort(&heads[id]);
-					free_first_half_list(&heads[id]);
-				}
-				pthread_barrier_wait(&barrier);	
-			} else {
-				if (id != NUM_THREAD - 1) {
-					list_splice(&heads[id], &heads[id + 1]);
-					INIT_LIST_HEAD(&heads[id]);
-					copy_list(&heads[id], &heads[id + 1]);
-				}
-
-				pthread_barrier_wait(&barrier);
-				if (id != NUM_THREAD - 1) {
-					__list_sort(&heads[id]);
-					free_second_half_list(&heads[id]);
-				}
-				pthread_barrier_wait(&barrier);	
-			}
-		}
-	}
-
-	printf("thread[%d] exit\n", id);
-	
-	print_list(&heads[id], id);
-}
-#endif
 static void pflush_worker(void *arg) {
 	int cpu = (int)arg;
 	int id = cpu, i, n = NUM_THREAD;
@@ -273,24 +185,16 @@ static void pflush_worker(void *arg) {
 	pthread_barrier_wait(&barrier);
 
 	__list_sort(&heads[id]);
-/*
-	list_for_each_entry(d, &heads[id], list) {
-		printf("thread[%d]: %d\n", id, d->i);
-	}
-*/
+
 	pthread_barrier_wait(&barrier);
 
 	for (i = 0; i < n; i ++) {
-		//printf("thread[%d]-----------------phase [%d]---------------\n", id, i);
+		printf("thread[%d]-----------------phase [%d]---------------\n", id, i);
 		if (i % 2 == 0) {
-			if (id % 2 == 0) {
-				printf("--------------list_splice before[%d]----------------\n",gettid());				
-				check(&heads[id]);check(&heads[id+1]);
-				print_list(&heads[id],gettid());
-				print_list(&heads[id+1],gettid());
+			if (id % 2 == 0) {		
 				list_splice(&heads[id], &heads[id + 1]);
-				printf("--------------list_splice after[%d]----------------\n",gettid());
-				check(&heads[id+1]);
+				printf("[%d]----------list_splice------------\n",gettid());
+				check(&heads[id + 1]);
 				INIT_LIST_HEAD(&heads[id]);
 				copy_list(&heads[id], &heads[id + 1]);
 				pthread_barrier_wait(&barrier);
@@ -335,17 +239,9 @@ static void pflush_worker(void *arg) {
 
 static void thread_init() {
 	int i;
-
 	pthread_barrier_init(&barrier, NULL, NUM_THREAD);
 
 	for (i = 0; i < NUM_THREAD; i++) {
-/*
-		if (pthread_create(&tids[i], NULL,
-			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)i) != 0) {
-        		printf("bonsai create thread[%d] failed\n", i);
-    	}
-*/
-		//if (pthread_create(&tids[i], NULL, (void*)pflush_master, (void*)i) != 0) {	
 		if (pthread_create(&tids[i], NULL, (void*)pflush_worker, (void*)i) != 0) {
         		printf("bonsai create thread[%d] failed\n", i);
     	}
@@ -367,25 +263,5 @@ int main() {
 	}
 
 	printf("sum: %d\n", sum);
-
-/*
-	struct list_head head1,head2;
-	struct data a,b,c,d,*pos;
-	INIT_LIST_HEAD(&head1);
-	INIT_LIST_HEAD(&head2);
-
-	a.i=2;b.i=1;
-	list_add(&a.list, &head1);
-	list_add(&b.list, &head1);
-
-	c.i=4;d.i=3;
-	list_add(&c.list, &head2);
-	list_add(&d.list, &head2);
-
-	list_splice(&head1, &head2);
-	list_for_each_entry(pos, &head2, list) {
-		printf("%d\n", pos->i);
-	}
-*/
 	return 0;
 }

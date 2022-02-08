@@ -229,6 +229,8 @@ static void free_second_half_list(struct list_head* head) {
 	}
 
 	half = sum / 2;
+	if (sum % 2) half += 1;
+	
 	list_for_each_entry_safe_reverse(e, tmp, head, list) {
 		if (i ++ < half) {
 			list_del(&e->list);
@@ -640,17 +642,13 @@ void oplog_flush() {
 		fworks[cnt - 1] = fwork;
 	}
 
-	long sum = 0;
 	/* 4. split sort list */
 	for (i = 0, n = 0; i < NUM_PFLUSH_WORKER; i ++) {
 		list_for_each_entry_safe(e, tmp, &l_layer->sort_list[i], list) {
 			list_del(&e->list);
 			list_add_tail(&e->list, &fworks[n++ % NUM_PFLUSH_WORKER]->flush_list);
-			sum++;
 		}
 	}
-	bonsai_print("**********************%ld**********************\n", sum);
-	exit(0);
 
 	wakeup_workers();
 
