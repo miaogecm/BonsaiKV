@@ -406,7 +406,7 @@ retry:
  */
 int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
-  int bucket_id, offset, i, node;
+  	int bucket_id, offset, i, node;
 	uint64_t mask, bit;
 	struct mptable* m;
 	struct pnode* pnode;
@@ -439,8 +439,10 @@ int pnode_remove(pkey_t key) {
 	return -ENOENT;
 
 find:
-    mask |= (offset + i);
-    pnode->bitmap &= mask;
+    //mask |= (offset + i);
+    //pnode->bitmap &= mask;
+	/* FIXME: atomic instruction */
+	clear_bit(bit, &pnode->bitmap);
 	write_unlock(pnode->bucket_lock[bucket_id]);
 
     write_lock(pnode->slot_lock);
