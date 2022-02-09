@@ -345,11 +345,9 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
-		printf("i: %d\n", i);
 		block = mwork->first_blks[i];
 		do {
 			count = block->cnt;
-			// printf("count: %d\n", count);
 			
 			for (j = 0; j < count; j ++) {
 				log = &block->logs[j];
