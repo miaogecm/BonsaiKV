@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
+export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
 export load_file='load_monoint_workloada'
 export txn_file='txn_monoint_workloada'
 
@@ -26,8 +26,8 @@ do
     cd -
     if [ $id == 1 ]
     then
-        ./gen_array.out ${index_microbench_dir}/workloads/${load_file} ./data/load.h 0 $count 
+        ./gen_data.out ${index_microbench_dir}/workloads/${load_file} ./data/load.h 0 $count 
     fi
-    ./gen_array.out ${index_microbench_dir}/workloads/${txn_file} ./data/op.h 1 $count $id $num
+    ./gen_data.out ${index_microbench_dir}/workloads/${txn_file} ./data/op.h 1 $count $id $num
     let "id++"
 done
