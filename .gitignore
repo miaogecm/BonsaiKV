@@ -10,3 +10,4 @@ log
 core*
 perf*
 kv
+index/data
