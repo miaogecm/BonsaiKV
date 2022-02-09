@@ -8,6 +8,6 @@ log
 .objs
 .DS_Store
 core*
-<<<<<<< HEAD
 perf*
 kv
+data
