@@ -424,10 +424,10 @@ void* thread_fun(void* arg) {
 	for (i = 0; i < N; i ++) {
         switch (op_arr[id][i][0]) {
         case 0:
-            bonsai_insert(op_arr[id][i][1], op_arr[id][i][1]);
+            bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
             break;
         case 1:
-            bonsai_insert(op_arr[id][i][1], op_arr[id][i][1]);
+            bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
             break;        
         case 2:
             bonsai_lookup(op_arr[id][i][1], &v);
@@ -463,7 +463,7 @@ int main() {
 		goto out;
 
     for (i = 0; i < N; i ++) {
-        assert(bonsai_insert(load_arr[i], load_arr[i]) == 0);
+        assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
     }
     sleep(10);
 
