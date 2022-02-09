@@ -273,11 +273,12 @@ static void pflush_master(struct thread_info* this) {
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
 		atomic_set(&STATUS, MASTER_SLEEP);
-		//usleep(CHKPT_TIME_INTERVAL);
 		park_master();
 
 		__this->t_state = S_RUNNING;
-		oplog_flush(bonsai);
+		do {
+			oplog_flush(bonsai);
+		}while(atomic_read(&layer->nlogs) >= CHKPT_NLOG_INTERVAL && !atomic_read(&layer->exit));
 	}
 
 	pflush_thread_exit(this);
