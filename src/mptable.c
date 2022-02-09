@@ -317,6 +317,7 @@ int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val) 
 			return -ENOENT;
 		default:
 			perror("invalid operation type\n");
+			printf("type: %d\n", log->o_type);
 		}
 	} else if (addr_in_pnode((unsigned long)addr)) {
 		if (addr) {

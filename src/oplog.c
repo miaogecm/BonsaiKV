@@ -345,9 +345,12 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
+		printf("i: %d\n", i);
 		block = mwork->first_blks[i];
 		do {
 			count = block->cnt;
+			// printf("count: %d\n", count);
+			
 			for (j = 0; j < count; j ++) {
 				log = &block->logs[j];
 				key = log->o_kv.k;
@@ -570,12 +573,12 @@ void oplog_flush() {
 			mwork->first_blks[0] = curr_blk;
 			if (i != NUM_PFLUSH_THREAD - 1) {
 				for (j = 0; j < num_block_per_thread; j ++)
-					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(l_layer->region[0], curr_blk->next);
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[0]), curr_blk->next);
 			} else {
 				while (curr_blk->next)
-					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(l_layer->region[0], curr_blk->next);
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[0]), curr_blk->next);
 			}
-			mwork->last_blks[0] = curr_blks;
+			mwork->last_blks[0] = curr_blk;
 			mworks[i] = mwork;
 		}
 	} else if (total < NUM_PFLUSH_WORKER) {

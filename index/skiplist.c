@@ -465,7 +465,8 @@ int main() {
     for (i = 0; i < N; i ++) {
         assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
     }
-    sleep(10);
+    printf("load succeed!\n");
+    sleep(30);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
