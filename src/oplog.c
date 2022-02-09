@@ -166,7 +166,7 @@ void clean_pflush_buckets(struct log_layer* layer) {
 }
 
 /*
- * worker_merge_scan_buckets: scan buckets and put entries into the list
+ * worker_scan_buckets: scan buckets and put entries into the list
  */
 static void worker_scan_buckets(struct log_layer* layer) {
 	int i, id = __this->t_id, num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
@@ -357,7 +357,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 				nlog++; atomic_dec(&layer->nlogs);
 				bonsai_debug("pflush thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
-					__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
+						__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
 				
 				spin_lock(&bucket->lock);
 				hlist_for_each_entry(e, hnode, &bucket->head, node) {
@@ -510,8 +510,6 @@ static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 		free(p);
 	}
 }
-
-extern atomic_t STATUS;
 
 /*
  * oplog_flush: perform a full log flush
@@ -677,8 +675,6 @@ void oplog_flush() {
 
 out:
 	//dump_pnode_list_summary();
-	// stat_numa_table();
-	// index_layer_dump();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 	return;
 }

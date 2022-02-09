@@ -243,11 +243,10 @@ static struct pnode* pnode_find_lowbound(pkey_t key) {
 
 /*
  * pnode_insert: insert a kv-pair into a pnode
- * @pnode: persistent node
- * @table: NUMA mapping table
- * @numa_node: which numa node
  * @key: key
  * @val: value
+ * @time_stamp: time stamp of the log
+ * @numa_node: which numa node
  * return 0 if successful
  */
 int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node) {
@@ -401,7 +400,6 @@ retry:
 
 /*
  * pnode_remove: remove an entry of a pnode
- * @pnode: the pnode
  * @key: key to be new_removed
  */
 int pnode_remove(pkey_t key) {
