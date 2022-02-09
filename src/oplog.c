@@ -531,6 +531,7 @@ void oplog_flush() {
 	int i, j, cpu, cnt = 0, total = 0;
 	unsigned long n;
 	int num_region_per_thread, num_region_rest;
+	int num_block_per_thread;
 	//int num_bucket_per_thread;
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
@@ -556,8 +557,29 @@ void oplog_flush() {
 		goto out;
 
 	/* 2. merge all logs */
-	if (total < NUM_PFLUSH_WORKER) {
-		/* case I: total < (NUM_PFLUSH_THREAD - 1) */
+	if (total == 1) {
+		/* case I: total == 1 */
+		num_region_per_thread = 1;
+		num_block_per_thread = atomic_read(&l_layer->nlogs) / NUM_OPLOG_PER_BLK / NUM_PFLUSH_WORKER;
+		curr_blk = first_blks[0];
+		for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
+			mwork = malloc(sizeof(struct merge_work));
+			mwork->count = num_region_per_thread;
+			mwork->layer = l_layer;
+			INIT_LIST_HEAD(&mwork->page_list);
+			mwork->first_blks[0] = curr_blk;
+			if (i != NUM_PFLUSH_THREAD - 1) {
+				for (j = 0; j < num_block_per_thread; j ++)
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(l_layer->region[0], curr_blk->next);
+			} else {
+				while (curr_blk->next)
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(l_layer->region[0], curr_blk->next);
+			}
+			mwork->last_blks[0] = curr_blks;
+			mworks[i] = mwork;
+		}
+	} else if (total < NUM_PFLUSH_WORKER) {
+		/* case II: total < (NUM_PFLUSH_THREAD - 1) */
 		num_region_per_thread = 1;
 		for (i = 1, j = 0; i < (total + 1); i ++) {
 			mwork = malloc(sizeof(struct merge_work));
@@ -575,7 +597,7 @@ void oplog_flush() {
 		for (i = total + 1; i < NUM_PFLUSH_THREAD; i ++)
 			mworks[i] = NULL;
 	} else {
-		/* case II: total >= NUM_PFLUSH_WORKER */
+		/* case III: total >= NUM_PFLUSH_WORKER */
 		num_region_per_thread = total / NUM_PFLUSH_WORKER;
 		for (i = 1, j = 0; i < NUM_PFLUSH_WORKER; i ++) {
 			mwork = malloc(sizeof(struct merge_work));

@@ -15,7 +15,7 @@ mkdir workloads
 cd -
 rm -rf ./data
 mkdir data
-g++ -g gen_array.cpp -o gen_array.out
+g++ -g gen_data.cpp -o gen_data.out
 cp gen_workload.py ${index_microbench_dir}
 
 while(( $id <= $num ))
