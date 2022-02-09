@@ -21,13 +21,12 @@
 #include "common.h"
 #include "skiplist.h"
 
-// #define RAND
+#include "data/load.h"
+#include "data/op.h"
 
 #ifndef N
-#define N			1000001
+#define N			1000000
 #endif
-
-pkey_t a[5 * N];
 
 #ifndef NUM_THREAD
 #define NUM_THREAD	4
@@ -414,7 +413,7 @@ static inline void die() {
 void* thread_fun(void* arg) {
 	long i, id = (long)arg;
 	pval_t v = 0;
-	pval_t* val_arr = malloc(sizeof(pval_t*) * 2 * N);
+	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
 
 	bind_to_cpu(id);
 
@@ -422,50 +421,28 @@ void* thread_fun(void* arg) {
 	
 	bonsai_user_thread_init();
 
-	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		if (bonsai_insert((pkey_t)i, (pval_t)i) != 0)
-			die();
+	for (i = 0; i < N; i ++) {
+        switch (op_arr[id][i][0]) {
+        case 0:
+            assert(bonsai_insert(op_arr[id][i][1], op_arr[id][i][1]) == 0);
+            break;
+        case 1:
+            assert(bonsai_insert(op_arr[id][i][1], op_arr[id][i][1]) == 0);
+            break;        
+        case 2:
+            bonsai_lookup(op_arr[id][i][1], &v);
+            break;
+        case 3:
+            bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
+            break;
+        default:
+            printf("unknown type\n");
+            assert(0);
+            break;
+        }
 	}
 
-	printf("user thread[%ld]---------------------1---------------------\n", id);
-	sleep(10);
-
-	 for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	assert(bonsai_lookup((pkey_t)a[i], &v) == 0);
-		if (v != a[i]) {
-			printf("%lu %lu\n", a[i], v);
-			die();
-		}
-	 }
-
-	printf("user thread[%ld]---------------------2---------------------\n", id);
-	sleep(10);
-
-#if 0
-	for (int i = 0; i < 1; i++) {
-		int size;
-		//printf("scan [%lu %lu]:\n", (pval_t)(0 + N * id), (pkey_t)(N + N * id - 1));
-		size = bonsai_scan((pkey_t)(0 + N * id), (pkey_t)(N + N * id - 1), val_arr);
-		assert(size == N);
-	}
-
-	printf("thread[%ld]---------------------3---------------------\n", id);
-#endif
-
-	for (i = (0 + N * id); i < (N + N * id); i ++) {
-		if (bonsai_remove((pkey_t)i) != 0)
-			die();
-	}
-
-	printf("user thread[%ld]---------------------4---------------------\n", id);
-	sleep(10);
-
-	for (i = (0 + N * id); i < (N + N * id); i ++) {
-	 	if (bonsai_lookup((pkey_t)i, &v) == 0)
-			die();
-	}
-
-	printf("user thread[%ld]---------------------5---------------------\n", id);
+	printf("user thread[%ld]---------------------end---------------------\n", id);
 
 	bonsai_user_thread_exit();
 
@@ -476,33 +453,19 @@ void* thread_fun(void* arg) {
 	return NULL;
 }
 
-void gen_data() {
-	unsigned long i;
-
-	for (i = 0; i < NUM_THREAD * N; i++) {
-		a[i] = (pkey_t)i;
-	}
-#ifdef RAND
-	srand(time(0));
-	for (i = 1; i < NUM_THREAD * N; i++) {
-        int swap_pos = rand() % (NUM_THREAD * N - i) + i;
-        pkey_t temp = a[i];
-        a[i] = a[swap_pos];
-        a[swap_pos] = temp;
-    }
-#endif
-}
-
 int main() {
 	long i;
-
-	gen_data();
 
 	bind_to_cpu(0);
 
 	if (bonsai_init("skiplist", sl_init, sl_destory, sl_insert,
 				sl_remove, sl_lookup, sl_scan) < 0)
 		goto out;
+
+    for (i = 0; i < N; i ++) {
+        assert(bonsai_insert(load_arr[i], load_arr[i]) == 0);
+    }
+    sleep(10);
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
