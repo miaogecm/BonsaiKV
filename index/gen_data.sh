@@ -1,6 +1,8 @@
 #!/bin/bash
 
-export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
+
+# export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
+export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
 export load_file='load_monoint_workloada'
 export txn_file='txn_monoint_workloada'
 
@@ -15,7 +17,7 @@ mkdir workloads
 cd -
 rm -rf ./data
 mkdir data
-g++ -g gen_array.cpp -o gen_array.out
+g++ -g gen_data.cpp -o gen_data.out
 cp gen_workload.py ${index_microbench_dir}
 
 while(( $id <= $num ))
