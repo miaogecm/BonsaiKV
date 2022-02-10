@@ -5,8 +5,9 @@ include $(CUR_DIR)/../Makefile.inc
 # - nvm configuration
 CFLAGS += -DTS_NVM_IS_PMDK
 
+CFLAGS += -std=gnu99
 CFLAGS += -I$(INC_DIR)
-CFLAGS += -march=native -mtune=native -O0
+CFLAGS += -march=native -mtune=native -O3
 CFLAGS += -g -ggdb3
 CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
 CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value
