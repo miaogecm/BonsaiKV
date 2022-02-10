@@ -381,24 +381,22 @@ static int worker_oplog_merge_and_sort(void *arg) {
 			region = &layer->region[block->cpu];
 			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
 
-#if 0
 			if (unlikely(atomic_read(&layer->exit))) {
 				free(mwork);
 				ret = -EEXIT;
 				goto out;
 			}
-#endif
 			
 		} while(block != mwork->last_blks[i]);
 	}
 
+out:
 	/* 2. copy */
 	worker_scan_buckets(layer);
 
 	/* 3. sort */
 	worker_sort_log(layer);
 
-out:
 	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
 	return ret;
 }
