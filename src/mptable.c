@@ -520,8 +520,8 @@ int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* resu
 		} else {
 			n = __mptable_scan(table, n, low, high, result, &curr);
 		}
-		table = list_next_entry(table, list);
-		pnode = table->pnode;
+		pnode = list_next_entry(pnode, list);
+		table = pnode->table;
 		ret += n;	
 	}
 

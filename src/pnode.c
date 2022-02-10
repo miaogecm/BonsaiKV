@@ -484,12 +484,11 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
 		if (likely(key_cmp(pnode_entry_n_key(pnode, index), high) <= 0 
 				&& key_cmp(pnode_entry_n_key(pnode, index), low) >= 0)) {
 			result[n++] = pnode_entry_n_val(pnode, index);
-			max_key = max_key < pnode_entry_n_key(pnode, index) ? pnode_entry_n_key(pnode, index) : max_key;
-        	index++;
 		}
+		index++;
 	}
 
-	*curr = max_key;
+	*curr = pnode_anchor_key(pnode);
 
 	return n;
 }
