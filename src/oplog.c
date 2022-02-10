@@ -381,11 +381,13 @@ static int worker_oplog_merge_and_sort(void *arg) {
 			region = &layer->region[block->cpu];
 			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
 
+#if 0
 			if (unlikely(atomic_read(&layer->exit))) {
 				free(mwork);
 				ret = -EEXIT;
 				goto out;
 			}
+#endif
 			
 		} while(block != mwork->last_blks[i]);
 	}
