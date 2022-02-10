@@ -422,6 +422,7 @@ void* thread_fun(void* arg) {
 	bonsai_user_thread_init();
 
 	for (i = 0; i < N; i ++) {
+
         switch (op_arr[id][i][0]) {
         case 0:
             bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
@@ -466,7 +467,8 @@ int main() {
         assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
     }
     printf("load succeed!\n");
-    sleep(30);
+    sleep(10);
+    printf("workload start!\n");
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);

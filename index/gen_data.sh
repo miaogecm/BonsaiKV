@@ -3,8 +3,8 @@
 
 # export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
 export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
-export load_file='load_monoint_workloada'
-export txn_file='txn_monoint_workloada'
+export load_file='load_randint_workloada'
+export txn_file='txn_randint_workloada'
 
 count=10000000
 id=1
@@ -19,6 +19,7 @@ rm -rf ./data
 mkdir data
 g++ -g gen_data.cpp -o gen_data.out
 cp gen_workload.py ${index_microbench_dir}
+cp workload_config.inp ${index_microbench_dir}
 
 while(( $id <= $num ))
 do 
