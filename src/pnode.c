@@ -283,6 +283,13 @@ retry:
 		goto retry;
 	}
 
+	addr = pnode_lookup(pnode, key);
+	if (addr) {
+		*addr = value;
+		write_unlock(pnode->bucket_lock[bucket_id]);
+		return 0;
+	}
+
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
 	
     if (pos != -1) {
@@ -307,12 +314,12 @@ retry:
 			mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
 		}
 
-    write_lock(pnode->slot_lock);
-    pnode_sort_slot(pnode, pos, key, OP_INSERT);
-    write_unlock(pnode->slot_lock);
+		write_lock(pnode->slot_lock);
+		pnode_sort_slot(pnode, pos, key, OP_INSERT);
+		write_unlock(pnode->slot_lock);
 
 		set_bit(pos, &pnode->bitmap);
-    write_unlock(pnode->bucket_lock[bucket_id]);
+		write_unlock(pnode->bucket_lock[bucket_id]);
 		
 		bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
 		bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 0);
