@@ -18,10 +18,10 @@ extern "C" {
 typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
 
-typedef uint8_t		__le8;
-typedef uint16_t	__le16;
-typedef uint32_t	__le32;
-typedef uint64_t	__le64;
+typedef uint8_t		        __le8;
+typedef uint16_t	        __le16;
+typedef uint32_t	        __le32;
+typedef unsigned long long	__le64;
 #else
 #include <linux/types.h>
 

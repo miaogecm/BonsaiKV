@@ -354,14 +354,16 @@ int bonsai_pflushd_thread_init() {
 
 		list_add(&thread->list, &bonsai->thread_list);
 
-		if (pthread_create(&bonsai->tids[i], NULL, 
-			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)thread) != 0) {
+		bonsai->pflushd[i] = thread;
+	}
+
+	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
+        if (pthread_create(&bonsai->tids[i], NULL,
+			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)bonsai->pflushd[i]) != 0) {
         		perror("bonsai create thread failed\n");
 			return -ETHREAD;
     	}
-
-		bonsai->pflushd[i] = thread;
-	}
+    }
 
 	wait_pflush_thread();
 	

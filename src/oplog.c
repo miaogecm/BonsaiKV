@@ -390,13 +390,13 @@ static int worker_oplog_merge_and_sort(void *arg) {
 		} while(block != mwork->last_blks[i]);
 	}
 
+out:
 	/* 2. copy */
 	worker_scan_buckets(layer);
 
 	/* 3. sort */
 	worker_sort_log(layer);
 
-out:
 	bonsai_print("pflush thread[%d] merge %d logs %d blocks\n", __this->t_id, nlog, nblk);
 	return ret;
 }
