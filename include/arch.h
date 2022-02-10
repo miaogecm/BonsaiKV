@@ -73,14 +73,14 @@ static inline void __attribute__((__always_inline__)) smp_wmb_tso(void)
 static inline uint64_t __attribute__((__always_inline__)) read_tsc(void)
 {
 	uint32_t a, d;
-	__asm __volatile("rdtsc" : "=a"(a), "=d"(d));
+	__asm __volatile("rdtsc" : "=a"(a), "=d"(d) : : "%rcx");
 	return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
 static inline uint64_t __attribute__((__always_inline__)) read_tscp(void)
 {
-	uint32_t a, d, aux;
-	__asm __volatile("rdtscp" : "=a"(a), "=d"(d), "=c"(aux));
+	uint32_t a, d;
+	__asm __volatile("rdtscp" : "=a"(a), "=d"(d) : : "%rcx");
 	return ((uint64_t)a) | (((uint64_t)d) << 32);
 }
 
