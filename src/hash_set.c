@@ -109,7 +109,6 @@ static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index
             free(p_segment);
             p_segment = hs->main_array[main_array_index];
         } else {
-        	;
             //bonsai_debug("allocate a new segment [%d] ==> %016lx\n", main_array_index, p_segment);
         }
     }
@@ -214,17 +213,12 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     struct bucket_list* parent_bucket = get_bucket_list(hs, parent_index);
 	struct bucket_list* new_bucket;
 
-    if (parent_bucket == NULL) {
-retry:
+    while (parent_bucket == NULL) {
         initialize_bucket(hs, tid, parent_index);  //recursive call.
+        parent_bucket = get_bucket_list(hs, parent_index);
     }
 
     //Second, find the insert point in the parent bucket's linked_list and use CAS to insert new_bucket->bucket_sentinel->ll_node into the parent bucket.
-    parent_bucket = get_bucket_list(hs, parent_index);
-    
-    if (parent_bucket == NULL) {
-        goto retry;
-    }
     
     //Third, allocate a new bucket_list here.
     bucket_list_init(&new_bucket, bucket_index);

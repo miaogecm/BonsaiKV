@@ -27,7 +27,7 @@
 #include "../index/skiplist.h"
 
 struct bonsai_info* bonsai;
-static char* bonsai_fpath = "/mnt/ext4/bonsai";
+static char* bonsai_fpath = "/mnt/ext3/bonsai";
 
 extern void* index_struct(void* index_struct);
 extern void kv_print(void* index_struct);

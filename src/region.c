@@ -27,21 +27,21 @@
 
 /*
 static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/region0",
-	"/mnt/ext4/node1/region1"
+	"/mnt/ext3/node0/region0",
+	"/mnt/ext3/node1/region1"
 };
 
 static char* data_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/objpool0",
-	"/mnt/ext4/node1/objpool1"
+	"/mnt/ext3/node0/objpool0",
+	"/mnt/ext3/node1/objpool1"
 };
 */
 static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/region0"
+	"/mnt/ext3/node0/region0"
 };
 
 static char* data_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/objpool0"
+	"/mnt/ext3/node0/objpool0"
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
