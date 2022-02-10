@@ -53,10 +53,6 @@ static pkey_t reverse(pkey_t code) {
     return res;
 }
 
-static inline pkey_t hash(pkey_t key) {
-    return key;
-}
-
 /*
  * make_ordinary_key: set MSB to 1, and reverse the key.
  */
@@ -246,7 +242,7 @@ retry:
 
 static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, int update) {
     //First, calculate the bucket index by key and capacity of the hash_set.
-    int bucket_index = hash(key) % hs->capacity;
+    int bucket_index = key % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);  //bucket will be initialized if needed in get_bucket_list()
 	unsigned long capacity_now, old_capacity;
 	int set_size_now;
@@ -333,7 +329,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
     // Note: it is a corner case. If the hs is resized not long ago. Some elements should be adjusted to new bucket,
     // When we find a key who is in the hs, but haven't been "moved to" the new bucket. We need to "move" it.
     // Actually, we need to initialize the new bucket and insert it into the hs main_list.
-    int bucket_index = hash(key) % hs->capacity;
+    int bucket_index = key % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	pval_t* addr = NULL;
 
@@ -353,7 +349,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
 int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     // First, get bucket index.
     //if the hash_set is resized now! Maybe we cannot find the new bucket. Just initialize it if the bucket if NULL.
-    int bucket_index = hash(key) % hs->capacity;
+    int bucket_index = key % hs->capacity;
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	int ret;
     union atomic_u128 old_avg, new_avg;
