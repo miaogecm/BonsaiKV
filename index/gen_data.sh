@@ -3,8 +3,8 @@
 
 # export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
 export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
-export load_file='load_randint_workloada'
-export txn_file='txn_randint_workloada'
+export load_file='load_monoint_workloadb'
+export txn_file='txn_monoint_workloadb'
 
 count=10000000
 id=1

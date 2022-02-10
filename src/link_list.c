@@ -100,9 +100,15 @@ int ll_insert_node(struct linked_list* ll, int tid, struct ll_node* node) {
         pred = NULL, succ = NULL;
         item = ll_find(ll, tid, key, &pred, &succ);
         if (item && key_cmp(item->key, key) == 0) {
-            //key is now in the linked list.
-            hp_clear_all_addr(hp);
-            return -EEXIST;
+            if (item->is_sentinel_key == 1) {
+                //key is now in the linked list.
+                hp_clear_all_addr(hp);
+                return -EEXIST;
+            }
+            else {
+                succ = item;
+                item = pred;
+            }
         }
         node->next = (markable_t)succ;
     
@@ -132,7 +138,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
     while (1) {
         pred = NULL, succ = NULL;
         item = ll_find(ll, tid, key, &pred, &succ);
-        if (item && key_cmp(item->key, key) == 0) {
+        if (item && key_cmp(item->key, key) == 0 && item->is_sentinel_key == 0) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
 			if (update) {
