@@ -536,6 +536,10 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	merge_buckets = malloc(sizeof(struct hbucket) * NUM_MERGE_HASH_BUCKET);
 	arr = malloc(sizeof(pentry_t*) * MAX_LEN);
 
+    for (i = 0; i < NUM_MERGE_HASH_BUCKET; i++) {
+        INIT_HLIST_HEAD(&merge_buckets[i].head);
+    }
+
 	/* 1. scan mapping table, merge logs */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		m =  table->tables[node];
@@ -553,7 +557,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 			arr[j++] = e->kv;
 			
 			hlist_del(&e->node);
-			free(e);
+			//free(e);
 		}
 	}
 
