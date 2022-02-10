@@ -21,8 +21,7 @@
 #include "common.h"
 #include "skiplist.h"
 
-#include "data/load.h"
-#include "data/op.h"
+#include "data/kvdata.h"
 
 #ifndef N
 #define N			1000000
