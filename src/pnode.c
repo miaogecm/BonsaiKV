@@ -644,7 +644,7 @@ void print_pnode(struct pnode* pnode) {
 	bonsai_print("\n");
 
 	for (i = 1; i <= pnode->slot[0]; i ++)
-		bonsai_print("key[%d]: %d; ", i, pnode_entry_n_key(pnode, i));
+		bonsai_print("key[%d]: %lu; ", i, pnode_entry_n_key(pnode, i));
 	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)

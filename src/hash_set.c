@@ -501,8 +501,12 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
             } else if (addr_in_pnode((unsigned long)old)) {
                 old = pnode_lookup(mid_pnode, key);
                 if (!old) {
+                    // stop_the_world();
                     data_layer_search_key(key);
+                    printf("avg_key: %lu\n", avg_key);
                     print_pnode(mid_pnode);
+                    print_pnode(mid_pnode->table->forward->pnode);
+                    // dump_pnode_list_summary();
                     assert(0);
                 }
                 hs_insert(mid, tid, key, old);
