@@ -21,6 +21,11 @@ struct numa_table {
 	struct pnode* pnode;
 	struct numa_table* forward;
 	struct list_head list;
+    /*
+     * The anchor key of last pnode.
+     * Invariant: Each key in this numa table must be > lowerbound.
+     */
+    pkey_t lowerbound;
 };
 
 #define MPTABLE_NODE(TABLE, NODE)	TABLE->tables[NODE]
@@ -32,10 +37,10 @@ struct log_layer;
 extern struct numa_table* numa_mptable_alloc(struct log_layer* layer);
 extern void numa_mptable_free(struct numa_table* tables);
 
-extern int mptable_insert(struct numa_table* tables, int numa_node, int cpu, pkey_t key, pval_t value);
-extern int mptable_update(struct numa_table* tables, int num_node, int cpu, pkey_t key, pval_t* address);
-extern int mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key);
-extern int mptable_lookup(struct numa_table* tables, pkey_t key, int cpu, pval_t* val);
+extern int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value);
+extern int mptable_update(int numa_node, int cpu, pkey_t key, pval_t *address);
+extern int mptable_remove(int numa_node, int cpu, pkey_t key);
+extern int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val);
 extern int mptable_scan(struct numa_table* table, pkey_t high, pkey_t low, pval_t* val_arr);
 
 extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);
