@@ -17,6 +17,7 @@ typedef size_t markable_t;
 struct ll_node {
     pkey_t key;
 	pval_t* val;
+    int is_sentinel_key;
     markable_t next;
 };
 

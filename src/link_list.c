@@ -144,6 +144,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
         item->key = key;
 		item->val = val;
         item->next = (markable_t)succ;
+        item->is_sentinel_key = 0;
     
         //[1]. pred must not be marked. [2]. pred--->succ should not be changed.
         old_value = cmpxchg(&pred->next, succ, item);

@@ -27,7 +27,6 @@
 #include "oplog.h"
 #include "mptable.h"
 
-#define MASK 	0x00FFFFFFFFFFFFFF  /* takes the lowest 3 bytes of the hashcode */
 #define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
 
 #ifdef BONSAI_HASHSET_DEBUG
@@ -62,17 +61,17 @@ static inline pkey_t hash(pkey_t key) {
  * make_ordinary_key: set MSB to 1, and reverse the key.
  */
 static pkey_t make_ordinary_key(pkey_t key) {
-    pkey_t code = hash(key) & MASK;
-    return reverse(code | HI_MASK);  //mark the MSB and reverse it.
+    return reverse(key);  //mark the MSB and reverse it.
 }
 
 /* 
  * make_sentinel_key: set MSB to 0, and reverse the key.
  */
 static pkey_t make_sentinel_key(pkey_t key) {
-    return reverse(key & MASK);
+    return reverse(key);
 }
 
+#if 0
 /*
  * is_sentinel_key: 1 if key is sentinel key, 0 if key is ordinary key.
  */
@@ -82,9 +81,13 @@ static int is_sentinel_key(pkey_t key) {
     }
     return 0;
 }
+#endif
+
+static int is_sentinel_node(struct ll_node* ll_node) {
+    return ll_node->is_sentinel_key;
+}
 
 static pkey_t get_origin_key(pkey_t key) {
-    key = (key >> 1) << 1;
     return reverse(key);
 }
 
@@ -129,6 +132,7 @@ static void bucket_list_init(struct bucket_list** bucket, int bucket_index) {
     ll_init(&((*bucket)->bucket_sentinel));  // init the linked_list of the bucket-0.
     
     (*bucket)->bucket_sentinel.ll_head.key = make_sentinel_key(bucket_index);
+    (*bucket)->bucket_sentinel.ll_head.is_sentinel_key = 1;
 }
 
 void hs_init(struct hash_set* hs) {
@@ -399,7 +403,7 @@ void hs_print(struct hash_set* hs, int tid) {
     struct ll_node* curr = head;
     while (curr) {
         xadd(&print_count, 1);
-        if (is_sentinel_key(curr->key)) {
+        if (is_sentinel_node(curr)) {
             bonsai_debug("[%d] -> ", get_origin_key(curr->key));
         } else {
             if (!HAS_MARK(curr->next)) {
@@ -448,7 +452,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
 
             curr = GET_NODE(head->next);
             while (curr) {
-                if (is_sentinel_key(curr->key)) {
+                if (is_sentinel_node(curr)) {
                     bonsai_debug("NULL\n");
                     break;
                 } else {
@@ -562,7 +566,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_s
     head = &(bucket->bucket_sentinel.ll_head);
     curr = GET_NODE(head->next);
     while(curr) {
-        if (!is_sentinel_key(curr->key)) {
+        if (!is_sentinel_node(curr)) {
             key = hs_copy_one(curr, new, max, pnode);
             if (key != (unsigned long)-2) {
                 if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
@@ -591,7 +595,7 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_s
             head = &(bucket->bucket_sentinel.ll_head);
 			curr = GET_NODE(head->next);
 			while (curr) {
-                if (is_sentinel_key(curr->key)) {
+                if (is_sentinel_node(curr)) {
                    	break;
                 } else {
     				key = hs_copy_one(curr, new, mid, max, avg_key, new_pnode, mid_pnode);
@@ -682,7 +686,7 @@ void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2
             head = &(bucket->bucket_sentinel.ll_head);
 			curr = GET_NODE(head->next);
 			while (curr) {
-                if (is_sentinel_key(curr->key)) {
+                if (is_sentinel_node(curr)) {
                    	 break;
                 } else {
 					exec(curr, arg1, arg2, arg3, arg4, arg5);
@@ -706,7 +710,7 @@ void hs_destroy(struct hash_set* hs) {
         p1 = &(ll_curr->ll_head);
         p2 = GET_NODE(STRIP_MARK(p1->next));
 
-        while (p2 != NULL && !is_sentinel_key(p2->key)) {
+        while (p2 != NULL && !is_sentinel_node(p2)) {
             p1 = p2;
             p2 = GET_NODE(STRIP_MARK(p1->next));
         }
