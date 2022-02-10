@@ -557,7 +557,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 			arr[j++] = e->kv;
 			
 			hlist_del(&e->node);
-			//free(e);
+			free(e);
 		}
 	}
 
