@@ -9,6 +9,7 @@ extern "C" {
 
 #include "common.h"
 #include "numa_config.h"
+#include "spinlock.h"
 
 typedef size_t markable_t;
 
@@ -19,6 +20,7 @@ struct ll_node {
 	pval_t* val;
     int is_sentinel_key;
     markable_t next;
+    spinlock_t val_lock;
 };
 
 struct linked_list {

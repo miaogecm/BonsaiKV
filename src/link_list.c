@@ -16,6 +16,7 @@
 #include "hp.h"
 #include "atomic.h"
 #include "pnode.h"
+#include "mptable.h"
 
 #ifdef BONSAI_HASHSET_DEBUG
 static int node_count = 0;
@@ -134,8 +135,13 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
         if (item && key_cmp(item->key, key) == 0) {
             //key is now in the linked list.
             hp_clear_all_addr(hp);
-			if (update)
-				item->val = val;
+			if (update) {
+                spin_lock(&item->val_lock);
+                if (!addr_in_pnode((unsigned long) item->val)) {
+                    item->val = val;
+                }
+                spin_unlock(&item->val_lock);
+            }
 			
 			return -EEXIST;     
         }
@@ -145,6 +151,7 @@ int ll_insert(struct linked_list* ll, int tid, pkey_t key, pval_t* val, int upda
 		item->val = val;
         item->next = (markable_t)succ;
         item->is_sentinel_key = 0;
+        spin_lock_init(&item->val_lock);
     
         //[1]. pred must not be marked. [2]. pred--->succ should not be changed.
         old_value = cmpxchg(&pred->next, succ, item);

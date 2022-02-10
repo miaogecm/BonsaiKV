@@ -572,6 +572,8 @@ void sentinel_node_init() {
 	table->pnode = pnode;
 	pnode->table = table;
 
+    table->lowerbound = ULONG_MAX;
+
 	bucket_id = PNODE_BUCKET_HASH(key);
     write_lock(pnode->bucket_lock[bucket_id]);
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);

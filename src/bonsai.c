@@ -148,51 +148,23 @@ void index_layer_dump() {
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
-	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
-	struct index_layer* i_layer = INDEX(bonsai);
-
-	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	
-	assert(table);
-	
-	return mptable_insert(table, numa_node, cpu, key, value);
+	return mptable_insert(numa_node, cpu, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
-	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
-	struct index_layer* i_layer = INDEX(bonsai);
-
-	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-
-	assert(table);
-
-	return mptable_update(table, numa_node, cpu, key, &value);
+	return mptable_update(numa_node, cpu, key, &value);
 }
 
 int bonsai_remove(pkey_t key) {
-	struct numa_table *table;
 	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
-	struct index_layer* i_layer = INDEX(bonsai);
-
-	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-
-	assert(table);
-	
-	return mptable_remove(table, numa_node, cpu, key);
+	return mptable_remove(numa_node, cpu, key);
 }
 
 int bonsai_lookup(pkey_t key, pval_t* val) {
-	struct numa_table *table;
-	struct index_layer* i_layer = INDEX(bonsai);
-	int cpu = get_cpu();
-	
-	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-
-	assert(table);
-
-	return mptable_lookup(table, key, cpu, val);
+	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
+	return mptable_lookup(numa_node, key, cpu, val);
 }
 
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
