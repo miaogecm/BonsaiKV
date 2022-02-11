@@ -43,7 +43,8 @@ struct log_layer {
 	unsigned int nflush; /* how many flushes */
 	atomic_t exit; /* thread exit */
 
-	atomic_t checkpoint; 
+    atomic_t epoch_passed;
+	atomic_t checkpoint;
 	atomic_t nlogs; /* how many logs */
 	
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */

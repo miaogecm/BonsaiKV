@@ -24,17 +24,10 @@ extern struct bonsai_info* bonsai;
 typedef void (*signal_handler_t)(int);
 
 void thread_alarm_handler(int sig) {
-#if 0
-	int cpu = get_cpu();
+	int cpu = get_cpu(), passed;
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region *region = &layer->region[cpu];
-	__le64 old_epoch = ACCESS_ONCE(bonsai->desc->epoch);
-	__le64 new_epoch = old_epoch + 1;
-
-	if (ACCESS_ONCE(__this->t_epoch) == old_epoch) {
-		/* At least a thread succeed */
-		cmpxchg(&bonsai->desc->epoch, old_epoch, new_epoch);
-	}
+	__le64 old_epoch;
 
 	/* persist it */
 	bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 1);
@@ -42,8 +35,26 @@ void thread_alarm_handler(int sig) {
 	/* re-allocate a new log block */
 	region->curr_blk = alloc_oplog_block(cpu);
 
+    /* Now our t_epoch is indeed persistent. */
 	__this->t_epoch ++;
-#endif
+    barrier();
+
+    /*
+     * Pick the last thread to update the epoch.
+     * For a specific global epoch counter value, a thread can only contribute to
+     * its increment once. Thus we record the last "contribution" of this thread.
+     */
+    old_epoch = ACCESS_ONCE(bonsai->desc->epoch);
+    if (__this->t_epoch_contrib < old_epoch) {
+        if (__this->t_epoch > old_epoch) {
+            passed = atomic_add_return(1, &layer->epoch_passed);
+            if (passed == NUM_USER_THREAD) {
+                atomic_set(&layer->epoch_passed, 0);
+                asm volatile(LOCK_PREFIX "incl %0" : "+m" (bonsai->desc->epoch));
+            }
+        }
+        __this->t_epoch_contrib = old_epoch;
+    }
 }
 
 /*
@@ -72,7 +83,7 @@ int thread_register_alarm_signal() {
 	int err = 0;
 
 	memset(&value, 0, sizeof(struct itimerval));
-	value.it_interval.tv_sec = 10000;
+	value.it_interval.tv_sec = 0;
 	value.it_interval.tv_usec = EPOCH;
 
 	err = setitimer(ITIMER_VIRTUAL, &value, NULL);

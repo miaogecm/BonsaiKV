@@ -56,7 +56,7 @@ again:
 	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
 	new_block->cnt = 0;
 	new_block->cpu = cpu;
-	new_block->epoch = ACCESS_ONCE(bonsai->desc->epoch);
+	new_block->epoch = __this->t_epoch;
 	new_block->next = 0;
 
 	if (likely(old_val)) {
@@ -112,7 +112,7 @@ retry:
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-	if (unlikely(epoch != ACCESS_ONCE(bonsai->desc->epoch))) {
+	if (unlikely(epoch != ACCESS_ONCE(__this->t_epoch))) {
 		/* an epoch passed */
 		goto retry;
 	}

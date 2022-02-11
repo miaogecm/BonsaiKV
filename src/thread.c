@@ -316,6 +316,7 @@ int bonsai_user_thread_init() {
 	thread->t_pid = gettid();
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
+    thread->t_epoch_contrib = 0;
 
 	list_add(&thread->list, &bonsai->thread_list);
 

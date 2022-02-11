@@ -59,6 +59,7 @@ static int log_layer_init(struct log_layer* layer) {
 	layer->nflush = 0;
 	atomic_set(&layer->exit, 0);
 	atomic_set(&layer->checkpoint, 0);
+	atomic_set(&layer->epoch_passed, 0);
 	atomic_set(&layer->nlogs, 0);
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
@@ -259,7 +260,7 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
         bonsai_recover();
     }
 
-	bonsai->desc->epoch = 0;
+	bonsai->desc->epoch = 1;
 
 	/* 6. initialize pflush thread */
 	bonsai_pflushd_thread_init();
