@@ -108,7 +108,6 @@ retry:
 	log->o_type = cpu_to_le8(op);
 	log->o_numa_node = cpu_to_le8(numa_node);
 	log->o_stamp = cpu_to_le64(ordo_new_clock(0));
-	log->o_addr = (__le64)pnode;
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 

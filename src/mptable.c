@@ -387,7 +387,7 @@ retry:
 				hs_insert(&m->hs, tid, key, map_addrs[0]);
 				
 				/* migrate this value */
-				pnode = (struct pnode*)log->o_addr;
+				//pnode = (struct pnode*)log->o_addr;
 				addr = pnode_numa_move(pnode, key, numa_node);
 				*val = *addr;
 				return 0;
