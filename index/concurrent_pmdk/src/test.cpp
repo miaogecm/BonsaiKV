@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "btree.h"
 
@@ -10,7 +11,7 @@
 
 static inline int file_exists(char const *file) { return access(file, F_OK); }
 
-static char* persistent_path = "/home/gky/Desktop/ext4/pool";
+static char* persistent_path = "/mnt/ext3/pool";
 
 #define N           1000000
 #define NUM_THREAD  4
@@ -24,7 +25,7 @@ PMEMobjpool *pop;
 
 void init_pmdk() {
   if (file_exists(persistent_path) != 0) {
-    pop = pmemobj_create(persistent_path, "btree", 8000000000,
+    pop = pmemobj_create(persistent_path, "btree", 1000000000UL,
                          0666); // make 1GB memory pool
     bt = POBJ_ROOT(pop, btree);
     D_RW(bt)->constructor(pop);
@@ -115,7 +116,7 @@ int main(int argc, char **argv) {
   interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
   printf("load finished in %.3lf seconds\n", interval);
 
-  sleep(15);
+  sleep(5);
 
   printf("start workload ([%d] ops, [%d] threads)\n", N, NUM_THREAD);
   gettimeofday(&t0, NULL);

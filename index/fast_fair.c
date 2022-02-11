@@ -151,7 +151,7 @@ int main() {
     printf("start load [%d] entries\n", N);
     gettimeofday(&t0, NULL);
     for (i = 0; i < N; i ++) {
-        bonsai_insert(load_arr[i][0], load_arr[i][1];
+        bonsai_insert(load_arr[i][0], load_arr[i][1]);
     }
     gettimeofday(&t1, NULL);
     interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
