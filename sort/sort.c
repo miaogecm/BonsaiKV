@@ -42,7 +42,7 @@ static void bind_to_cpu(int cpu) {
     CPU_ZERO(&mask);
     CPU_SET(cpu, &mask);
     if ((ret = sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
-        printf("glibc init: bind cpu[%d] failed.\n", cpu);
+        bonsai_print("glibc init: bind cpu[%d] failed.\n", cpu);
     }
 }
 
@@ -50,12 +50,12 @@ static int print_list(struct list_head* head, int id) {
 	struct data *d;
 	int sum = 0;
 
-	printf("thread[%d]: ", id);
+	bonsai_print("thread[%d]: ", id);
 	list_for_each_entry(d, head, list) {
-		printf("%d ->", d->i);
+		bonsai_print("%d ->", d->i);
 		sum++;
 	}
-	printf("\n");
+	bonsai_print("\n");
 
 	return sum;
 }
@@ -74,7 +74,7 @@ static void list_init() {
 			data->i = x; x++;
 			list_add(&data->list, &heads[i]);
 		}
-		printf("list [%d] init\n", i);
+		bonsai_print("list [%d] init\n", i);
 	}
 
 }
@@ -104,7 +104,7 @@ static void check(struct list_head* head) {
 		for(j=0;j<sum;j++) {
 			if (i!=j){
 				if (a[i] == a[j]) {
-					printf("%d a[%d]:%d a[%d]:%d a[%d]:%d a[%d]:%d\n", gettid(), i-1,a[i-1],i,a[i],j,a[j],j+1,a[j+1]);
+					bonsai_print("%d a[%d]:%d a[%d]:%d a[%d]:%d a[%d]:%d\n", gettid(), i-1,a[i-1],i,a[i],j,a[j],j+1,a[j+1]);
 					//print_list(head, 1);					
 					exit(0);
 				}
@@ -115,7 +115,7 @@ static void check(struct list_head* head) {
 
 static void __list_sort(struct list_head* head) {
 	list_sort(NULL, head, cmp);
-	printf("[%d]----------__list_sort------------\n",gettid());
+	bonsai_print("[%d]----------__list_sort------------\n",gettid());
 	check(head);
 }
 
@@ -128,7 +128,7 @@ static void copy_list(struct list_head* dst, struct list_head* src) {
 		
 		list_add_tail(&d->list, dst);
 	}
-	printf("[%d]----------copy_list------------\n",gettid());
+	bonsai_print("[%d]----------copy_list------------\n",gettid());
 	check(dst);
 }
 
@@ -180,7 +180,7 @@ static void pflush_worker(void *arg) {
 	struct data *d;
 
 	bind_to_cpu(cpu);
-	printf("thread[%d] running on cpu[%d]\n", id, cpu);
+	bonsai_print("thread[%d] running on cpu[%d]\n", id, cpu);
 
 	pthread_barrier_wait(&barrier);
 
@@ -189,11 +189,11 @@ static void pflush_worker(void *arg) {
 	pthread_barrier_wait(&barrier);
 
 	for (i = 0; i < n; i ++) {
-		printf("thread[%d]-----------------phase [%d]---------------\n", id, i);
+		bonsai_print("thread[%d]-----------------phase [%d]---------------\n", id, i);
 		if (i % 2 == 0) {
 			if (id % 2 == 0) {		
 				list_splice(&heads[id], &heads[id + 1]);
-				printf("[%d]----------list_splice------------\n",gettid());
+				bonsai_print("[%d]----------list_splice------------\n",gettid());
 				check(&heads[id + 1]);
 				INIT_LIST_HEAD(&heads[id]);
 				copy_list(&heads[id], &heads[id + 1]);
@@ -233,7 +233,7 @@ static void pflush_worker(void *arg) {
 		}
 	}
 
-	printf("thread[%d] exit\n", id);
+	bonsai_print("thread[%d] exit\n", id);
 	//print_list(&heads[id], id);
 }
 
@@ -243,7 +243,7 @@ static void thread_init() {
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		if (pthread_create(&tids[i], NULL, (void*)pflush_worker, (void*)i) != 0) {
-        		printf("bonsai create thread[%d] failed\n", i);
+        		bonsai_print("bonsai create thread[%d] failed\n", i);
     	}
 	}
 }
@@ -262,6 +262,6 @@ int main() {
 		sum += print_list(&heads[i], i);
 	}
 
-	printf("sum: %d\n", sum);
+	bonsai_print("sum: %d\n", sum);
 	return 0;
 }

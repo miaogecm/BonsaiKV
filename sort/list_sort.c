@@ -127,7 +127,7 @@ void list_sort(void *priv, struct list_head *head,
 		}
 		if (lev > max_lev) {
 			if (unlikely(lev >= ARRAY_SIZE(part)-1)) {
-				printf("list too long for efficiency\n");
+				bonsai_print("list too long for efficiency\n");
 				lev--;
 			}
 			max_lev = lev;

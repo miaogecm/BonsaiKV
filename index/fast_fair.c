@@ -16,6 +16,7 @@
 #include <sched.h>
 #include <time.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "common.h"
 #include "ffwrapper.h"
@@ -125,19 +126,20 @@ void* thread_fun(void* arg) {
         }
 	}
 
-	printf("user thread[%ld]---------------------end---------------------\n", id);
+	// printf("user thread[%ld]---------------------end---------------------\n", id);
 
 	bonsai_user_thread_exit();
 
 	free(val_arr);
     
-	printf("user thread[%ld] exit\n", id);
+	// printf("user thread[%ld] exit\n", id);
 
 	return NULL;
 }
 
 int main() {
 	long i;
+    struct timeval t0, t1;
 
 	bind_to_cpu(0);
 
@@ -145,6 +147,9 @@ int main() {
 				ff_remove, ff_lookup, ff_scan) < 0)
 		goto out;
 
+    struct timeval t;
+    // gettimeofday();
+    printf("start load [%d] entries\n", N);
     for (i = 0; i < N; i ++) {
         assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
     }
@@ -164,5 +169,6 @@ int main() {
 	bonsai_deinit();
 
 out:
+    printf("end\n");
 	return 0;
 }
