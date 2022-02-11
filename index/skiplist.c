@@ -41,7 +41,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();

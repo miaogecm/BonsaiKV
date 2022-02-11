@@ -267,7 +267,6 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
         new_avg.hi = old_avg.hi + 1;
         new_avg.lo = (old_avg.lo * old_avg.hi + key) / new_avg.hi;
         if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
-            // printf("key: %lu cnt:%d avg:%.0lf\n", key, new_avg.hi, new_avg.lo);
             break;
         }
     }

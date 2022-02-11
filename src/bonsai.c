@@ -212,7 +212,7 @@ void bonsai_deinit() {
 	free(bonsai);
 }
 
-int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan) {
 	int error = 0, fd;
@@ -245,8 +245,8 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 		/* 1. initialize index layer */
         //index_layer_init(index_name, &bonsai->i_layer, kv_init, 
 						//kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
-		index_layer_init(index_name, &bonsai->i_layer, sl_init, 
-						sl_insert, sl_remove, sl_lookup, sl_scan, sl_destory);
+		index_layer_init(index_name, &bonsai->i_layer, init, 
+						insert, remove, lookup, scan, destory);
 
 		/* 2. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);

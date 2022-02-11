@@ -30,7 +30,7 @@ void thread_alarm_handler(int sig) {
 	__le64 old_epoch;
 
 	/* persist it */
-	bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 1);
+	bonsai_flush((void*)&region->curr_blk, sizeof(struct oplog_blk), 1);
 
 	__this->t_epoch ++;
 

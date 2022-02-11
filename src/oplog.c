@@ -62,11 +62,11 @@ again:
 	if (likely(old_val)) {
 		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
 		old_block->next = LOG_REGION_ADDR_TO_OFF(region, new_block);
-		bonsai_flush((void*)old_block->next, sizeof(__le64), 0);
+		bonsai_flush((void*)&old_block->next, sizeof(__le64), 0);
 	}
 
 	asm volatile("lock; incl %0" : "+m" (page->p_num_blk));
-	bonsai_flush((void*)page->p_num_blk, sizeof(__le64), 1);
+	bonsai_flush(&page->p_num_blk, sizeof(__le64), 1);
 
 	return new_block;
 }
@@ -119,7 +119,7 @@ retry:
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it, no memory fence */
-		bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 0);
+		bonsai_flush((void*)&region->curr_blk, sizeof(struct oplog_blk), 0);
 	}
 
 	bonsai_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
