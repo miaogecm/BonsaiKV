@@ -46,6 +46,8 @@ extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destro
 				lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();
 
+void bonsai_barrier();
+
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t* val);
@@ -409,16 +411,23 @@ static inline void die() {
 	exit(1);
 }
 
-void* thread_fun(void* arg) {
-	long i, id = (long)arg;
+static pthread_barrier_t barrier;
+
+static void do_load(long id) {
+	long i;
+    if (id == 0) {
+        for (i = 0; i < N; i ++) {
+            assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
+        }
+        printf("load succeed!\n");
+        bonsai_barrier();
+    }
+}
+
+static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
-
-	bind_to_cpu(id);
-
-	bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
-	
-	bonsai_user_thread_init();
+	long i;
 
 	for (i = 0; i < N; i ++) {
 
@@ -428,7 +437,7 @@ void* thread_fun(void* arg) {
             break;
         case 1:
             bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
-            break;        
+            break;
         case 2:
             bonsai_lookup(op_arr[id][i][1], &v);
             break;
@@ -447,37 +456,57 @@ void* thread_fun(void* arg) {
 	bonsai_user_thread_exit();
 
 	free(val_arr);
-    
+
 	printf("user thread[%ld] exit\n", id);
+}
+
+static void do_barrier(long id) {
+    if (id == 0) {
+        bonsai_barrier();
+    }
+}
+
+void* thread_fun(void* arg) {
+	long id = (long)arg;
+
+	bind_to_cpu(id);
+    bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
+
+	bonsai_user_thread_init();
+
+    pthread_barrier_wait(&barrier);
+
+    do_load(id);
+
+    pthread_barrier_wait(&barrier);
+
+    do_op(id);
+
+    pthread_barrier_wait(&barrier);
+
+    do_barrier(id);
 
 	return NULL;
 }
 
 int main() {
-	long i;
+    long i;
 
 	bind_to_cpu(0);
+
+    pthread_barrier_init(&barrier, NULL, NUM_THREAD);
 
 	if (bonsai_init("skiplist", sl_init, sl_destory, sl_insert,
 				sl_remove, sl_lookup, sl_scan) < 0)
 		goto out;
 
-    for (i = 0; i < N; i ++) {
-        assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
-    }
-    printf("load succeed!\n");
-    sleep(10);
-    printf("workload start!\n");
-
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
-
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
-    
-    sleep(10);
+
 	bonsai_deinit();
 
 out:

@@ -58,6 +58,7 @@ static int log_layer_init(struct log_layer* layer) {
 
 	layer->nflush = 0;
 	atomic_set(&layer->exit, 0);
+	atomic_set(&layer->force_flush, 0);
 	atomic_set(&layer->checkpoint, 0);
 	atomic_set(&layer->epoch_passed, 0);
 	atomic_set(&layer->nlogs, 0);
@@ -180,6 +181,15 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 	arr_size = mptable_scan(table, low, high, val_arr);
 	
 	return arr_size;
+}
+
+void bonsai_barrier() {
+    atomic_set(&bonsai->l_layer.force_flush, 1);
+    do {
+        wakeup_master();
+        usleep(30000);
+    } while (atomic_read(&bonsai->l_layer.force_flush));
+    printf("=== Everything is persistent. ===\n");
 }
 
 void bonsai_deinit() {

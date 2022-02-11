@@ -42,6 +42,7 @@ struct index_layer {
 struct log_layer {
 	unsigned int nflush; /* how many flushes */
 	atomic_t exit; /* thread exit */
+    atomic_t force_flush; /* force flush all logs */
 
     atomic_t epoch_passed;
 	atomic_t checkpoint;

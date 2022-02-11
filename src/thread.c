@@ -279,6 +279,11 @@ static void pflush_master(struct thread_info* this) {
 		do {
 			oplog_flush(bonsai);
 		}while(atomic_read(&layer->nlogs) >= CHKPT_NLOG_INTERVAL && !atomic_read(&layer->exit));
+
+        if (unlikely(atomic_read(&layer->force_flush))) {
+            oplog_flush(bonsai);
+            atomic_set(&layer->force_flush, 0);
+        }
 	}
 
 	pflush_thread_exit(this);

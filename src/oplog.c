@@ -113,6 +113,7 @@ retry:
 
 	if (unlikely(epoch != ACCESS_ONCE(__this->t_epoch))) {
 		/* an epoch passed */
+        block->cnt--;
 		goto retry;
 	}
 
@@ -519,6 +520,7 @@ void oplog_flush() {
 	struct log_region *region;
 	volatile struct oplog_blk* first_blks[NUM_CPU];
 	volatile struct oplog_blk* curr_blks[NUM_CPU];
+	struct log_region *blk_regions[NUM_CPU];
 	volatile struct oplog_blk* curr_blk;
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
@@ -531,6 +533,7 @@ void oplog_flush() {
 	unsigned long n;
 	int num_region_per_thread, num_region_rest;
 	int num_block_per_thread;
+    int nlogs;
 	//int num_bucket_per_thread;
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
@@ -538,12 +541,15 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 1);
 
 	/* 1. fetch and merge all log lists */
+    nlogs = atomic_read(&l_layer->nlogs);
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];
 		curr_blk = ACCESS_ONCE(region->curr_blk);
+        /* TODO: Non-full log blocks can not be flushed! */
 		if (curr_blk && region->first_blk != curr_blk) {
-			first_blks[cpu] = region->first_blk;
-			curr_blks[cpu] = curr_blk;
+			first_blks[total] = region->first_blk;
+			curr_blks[total] = curr_blk;
+            blk_regions[total] = region;
 			region->first_blk = curr_blk;
 			total ++;
 		}
@@ -559,7 +565,7 @@ void oplog_flush() {
 	if (total == 1) {
 		/* case I: total == 1 */
 		num_region_per_thread = 1;
-		num_block_per_thread = atomic_read(&l_layer->nlogs) / NUM_OPLOG_PER_BLK / NUM_PFLUSH_WORKER;
+		num_block_per_thread = nlogs / NUM_OPLOG_PER_BLK / NUM_PFLUSH_WORKER;
 		curr_blk = first_blks[0];
 		for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
 			mwork = malloc(sizeof(struct merge_work));
@@ -569,10 +575,10 @@ void oplog_flush() {
 			mwork->first_blks[0] = curr_blk;
 			if (i != NUM_PFLUSH_THREAD - 1) {
 				for (j = 0; j < num_block_per_thread; j ++)
-					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[0]), curr_blk->next);
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]), curr_blk->next);
 			} else {
 				while (curr_blk->next)
-					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[0]), curr_blk->next);
+					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]), curr_blk->next);
 			}
 			mwork->last_blks[0] = curr_blk;
 			mworks[i] = mwork;

@@ -32,12 +32,7 @@ void thread_alarm_handler(int sig) {
 	/* persist it */
 	bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 1);
 
-	/* re-allocate a new log block */
-	region->curr_blk = alloc_oplog_block(cpu);
-
-    /* Now our t_epoch is indeed persistent. */
 	__this->t_epoch ++;
-    barrier();
 
     /*
      * Pick the last thread to update the epoch.
@@ -51,6 +46,7 @@ void thread_alarm_handler(int sig) {
             if (passed == NUM_USER_THREAD) {
                 atomic_set(&layer->epoch_passed, 0);
                 asm volatile(LOCK_PREFIX "incl %0" : "+m" (bonsai->desc->epoch));
+                printf("epoch update to %llu\n", bonsai->desc->epoch);
             }
         }
         __this->t_epoch_contrib = old_epoch;
@@ -80,25 +76,27 @@ int thread_block_alarm_signal() {
 int thread_register_alarm_signal() {
 	struct itimerval value;
 	struct sigaction sa;
-	int err = 0;
-
-	memset(&value, 0, sizeof(struct itimerval));
-	value.it_interval.tv_sec = 0;
-	value.it_interval.tv_usec = EPOCH;
-
-	err = setitimer(ITIMER_VIRTUAL, &value, NULL);
-	if (err) {
-		perror("setitimer\n");
-		return err;
-	}
+	int ret = 0;
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	sa.sa_handler = thread_alarm_handler;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) {
 		perror("sigaction\n");
-		err = -ESIGNO;
+        goto out;
 	}
 
-	return err;
+	value.it_interval.tv_sec = 100000;
+	value.it_interval.tv_usec = EPOCH;
+    value.it_value = value.it_interval;
+
+    //ret = setitimer(ITIMER_REAL, &value, NULL);
+    ret = 0;
+	if (ret) {
+		perror("setitimer\n");
+        goto out;
+	}
+
+out:
+	return ret;
 }
