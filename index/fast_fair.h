@@ -35,7 +35,7 @@
 
 #define IS_FORWARD(c) (c % 2 == 0)
 
-using entry_key_t = int64_t;
+using entry_key_t = uint64_t;
 
 pthread_mutex_t print_mtx;
 
@@ -87,9 +87,9 @@ public:
   btree();
   void setNewRoot(char *);
   void getNumberOfNodes();
-  void btree_insert(entry_key_t, char *);
+  int  btree_insert(entry_key_t, char *);
   void btree_insert_internal(char *, entry_key_t, char *, uint32_t);
-  void btree_delete(entry_key_t);
+  int  btree_delete(entry_key_t);
   void btree_delete_internal(entry_key_t, char *, uint32_t, entry_key_t *,
                              bool *, page **);
   char *btree_search(entry_key_t);
@@ -876,6 +876,133 @@ public:
     return NULL;
   }
 
+  char *linear_search_lowbound(entry_key_t key) {
+    int i = 1;
+    uint8_t previous_switch_counter;
+    char *ret = NULL;
+    char *t;
+    entry_key_t k;
+
+    if (hdr.leftmost_ptr == NULL) { // Search a leaf node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        // search from left ro right
+        if (IS_FORWARD(previous_switch_counter)) {
+          if ((k = records[0].key) >= key) {
+            if ((t = records[0].ptr) != NULL) {
+              if (k == records[0].key) {
+                ret = t;
+                continue;
+              }
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if ((k = records[i].key) >= key) {
+              if (records[i - 1].ptr != (t = records[i].ptr)) {
+                if (k == records[i].key) {
+                  ret = t;
+                  break;
+                }
+              }
+            }
+          }
+        } else { // search from right to left
+          for (i = count() - 1; i > 0; --i) {
+            if ((k = records[i].key) >= key) {
+              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
+                if (k == records[i].key) {
+                  ret = t;
+                  // break;
+                }
+              }
+            }
+          }
+
+          if (!ret) {
+            if ((k = records[0].key) >= key) {
+              if (NULL != (t = records[0].ptr) && t) {
+                if (k == records[0].key) {
+                  ret = t;
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if (ret) {
+        return ret;
+      }
+
+      // if ((t = (char *)hdr.sibling_ptr) && key >= ((page *)t)->records[0].key)
+      if ((t = (char *)hdr.sibling_ptr)) {
+        return t;
+      }
+
+      assert(0);
+      return NULL;
+    } else { // internal node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        if (IS_FORWARD(previous_switch_counter)) {
+          if (key < (k = records[0].key)) {
+            if ((t = (char *)hdr.leftmost_ptr) != records[0].ptr) {
+              ret = t;
+              continue;
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if (key < (k = records[i].key)) {
+              if ((t = records[i - 1].ptr) != records[i].ptr) {
+                ret = t;
+                break;
+              }
+            }
+          }
+
+          if (!ret) {
+            ret = records[i - 1].ptr;
+            continue;
+          }
+        } else { // search from right to left
+          for (i = count() - 1; i >= 0; --i) {
+            if (key >= (k = records[i].key)) {
+              if (i == 0) {
+                if ((char *)hdr.leftmost_ptr != (t = records[i].ptr)) {
+                  ret = t;
+                  break;
+                }
+              } else {
+                if (records[i - 1].ptr != (t = records[i].ptr)) {
+                  ret = t;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if ((t = (char *)hdr.sibling_ptr) != NULL) {
+        if (key >= ((page *)t)->records[0].key)
+          return t;
+      }
+
+      if (ret) {
+        return ret;
+      } else
+        return (char *)hdr.leftmost_ptr;
+    }
+
+    return NULL;
+  }
   // print a node
   void print() {
     if (hdr.leftmost_ptr == NULL)
@@ -938,7 +1065,7 @@ char *btree::btree_search(entry_key_t key) {
   }
 
   page *t;
-  while ((t = (page *)p->linear_search(key)) == p->hdr.sibling_ptr) {
+  while ((t = (page *)p->linear_search_lowbound(key)) == p->hdr.sibling_ptr) {
     p = t;
     if (!p) {
       break;
@@ -954,7 +1081,7 @@ char *btree::btree_search(entry_key_t key) {
 }
 
 // insert the key in the leaf node
-void btree::btree_insert(entry_key_t key, char *right) { // need to be string
+int btree::btree_insert(entry_key_t key, char *right) { // need to be string
   page *p = (page *)root;
 
   while (p->hdr.leftmost_ptr != NULL) {
@@ -964,6 +1091,8 @@ void btree::btree_insert(entry_key_t key, char *right) { // need to be string
   if (!p->store(this, NULL, key, right, true, true)) { // store
     btree_insert(key, right);
   }
+
+  return 0;
 }
 
 // store the key into the node at the given level
@@ -982,7 +1111,7 @@ void btree::btree_insert_internal(char *left, entry_key_t key, char *right,
   }
 }
 
-void btree::btree_delete(entry_key_t key) {
+int btree::btree_delete(entry_key_t key) {
   page *p = (page *)root;
 
   while (p->hdr.leftmost_ptr != NULL) {
@@ -999,9 +1128,11 @@ void btree::btree_delete(entry_key_t key) {
   if (p) {
     if (!p->remove(this, key)) {
       btree_delete(key);
+      return 0;
     }
   } else {
-    printf("not found the key to delete %lu\n", key);
+    // printf("not found the key to delete %lu\n", key);
+    return -ENOENT;
   }
 }
 

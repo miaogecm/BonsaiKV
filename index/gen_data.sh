@@ -43,4 +43,7 @@ sudo ln -sf $(pwd)/data/libkvdata.so /usr/lib/libkvdata.so
 echo "// BEGIN kvdata header" > data/kvdata.h
 echo "extern uint64_t load_arr[${count}][2];" >> data/kvdata.h
 echo "extern uint64_t op_arr[${num}][${count}][3];" >> data/kvdata.h
-echo "// END kvdata header" >> data/kvdata.h
+echo "// END kvdata header" >> data/kvdata.h\
+
+rm ./index/data/load.h 
+rm ./index/data/op.h
