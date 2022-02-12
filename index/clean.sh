@@ -2,6 +2,6 @@
 
 sudo rm -f ./core*
 
-sudo rm -rf /mnt/ext3/*
+sudo rm -rf /mnt/ext4/*
 
-sudo mkdir /mnt/ext3/node0
+sudo mkdir /mnt/ext4/node0

@@ -11,7 +11,7 @@
 
 static inline int file_exists(char const *file) { return access(file, F_OK); }
 
-static char* persistent_path = "/mnt/ext3/pool";
+static char* persistent_path = "/mnt/ext4/pool";
 
 #define N           1000000
 #define NUM_THREAD  4
