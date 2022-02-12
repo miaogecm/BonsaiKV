@@ -86,12 +86,11 @@ int thread_register_alarm_signal() {
         goto out;
 	}
 
-	value.it_interval.tv_sec = 100000;
+	value.it_interval.tv_sec = 0;
 	value.it_interval.tv_usec = EPOCH;
     value.it_value = value.it_interval;
 
-    //ret = setitimer(ITIMER_REAL, &value, NULL);
-    ret = 0;
+    ret = setitimer(ITIMER_REAL, &value, NULL);
 	if (ret) {
 		perror("setitimer\n");
         goto out;
