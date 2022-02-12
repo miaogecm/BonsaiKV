@@ -502,6 +502,7 @@ int main() {
 
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
+        pthread_setname_np(tids[i], "user_thread");
 	}
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);

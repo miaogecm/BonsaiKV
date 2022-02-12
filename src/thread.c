@@ -369,6 +369,7 @@ int bonsai_pflushd_thread_init() {
         		perror("bonsai create thread failed\n");
 			return -ETHREAD;
     	}
+        pthread_setname_np(bonsai->tids[i], (i == 0) ? "pflush_master" : "pflush_worker");
     }
 
 	wait_pflush_thread();

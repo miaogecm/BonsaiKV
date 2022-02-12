@@ -336,7 +336,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 	struct hbucket* bucket;
 	struct hlist_node* hnode;
 	struct log_region* region;
-	merge_ent* e;
+	merge_ent* e, *target;
 	pkey_t key;
 	int i, j, count = 0, ret = 0;
 	int nlog = 0, nblk = 0;
@@ -364,21 +364,31 @@ static int worker_oplog_merge_and_sort(void *arg) {
 				nlog++; atomic_dec(&layer->nlogs);
 				bonsai_debug("pflush thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
 						__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
-				
+
+                target = NULL;
+
 				spin_lock(&bucket->lock);
-				hlist_for_each_entry(e, hnode, &bucket->head, node) {
+
+                hlist_for_each_entry(e, hnode, &bucket->head, node) {
 					if (!key_cmp(e->log->o_kv.k, key)) {
-						if (ordo_cmp_clock(e->log->o_stamp, log->o_stamp) == ORDO_LESS_THAN)
-							/* less than */
-							e->log = log;			
-						continue;
+                        target = e;
+                        break;
 					}
 				}
 
-				e = malloc(sizeof(merge_ent));
-				e->log = log;
-				INIT_HLIST_NODE(&e->node);
-				hlist_add_head(&e->node, &bucket->head);
+                if (!target) {
+				    target = malloc(sizeof(merge_ent));
+                    INIT_HLIST_NODE(&target->node);
+                    hlist_add_head(&target->node, &bucket->head);
+                    target->log = log;
+                } else if (ordo_cmp_clock(target->log->o_stamp, log->o_stamp) == ORDO_LESS_THAN) {
+                    target->log = log;
+                }
+
+                /*
+                 * target->log should be globally visible now,
+                 * thanks to the implicit fence of spin_unlock.
+                 */
 				spin_unlock(&bucket->lock);
 			}
 
