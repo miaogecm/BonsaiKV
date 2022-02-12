@@ -91,7 +91,7 @@ int thread_register_alarm_signal() {
         goto out;
 	}
 
-	value.it_interval.tv_sec = 0;
+	value.it_interval.tv_sec = 10000;
 	value.it_interval.tv_usec = EPOCH;
     value.it_value = value.it_interval;
 

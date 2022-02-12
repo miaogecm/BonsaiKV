@@ -535,7 +535,7 @@ void oplog_flush() {
 	struct log_region *region;
 	volatile struct oplog_blk* first_blks[NUM_CPU];
 	volatile struct oplog_blk* curr_blks[NUM_CPU];
-	volatile struct oplog_blk* curr_blk, *fuck;
+	volatile struct oplog_blk* curr_blk;
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
@@ -548,6 +548,7 @@ void oplog_flush() {
 	int num_region_per_thread, num_region_rest;
 	int num_block_per_thread;
     int nlogs;
+    struct merge_work empty_mwork = { .layer = l_layer };
 	//int num_bucket_per_thread;
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
@@ -612,7 +613,7 @@ void oplog_flush() {
 			mworks[i] = mwork;
 		}
 		for (i = total + 1; i < NUM_PFLUSH_THREAD; i ++)
-			mworks[i] = NULL;
+			mworks[i] = &empty_mwork;
 	} else {
 		/* case III: total >= NUM_PFLUSH_WORKER */
 		num_region_per_thread = total / NUM_PFLUSH_WORKER;
@@ -704,7 +705,7 @@ void oplog_flush() {
 
 	/* 6. free all pages */
 	for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
-        if (mworks[i]) {
+        if (mworks[i] != &empty_mwork) {
             free_pages(l_layer, &mworks[i]->page_list);
             free(mworks[i]);
         }
@@ -717,7 +718,6 @@ void oplog_flush() {
 out:
 	//dump_pnode_list_summary();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
-	return;
 }
 
 static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
