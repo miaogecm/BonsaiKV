@@ -21,6 +21,7 @@
 #include "pnode.h"
 #include "mptable.h"
 #include "hash.h"
+#include "epoch.h"
 
 extern struct bonsai_info *bonsai;
 
@@ -73,7 +74,9 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	struct log_layer* layer = LOG(bonsai);
 	struct oplog* log;
 
-	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {		
+	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {
+        try_run_epoch();
+
 		block = alloc_oplog_block(cpu);
 
         /*
@@ -105,7 +108,7 @@ struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, i
 	struct oplog* log;
 
 	region = &layer->region[cpu];
-retry:
+
 	log = alloc_oplog(region, cpu);
 	
 	block = OPLOG_BLK(log);
@@ -117,11 +120,7 @@ retry:
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-	if (unlikely(epoch != ACCESS_ONCE(__this->t_epoch))) {
-		/* an epoch passed */
-        block->cnt--;
-		goto retry;
-	}
+    assert(epoch == ACCESS_ONCE(__this->t_epoch));
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it, no memory fence */

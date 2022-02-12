@@ -23,34 +23,39 @@ extern struct bonsai_info* bonsai;
 
 typedef void (*signal_handler_t)(int);
 
-void thread_alarm_handler(int sig) {
-	int cpu = get_cpu(), passed;
+void try_run_epoch() {
+	int cpu = get_cpu();
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region *region = &layer->region[cpu];
-	__le64 old_epoch;
+	__le64 old_epoch = bonsai->desc->epoch, new_epoch = old_epoch + 1;
+
+    if (likely(atomic_read(&layer->epoch_passed) <= 1 || __this->t_epoch == new_epoch)) {
+        return;
+    }
+
+    bonsai_print("user thread[%d]: run epoch %llu\n", __this->t_id, old_epoch);
 
 	/* persist it */
-	bonsai_flush((void*)&region->curr_blk, sizeof(struct oplog_blk), 1);
-
-	__this->t_epoch ++;
-
-    /*
-     * Pick the last thread to update the epoch.
-     * For a specific global epoch counter value, a thread can only contribute to
-     * its increment once. Thus we record the last "contribution" of this thread.
-     */
-    old_epoch = ACCESS_ONCE(bonsai->desc->epoch);
-    if (__this->t_epoch_contrib < old_epoch) {
-        if (__this->t_epoch > old_epoch) {
-            passed = atomic_add_return(1, &layer->epoch_passed);
-            if (passed == NUM_USER_THREAD) {
-                atomic_set(&layer->epoch_passed, 0);
-                asm volatile(LOCK_PREFIX "incl %0" : "+m" (bonsai->desc->epoch));
-                printf("epoch update to %llu\n", bonsai->desc->epoch);
-            }
-        }
-        __this->t_epoch_contrib = old_epoch;
+    if (likely(region->curr_blk)) {
+        bonsai_flush((void *) region->curr_blk, sizeof(struct oplog_blk), 1);
     }
+    __this->t_epoch = new_epoch;
+
+    /* If I'm the last one, update the global counter, and allow next epoch. */
+    if (atomic_add_return(-1, &layer->epoch_passed) == 1) {
+        bonsai->desc->epoch = new_epoch;
+        bonsai_flush(&bonsai->desc->epoch, sizeof(__le64), 0);
+
+        /* @atomic_dec provides an implicit full fence. */
+        atomic_dec(&layer->epoch_passed);
+
+        bonsai_print("user thread[%d]: update global epoch to %llu\n", __this->t_id, new_epoch);
+    }
+}
+
+void thread_alarm_handler(int sig) {
+	struct log_layer* layer = LOG(bonsai);
+    atomic_cmpxchg(&layer->epoch_passed, 0, NUM_USER_THREAD + 1);
 }
 
 /*
@@ -71,7 +76,7 @@ int thread_block_alarm_signal() {
 }
 
 /*
- * thread_register_alarm_signal: every user thread must register this signal
+ * thread_register_alarm_signal: the master thread must register this signal
  */
 int thread_register_alarm_signal() {
 	struct itimerval value;

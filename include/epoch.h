@@ -5,9 +5,10 @@
 extern "C" {
 #endif
 
-#define EPOCH	1000 /* 1ms */
+#define EPOCH	100000 /* 100ms */
 
 extern int epoch_init();
+extern void try_run_epoch();
 
 extern int thread_register_alarm_signal();
 extern int thread_block_alarm_signal();

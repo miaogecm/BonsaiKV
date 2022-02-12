@@ -296,9 +296,10 @@ void bonsai_self_thread_init() {
 	bonsai->self->t_pid = gettid();
 	bonsai->self->t_state = S_RUNNING;
 
-	thread_register_stop_signal();
-
 	__this = bonsai->self;
+
+	thread_register_alarm_signal();
+	thread_register_stop_signal();
 
 	list_add(&__this->list, &bonsai->thread_list);
 
@@ -307,6 +308,8 @@ void bonsai_self_thread_init() {
 
 void bonsai_self_thread_exit() {
 	struct thread_info* thread = bonsai->self;
+
+    thread_block_alarm_signal();
 
 	list_del(&thread->list);
 	
@@ -321,14 +324,12 @@ int bonsai_user_thread_init() {
 	thread->t_pid = gettid();
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
-    thread->t_epoch_contrib = 0;
 
-	list_add(&thread->list, &bonsai->thread_list);
-
-	thread_register_alarm_signal();
-	thread_register_stop_signal();
+    list_add(&thread->list, &bonsai->thread_list);
 
 	__this = thread;
+
+	thread_register_stop_signal();
 
 	bonsai_print("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 
