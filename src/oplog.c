@@ -711,11 +711,11 @@ void oplog_flush() {
         }
 	}
 
+out:
 	/* 7. finish */
 	l_layer->nflush ++;
 	atomic_set(&l_layer->checkpoint, 0);
 
-out:
 	//dump_pnode_list_summary();
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }
