@@ -17,6 +17,7 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "common.h"
 #include "skiplist.h"
@@ -442,19 +443,17 @@ void* thread_fun(void* arg) {
         }
 	}
 
-	printf("user thread[%ld]---------------------end---------------------\n", id);
-
 	bonsai_user_thread_exit();
 
 	free(val_arr);
-    
-	printf("user thread[%ld] exit\n", id);
 
 	return NULL;
 }
 
 int main() {
 	long i;
+    struct timeval t0, t1;
+    double interval;
 
 	bind_to_cpu(0);
 
@@ -462,13 +461,19 @@ int main() {
 				sl_remove, sl_lookup, sl_scan) < 0)
 		goto out;
 
+    printf("start load [%d] entries\n", N);
+    gettimeofday(&t0, NULL);
     for (i = 0; i < N; i ++) {
-        assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
+        bonsai_insert(load_arr[i][0], load_arr[i][1]);
     }
-    printf("load succeed!\n");
-    sleep(10);
-    printf("workload start!\n");
+    gettimeofday(&t1, NULL);
+    interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
+    printf("load finished in %.3lf seconds\n", interval);
 
+    sleep(15);
+
+    printf("start workload ([%d] ops, [%d] threads)\n", N, NUM_THREAD);
+    gettimeofday(&t0, NULL);
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
@@ -476,10 +481,13 @@ int main() {
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
-    
-    sleep(10);
-	bonsai_deinit();
+    gettimeofday(&t1, NULL);
+    interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
+    printf("workload finished in %.3lf seconds\n", interval);
+	
+    bonsai_deinit();
 
 out:
+    printf("end\n");
 	return 0;
 }

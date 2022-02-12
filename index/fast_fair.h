@@ -883,6 +883,7 @@ public:
     char *t;
     entry_key_t k;
 
+retry:
     if (hdr.leftmost_ptr == NULL) { // Search a leaf node
       do {
         previous_switch_counter = hdr.switch_counter;
@@ -943,6 +944,8 @@ public:
         return t;
       }
 
+      printf("key: %lu\n", key);
+      goto retry;
       assert(0);
       return NULL;
     } else { // internal node
