@@ -14,7 +14,7 @@ CFLAGS += ${LOCAL}
 LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -lkvdata 
 LDFLAGS += -lrt -lm -lpthread -lstdc++
 
-SRCS = $(PWD)/skiplist.c $(LIB_DIR)/libbonsai.a
+SRCS = $(PWD)/fast_fair.c $(PWD)/bench.c $(LIB_DIR)/libbonsai.a
 
 TARGETS = kv
 
