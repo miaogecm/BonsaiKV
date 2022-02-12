@@ -12,3 +12,4 @@ perf*
 kv
 index/data
 .idea
+btree

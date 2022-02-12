@@ -22,13 +22,12 @@
 #include "ffwrapper.h"
 
 #include "data/kvdata.h"
-// #define RAND
 
 #ifndef N
 #define N			1000000
 #endif
 
-pkey_t a[5 * N];
+pkey_t a[N];
 
 #ifndef NUM_THREAD
 #define NUM_THREAD	4
@@ -140,6 +139,7 @@ void* thread_fun(void* arg) {
 int main() {
 	long i;
     struct timeval t0, t1;
+    double interval;
 
 	bind_to_cpu(0);
 
@@ -147,16 +147,20 @@ int main() {
 				ff_remove, ff_lookup, ff_scan) < 0)
 		goto out;
 
-    struct timeval t;
-    // gettimeofday();
+    
     printf("start load [%d] entries\n", N);
+    gettimeofday(&t0, NULL);
     for (i = 0; i < N; i ++) {
-        assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
+        bonsai_insert(load_arr[i][0], load_arr[i][1]);
     }
-    printf("load succeed!\n");
-    sleep(10);
-    printf("workload start!\n");
+    gettimeofday(&t1, NULL);
+    interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
+    printf("load finished in %.3lf seconds\n", interval);
 
+    sleep(15);
+
+    printf("start workload ([%d] ops, [%d] threads)\n", N, NUM_THREAD);
+    gettimeofday(&t0, NULL);
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
 	}
@@ -164,8 +168,10 @@ int main() {
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
+    gettimeofday(&t1, NULL);
+    interval = t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
+    printf("workload finished in %.3lf seconds\n", interval);
     
-    sleep(10);
 	bonsai_deinit();
 
 out:
