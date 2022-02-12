@@ -65,9 +65,6 @@ again:
 		bonsai_flush((void*)&old_block->next, sizeof(__le64), 0);
 	}
 
-	asm volatile("lock; incl %0" : "+m" (page->p_num_blk));
-	bonsai_flush(&page->p_num_blk, sizeof(__le64), 1);
-
 	return new_block;
 }
 
@@ -78,6 +75,15 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 
 	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {		
 		block = alloc_oplog_block(cpu);
+
+        /*
+         * We issue a mfence here, to ensure the newly allocated
+         * block is correctly inserted into log blk list globally.
+         * The pflusher may walk thru that list after modifying
+         * @region->curr_blk.
+         */
+        smp_mb();
+
 		region->curr_blk = block;
 	}
 
@@ -130,20 +136,20 @@ retry:
 static void try_free_log_page(struct oplog_blk* block, struct list_head* page_list) {
 	struct log_page_desc *page;
 	flush_page_struct *p;
-	
+
 	asm volatile("lock; decl %0" : "+m" (block->cnt));
-			
+
 	if (!ACCESS_ONCE(block->cnt)) {
 		page = LOG_PAGE_DESC(block);
-		asm volatile("lock; decl %0" : "+m" (page->p_num_blk));
-			
-		if (!ACCESS_ONCE(page->p_num_blk)) {
+
+        /* We free the page if and only if we flushed its last block. */
+        if ((void *) block + sizeof(*block) == (void*) page + PAGE_SIZE) {
 			p = malloc(sizeof(flush_page_struct));
 			p->cpu = block->cpu;
 			p->page = page;
 			INIT_LIST_HEAD(&p->list);
 			list_add(&p->list, page_list);
-		}
+        }
 	}
 }
 
@@ -506,7 +512,7 @@ static void free_pages(struct log_layer *layer, struct list_head* page_list) {
 	
 	list_for_each_entry_safe(p, n, page_list, list) {
 		free_log_page(&layer->region[p->cpu], p->page);
-		bonsai_debug("free log page[%d]: addr: %016lx count: %d\n", i++, p->page, p->page->p_num_blk);
+		bonsai_debug("free log page[%d]: addr: %016lx\n", 0, p->page);
 		free(p);
 	}
 }
@@ -520,8 +526,7 @@ void oplog_flush() {
 	struct log_region *region;
 	volatile struct oplog_blk* first_blks[NUM_CPU];
 	volatile struct oplog_blk* curr_blks[NUM_CPU];
-	struct log_region *blk_regions[NUM_CPU];
-	volatile struct oplog_blk* curr_blk;
+	volatile struct oplog_blk* curr_blk, *fuck;
 	struct merge_work* mwork;
 	struct merge_work* mworks[NUM_PFLUSH_THREAD];
 	struct flush_work* fwork;
@@ -549,7 +554,6 @@ void oplog_flush() {
 		if (curr_blk && region->first_blk != curr_blk) {
 			first_blks[total] = region->first_blk;
 			curr_blks[total] = curr_blk;
-            blk_regions[total] = region;
 			region->first_blk = curr_blk;
 			total ++;
 		}
@@ -577,8 +581,7 @@ void oplog_flush() {
 				for (j = 0; j < num_block_per_thread; j ++)
 					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]), curr_blk->next);
 			} else {
-				while (curr_blk->next)
-					curr_blk = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]), curr_blk->next);
+                curr_blk = curr_blks[0];
 			}
 			mwork->last_blks[0] = curr_blk;
 			mworks[i] = mwork;
@@ -692,8 +695,10 @@ void oplog_flush() {
 
 	/* 6. free all pages */
 	for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
-		free_pages(l_layer, &mworks[i]->page_list);
-		free(mworks[i]);
+        if (mworks[i]) {
+            free_pages(l_layer, &mworks[i]->page_list);
+            free(mworks[i]);
+        }
 	}
 
 	/* 7. finish */
