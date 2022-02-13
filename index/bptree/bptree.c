@@ -112,16 +112,16 @@ char *search_record(b_node *leaf, uint64_t target_key, bool flag)
 	static int count;
 	start = 0;
 	end = leaf->num_keys - 1;
-	while (start < end) {
+	while (start <= end) {
 		mid = start + (end - start) / 2;
-		// if (leaf->keys[mid] == target_key)
-		// 	return (char *)leaf->ptrs[mid];
+		if (leaf->keys[mid] == target_key)
+			return (char *)leaf->ptrs[mid];
 		if (leaf->keys[mid] < target_key)
 			start = mid + 1;
 		else
-			end = mid;
+			end = mid - 1;
 	}
-	return (start > leaf->num_keys - 1) ? NULL : (char *)leaf->ptrs[start];
+	return NULL;
 #endif
 }
 
@@ -160,11 +160,6 @@ char* bp_lookup(void *p_root, uint64_t key)
 	}
 	leaf = get_leaf(root, key); 
 	val = search_record(leaf, key, true);
-    if (val == NULL) {
-        assert(leaf->next);
-        val = search_record(leaf->next, key, true);
-    }
-    assert(val);
 	pthread_rwlock_unlock(&bpt_lock);
 	return val;
 /*	if (!val) 
@@ -212,19 +207,20 @@ int scan_range(b_node *root, uint64_t start_key,
 	return count;
 }
 
-int bp_scan(void *p_root, uint64_t start_key, uint64_t end_key)
+int bp_scan(void *p_root, uint64_t start_key, uint64_t end_key, uint64_t *buff)
 {
-	// b_root_obj *_root;
-	// b_node *root;
-	// int key_count;
+	int range = end_key - start_key;
+	b_root_obj *_root;
+	b_node *root;
+	int key_count;
 
-	// pthread_rwlock_rdlock(&bpt_lock);
-	// _root = (b_root_obj *)p_root;
-	// root = _root->b_root;
-	// key_count = scan_range(root, start_key, 
-	// 		range, buff);
-	// pthread_rwlock_unlock(&bpt_lock);
-	// return key_count;
+	pthread_rwlock_rdlock(&bpt_lock);
+	_root = (b_root_obj *)p_root;
+	root = _root->b_root;
+	key_count = scan_range(root, start_key, 
+			range, buff);
+	pthread_rwlock_unlock(&bpt_lock);
+	return key_count;
     return 0;
 }
 
