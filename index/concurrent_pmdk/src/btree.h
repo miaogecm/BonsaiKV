@@ -935,10 +935,11 @@ public:
     ff_print("last_index: %d\n", hdr.last_index);
     ff_print("switch_counter: %d\n", hdr.switch_counter);
     ff_print("search direction: ");
-    if (IS_FORWARD(hdr.switch_counter))
+    if (IS_FORWARD(hdr.switch_counter)) {
       ff_print("->\n");
-    else
+    } else {
       ff_print("<-\n");
+    }
 
     if (hdr.leftmost_ptr != NULL)
       ff_print("%x ", hdr.leftmost_ptr);
