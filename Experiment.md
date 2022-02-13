@@ -10,19 +10,27 @@ YCSB: load, workloada, workloadb, workloadc, workloadd, workloade
 
 FastFair[1], FP-tree[2]
 
-Bonsai + B+ tree (Masstree[6])
+Bonsai + B+ tree
+
+Bonsai + Masstree[6]
+
+Bonsai + PALM[13]
 
 2. Hash Table
 
 LevelHash[3], CCEH[4]
 
-Bonsai + Hash table (CLHT[7])
+Bonsai + Hash table
+
+Bonsai + CLHT[7]
 
 3. Radix Tree
 
 WORT[5]
 
-Bonsai + Radix tree (ART[8])
+Bonsai + Radix tree
+
+Bonsai + ART[8]
 
 #### Bonsai vs. DRAM Index Structure Conversion Techniques
 
@@ -43,3 +51,4 @@ converse DRAM **B+ Tree, Hash Table** into NVRAM
 [10] Pronto: Easy and Fast Persistence for Volatile Data Structures. *ASPLOS'20*
 [11] NVTraverse: In NVRAM Data Structures, the Destination is More Important than the Journey. *PLDI'20*
 [12] RECIPE: Converting Concurrent DRAM Indexes to PersistentMemory Indexes. *SOSP'19*
+[13] PALM: Parallel Architecture-Friendly Latch-Free Modifications to B+ Trees on Many-Core Processors. *VLDB'11*
