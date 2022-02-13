@@ -111,7 +111,7 @@ char *search_record(b_node *leaf, uint64_t target_key, bool flag)
 	int start, mid, end;
 	static int count;
 	start = 0;
-	end = leaf->num_keys - 1;
+	end = leaf->num_keys;
 	while (start < end) {
 		mid = start + (end - start) / 2;
 		// if (leaf->keys[mid] == target_key)
@@ -506,6 +506,8 @@ b_node *split_insert_into_leaf(b_node *root, b_node *leaf,
 		new_leaf->ptrs[i] = NULL;
 	}
 	new_leaf->parent = leaf->parent;
+	new_leaf->next = leaf->parent;
+	leaf->next = new_leaf;
 	new_key = new_leaf->keys[0];
 	return insert_into_parent(root, leaf, 
 			new_key, new_leaf);
