@@ -48,9 +48,9 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 	struct log_page_desc* prev_page = NULL, *next_page = NULL;
 
 	spin_lock(&region->inuse_lock);
-	if (!page->p_prev)
+	if (page->p_prev != -PAGE_SIZE)
 		prev_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_prev);
-	if (!page->p_next)
+	if (page->p_next != -PAGE_SIZE)
 		next_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
 
 	if (prev_page && next_page) {
@@ -109,8 +109,8 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 static inline void init_log_page(struct log_page_desc* page, off_t page_off, int first, int last) {
 	page->p_off = page_off;
 	page->p_num_blk = 0;
-	page->p_prev = first ? 0 : (page_off - PAGE_SIZE);
-	page->p_next = last ? 0 : (page_off + PAGE_SIZE);
+	page->p_prev = first ? -PAGE_SIZE : (page_off - PAGE_SIZE);
+	page->p_next = last ? -PAGE_SIZE : (page_off + PAGE_SIZE);
 }
 
 static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, unsigned long start,

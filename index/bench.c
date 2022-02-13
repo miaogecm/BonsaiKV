@@ -115,31 +115,33 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i;
+	long i, repeat = 10;
 
     start_measure();
 
-	for (i = 0; i < N; i ++) {
+    while(repeat--) {
+        for (i = 0; i < N; i ++) {
 
-        switch (op_arr[id][i][0]) {
-        case 0:
-            bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
-            break;
-        case 1:
-            bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
-            break;
-        case 2:
-            bonsai_lookup(op_arr[id][i][1], &v);
-            break;
-        case 3:
-            bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
-            break;
-        default:
-            printf("unknown type\n");
-            assert(0);
-            break;
+            switch (op_arr[id][i][0]) {
+            case 0:
+                bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                break;
+            case 1:
+                bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                break;
+            case 2:
+                bonsai_lookup(op_arr[id][i][1], &v);
+                break;
+            case 3:
+                bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
+                break;
+            default:
+                printf("unknown type\n");
+                assert(0);
+                break;
+            }
         }
-	}
+    }
 
     interval = end_measure();
     printf("user thread[%ld]: workload finished in %.3lf seconds\n", id, interval);
