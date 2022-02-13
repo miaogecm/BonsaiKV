@@ -927,10 +927,11 @@ public:
 
   // print a node
   void print() {
-    if (hdr.leftmost_ptr == NULL)
+    if (hdr.leftmost_ptr == NULL) {
       ff_print("[%d] leaf %x \n", this->hdr.level, pmemobj_oid(this).off);
-    else
+    } else {
       ff_print("[%d] internal %x \n", this->hdr.level, pmemobj_oid(this).off);
+    }
     ff_print("last_index: %d\n", hdr.last_index);
     ff_print("switch_counter: %d\n", hdr.switch_counter);
     ff_print("search direction: ");
