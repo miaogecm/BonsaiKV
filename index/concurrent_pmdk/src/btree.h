@@ -928,26 +928,26 @@ public:
   // print a node
   void print() {
     if (hdr.leftmost_ptr == NULL)
-      ff_prinrt("[%d] leaf %x \n", this->hdr.level, pmemobj_oid(this).off);
+      ff_print("[%d] leaf %x \n", this->hdr.level, pmemobj_oid(this).off);
     else
-      ff_prinrt("[%d] internal %x \n", this->hdr.level, pmemobj_oid(this).off);
-    ff_prinrt("last_index: %d\n", hdr.last_index);
-    ff_prinrt("switch_counter: %d\n", hdr.switch_counter);
-    ff_prinrt("search direction: ");
+      ff_print("[%d] internal %x \n", this->hdr.level, pmemobj_oid(this).off);
+    ff_print("last_index: %d\n", hdr.last_index);
+    ff_print("switch_counter: %d\n", hdr.switch_counter);
+    ff_print("search direction: ");
     if (IS_FORWARD(hdr.switch_counter))
-      ff_prinrt("->\n");
+      ff_print("->\n");
     else
-      ff_prinrt("<-\n");
+      ff_print("<-\n");
 
     if (hdr.leftmost_ptr != NULL)
-      ff_prinrt("%x ", hdr.leftmost_ptr);
+      ff_print("%x ", hdr.leftmost_ptr);
 
     for (int i = 0; records[i].ptr != NULL; ++i)
-      ff_prinrt("%ld,%x ", records[i].key, records[i].ptr);
+      ff_print("%ld,%x ", records[i].key, records[i].ptr);
 
-    ff_prinrt("%x ", hdr.sibling_ptr.oid.off);
+    ff_print("%x ", hdr.sibling_ptr.oid.off);
 
-    ff_prinrt("\n");
+    ff_print("\n");
   }
 
   void printAll() {
@@ -955,10 +955,10 @@ public:
     TOID_ASSIGN(p, pmemobj_oid(this));
 
     if (hdr.leftmost_ptr == NULL) {
-      ff_prinrt("printing leaf node: ");
+      ff_print("printing leaf node: ");
       print();
     } else {
-      ff_prinrt("printing internal node: ");
+      ff_print("printing internal node: ");
       print();
       p.oid.off = (uint64_t)hdr.leftmost_ptr;
       D_RW(p)->printAll();
@@ -1003,7 +1003,7 @@ char *btree::btree_search(entry_key_t key) {
   }
 
   if (!t) {
-    ff_prinrt("NOT FOUND %lu, t = %x\n", key, t);
+    ff_print("NOT FOUND %lu, t = %x\n", key, t);
     return NULL;
   }
 
@@ -1059,7 +1059,7 @@ void btree::btree_delete(entry_key_t key) {
       btree_delete(key);
     }
   } else {
-    ff_prinrt("not found the key to delete %lu\n", key);
+    ff_print("not found the key to delete %lu\n", key);
   }
 }
 
@@ -1130,7 +1130,7 @@ void btree::printAll() {
   pthread_mutex_lock(&print_mtx);
   int total_keys = 0;
   TOID(page) leftmost = root;
-  ff_prinrt("root: %x\n", root.oid.off);
+  ff_print("root: %x\n", root.oid.off);
   if (root.oid.off) {
     do {
       TOID(page) sibling = leftmost;
@@ -1141,12 +1141,12 @@ void btree::printAll() {
         D_RW(sibling)->print();
         sibling = D_RO(sibling)->hdr.sibling_ptr;
       }
-      ff_prinrt("-----------------------------------------\n");
+      ff_print("-----------------------------------------\n");
       leftmost.oid.off = (uint64_t)D_RO(leftmost)->hdr.leftmost_ptr;
     } while (leftmost.oid.off != 0);
   }
 
-  ff_prinrt("total number of keys: %d\n", total_keys);
+  ff_print("total number of keys: %d\n", total_keys);
   pthread_mutex_unlock(&print_mtx);
 }
 
