@@ -124,7 +124,7 @@ struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, i
 
 	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
 		/* persist it, no memory fence */
-		bonsai_flush((void*)&region->curr_blk, sizeof(struct oplog_blk), 0);
+		bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 0);
 	}
 
 	bonsai_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
@@ -350,6 +350,9 @@ static int worker_oplog_merge_and_sort(void *arg) {
 	/* 1. merge logs */
 	for (i = 0; i < mwork->count; i ++) {
 		block = mwork->first_blks[i];
+
+        assert(block != mwork->last_blks[i]);
+
 		do {
 			count = block->cnt;
 			
@@ -583,7 +586,7 @@ void oplog_flush() {
 		curr_blk = first_blks[0];
 		for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
 			mwork = malloc(sizeof(struct merge_work));
-			mwork->count = num_region_per_thread;
+			mwork->count = num_block_per_thread ? num_region_per_thread : 0;
 			mwork->layer = l_layer;
 			INIT_LIST_HEAD(&mwork->page_list);
 			mwork->first_blks[0] = curr_blk;
