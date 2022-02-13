@@ -86,7 +86,7 @@ static inline void die() {
 
 static pthread_barrier_t barrier;
 
-static struct timeval t0, t1;
+static __thread struct timeval t0, t1;
 
 static inline void start_measure() {
     gettimeofday(&t0, NULL);
@@ -107,7 +107,11 @@ static void do_load(long id) {
         }
         interval = end_measure();
         printf("load finished in %.3lf seconds\n", interval);
+
         bonsai_barrier();
+
+        interval = end_measure();
+        printf("load total: %.3lf seconds\n", interval);
     }
 }
 
@@ -156,8 +160,13 @@ static void do_op(long id) {
 }
 
 static void do_barrier(long id) {
+    double interval;
+
     if (id == 0) {
         bonsai_barrier();
+
+        interval = end_measure();
+        printf("op total: %.3lf seconds\n", interval);
     }
 }
 
