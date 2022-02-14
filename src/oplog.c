@@ -671,7 +671,7 @@ void oplog_flush() {
 		//fwork->curr_index = fwork->min_index;
 		fwork->small_free_cnt = 0;
 		fwork->big_free_cnt = 0;
-		fwork->small_free_set = malloc(sizeof(pkey_t) * MAIN_ARRAY_LEN * LOAD_FACTOR_DEFAULT);
+		fwork->small_free_set = malloc(sizeof(pkey_t) * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT);
 		fwork->big_free_set = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
 		fwork->layer = l_layer;
 		INIT_LIST_HEAD(&fwork->flush_list);

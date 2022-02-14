@@ -38,7 +38,8 @@ static inline void bind_to_cpu(int cpu) {
 }
 
 static inline int get_numa_node(int cpu) {
-	return ((cpu != NOCPU) ? cpu : get_cpu()) % (NUM_SOCKET + 1);
+	// return ((cpu != NOCPU) ? cpu : get_cpu()) % (NUM_SOCKET + 1);
+	return 0;
 }
 
 #ifdef __cplusplus

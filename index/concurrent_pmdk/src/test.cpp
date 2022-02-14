@@ -67,7 +67,7 @@ void* thread_fun(void* arg) {
 	char** val_arr = (char**) malloc(sizeof(char*) * N);
 	long rep = 10;
 
-	bind_to_cpu(id * 2);
+	bind_to_cpu(id);
 
 	while (rep--) {
 	  for (i = 0; i < N; i ++) {

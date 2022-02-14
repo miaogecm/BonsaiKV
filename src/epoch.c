@@ -24,7 +24,7 @@ extern struct bonsai_info* bonsai;
 typedef void (*signal_handler_t)(int);
 
 void try_run_epoch() {
-	int cpu = get_cpu();
+	int cpu = __this->t_cpu;
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region *region = &layer->region[cpu];
 	__le64 old_epoch = bonsai->desc->epoch, new_epoch = old_epoch + 1;

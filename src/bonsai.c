@@ -150,22 +150,22 @@ void index_layer_dump() {
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
-	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
+	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
 	return mptable_insert(numa_node, cpu, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
-	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
+	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
 	return mptable_update(numa_node, cpu, key, &value);
 }
 
 int bonsai_remove(pkey_t key) {
-	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
+	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
 	return mptable_remove(numa_node, cpu, key);
 }
 
 int bonsai_lookup(pkey_t key, pval_t* val) {
-	int cpu = get_cpu(), numa_node = get_numa_node(cpu);
+	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
 	return mptable_lookup(numa_node, key, cpu, val);
 }
 

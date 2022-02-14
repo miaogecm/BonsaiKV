@@ -37,6 +37,8 @@ static int hs_remove_success_time = 0;
 static int hs_remove_fail_time = 0;
 #endif
 
+#define MASK(x)     ((1ul << (x)) - 1)
+
 static void bucket_list_init(struct bucket_list** bucket, int bucket_index);
 static struct bucket_list* get_bucket_list(struct hash_set* hs, int bucket_index);
 static void set_bucket_list(struct hash_set* hs, int tid, int bucket_index, struct bucket_list* new_bucket);
@@ -135,7 +137,7 @@ void hs_init(struct hash_set* hs) {
 
     memset(hs->main_array, 0, MAIN_ARRAY_LEN * sizeof(segment_t*));  //important.
     hs->load_factor = LOAD_FACTOR_DEFAULT;  // 2
-    hs->capacity = INIT_NUM_BUCKETS;  // 2 at first
+    hs->capacity_order = INIT_ORDER_BUCKETS;  // 2 at first
     hs->set_size = 0;
     hs->avg.val = 0;
 
@@ -193,7 +195,7 @@ pval_t* bucket_list_lookup(struct bucket_list* bucket, int tid, pkey_t key) {
  * get the parent bucket index of the given bucket_index
  */
 static int get_parent_index(struct hash_set* hs, int bucket_index) {
-    int parent_index = hs->capacity;
+    int parent_index = 1 << hs->capacity_order;
 
     do {
         parent_index = parent_index >> 1;
@@ -235,10 +237,10 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
 }
 
 static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, int update) {
-    //First, calculate the bucket index by key and capacity of the hash_set.
-    int bucket_index = key % hs->capacity;
+    //First, calculate the bucket index by key and capacity_order of the hash_set.
+    int bucket_index = key & MASK(hs->capacity_order);
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);  //bucket will be initialized if needed in get_bucket_list()
-	unsigned long capacity_now, old_capacity;
+	unsigned long capacity_order_now, capacity_now, old_capacity_order;
 	int set_size_now;
     int ret = 0;
     union atomic_u128 old_avg, new_avg;
@@ -282,15 +284,16 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
 #ifdef BONSAI_HASHSET_DEBUG
     xadd(&hs_add_success_time, 1);
 #endif
-    capacity_now = hs->capacity;  //we must fetch and store the value before test whether of not to resize. Be careful don't resize multi times.
+    capacity_order_now = hs->capacity_order;
+    capacity_now = 1ul << capacity_order_now;  //we must fetch and store the value before test whether of not to resize. Be careful don't resize multi times.
  
     //Do we need to resize the hash_set?
     if ((1.0) * set_size_now / capacity_now >= hs->load_factor) {
         if (capacity_now * 2 <= MAIN_ARRAY_LEN * SEGMENT_SIZE) {
-            old_capacity = cmpxchg(&hs->capacity, capacity_now, capacity_now * 2);
-            if (old_capacity == capacity_now) {
+            old_capacity_order = cmpxchg(&hs->capacity_order, capacity_order_now, capacity_order_now + 1);
+            if (old_capacity_order == capacity_order_now) {
 				;
-                //bonsai_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity);
+                //bonsai_debug("[%d %lu] resize succeed [%lu]\n", set_size_now, capacity_now, hs->capacity_order);
             }
         } else {
             // perror("cannot resize, the buckets number reaches (MAIN_ARRAY_LEN * SEGMENT_SIZE).\n");
@@ -322,7 +325,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
     // Note: it is a corner case. If the hs is resized not long ago. Some elements should be adjusted to new bucket,
     // When we find a key who is in the hs, but haven't been "moved to" the new bucket. We need to "move" it.
     // Actually, we need to initialize the new bucket and insert it into the hs main_list.
-    int bucket_index = key % hs->capacity;
+    int bucket_index = key & MASK(hs->capacity_order);
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	pval_t* addr = NULL;
 
@@ -342,7 +345,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
 int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     // First, get bucket index.
     //if the hash_set is resized now! Maybe we cannot find the new bucket. Just initialize it if the bucket if NULL.
-    int bucket_index = key % hs->capacity;
+    int bucket_index = key & MASK(hs->capacity_order);
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	int ret;
     union atomic_u128 old_avg, new_avg;
@@ -411,7 +414,7 @@ void hs_print(struct hash_set* hs, int tid) {
         bonsai_debug("SUCCESS! (hs->set_size == ordinary_count)\n");
     }
     
-    bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
+    bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity_order);
     bonsai_debug("print_count = %d.\n", print_count);
     
 }
@@ -456,7 +459,7 @@ void hs_print_through_bucket(struct hash_set* hs, int tid) {
     }
     
     bonsai_debug("hash_set : set_size = %d.\n", hs->set_size);
-    bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity);
+    bonsai_debug("load factor = %f.\n", (1.0) * hs->set_size / hs->capacity_order);
 }
 #endif
 
