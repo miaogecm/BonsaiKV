@@ -193,10 +193,22 @@ void* thread_fun(void* arg) {
 	return NULL;
 }
 
+void *user_thread_parent_fun(void *arg) {
+    long i;
+	bind_to_cpu(0);
+    for (i = 0; i < NUM_THREAD; i++) {
+		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
+        pthread_setname_np(tids[i], "user_thread");
+	}
+	for (i = 0; i < NUM_THREAD; i++) {
+		pthread_join(tids[i], NULL);
+	}
+}
+
 int bench(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove,
 				lookup_func_t lookup, scan_func_t scan) {
-    long i;
+    pthread_t user_thread_parent;
 
 	bind_to_cpu(0);
 
@@ -205,13 +217,9 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
 	if (bonsai_init(index_name, init, destory, insert, remove, lookup, scan) < 0)
 		goto out;
 
-	for (i = 0; i < NUM_THREAD; i++) {
-		pthread_create(&tids[i], NULL, thread_fun, (void*)i);
-        pthread_setname_np(tids[i], "user_thread");
-	}
-	for (i = 0; i < NUM_THREAD; i++) {
-		pthread_join(tids[i], NULL);
-	}
+    pthread_create(&user_thread_parent, NULL, user_thread_parent_fun, NULL);
+    pthread_setname_np(user_thread_parent, "user_thread_parent");
+    pthread_join(user_thread_parent, NULL);
 
 	bonsai_deinit();
 
