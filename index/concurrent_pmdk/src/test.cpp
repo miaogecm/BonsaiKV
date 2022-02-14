@@ -65,29 +65,32 @@ void* thread_fun(void* arg) {
 	long i, id = (long)arg;
 	char* v = 0;
 	char** val_arr = (char**) malloc(sizeof(char*) * N);
+	long rep = 10;
 
-	bind_to_cpu(id);
+	bind_to_cpu(id * 2);
 
-	for (i = 0; i < N; i ++) {
+	while (rep--) {
+	  for (i = 0; i < N; i ++) {
 
-        switch (op_arr[id][i][0]) {
-        case 0:
-            D_RW(bt)->btree_insert(op_arr[id][i][1], (char*)op_arr[id][i][2]);
-            break;
-        case 1:
-            D_RW(bt)->btree_insert(op_arr[id][i][1], (char*)op_arr[id][i][2]);
-            break;        
-        case 2:
-            D_RW(bt)->btree_search(op_arr[id][i][1]);
-            break;
-        case 3:
-            D_RW(bt)->btree_search_range(op_arr[id][i][1], op_arr[id][i][2], (unsigned long*)val_arr);
-            break;
-        default:
-            printf("unknown type\n");
-            assert(0);
-            break;
-        }
+	    switch (op_arr[id][i][0]) {
+	    case 0:
+	      D_RW(bt)->btree_insert(op_arr[id][i][1], (char*)op_arr[id][i][2]);
+	      break;
+	    case 1:
+	      D_RW(bt)->btree_insert(op_arr[id][i][1], (char*)op_arr[id][i][2]);
+	      break;        
+	    case 2:
+	      D_RW(bt)->btree_search(op_arr[id][i][1]);
+	      break;
+	    case 3:
+	      D_RW(bt)->btree_search_range(op_arr[id][i][1], op_arr[id][i][2], (unsigned long*)val_arr);
+	      break;
+	    default:
+	      printf("unknown type\n");
+	      assert(0);
+	      break;
+	    }
+	  }
 	}
 
 	// printf("user thread[%ld]---------------------end---------------------\n", id);

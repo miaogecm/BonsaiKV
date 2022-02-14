@@ -119,7 +119,7 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i, repeat = 1;
+	long i, repeat = 10;
 
     start_measure();
 
@@ -173,7 +173,7 @@ static void do_barrier(long id) {
 void* thread_fun(void* arg) {
 	long id = (long)arg;
 
-	bind_to_cpu(id);
+	bind_to_cpu(2 * id);
     bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 
 	bonsai_user_thread_init();
