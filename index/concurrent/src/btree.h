@@ -29,7 +29,7 @@
 #if 0
 #define ff_print(fmt, args ...) fprintf(stdout, fmt, ##args)
 #else 
-#define ff_print(fmt, args ...) do{} while(0);
+#define ff_print(fmt, args ...) do{} while(0)
 #endif
 
 #define PAGESIZE 512
