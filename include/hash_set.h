@@ -8,7 +8,7 @@ extern "C" {
 #include "link_list.h"
 #include "atomic128.h"
 
-#define INIT_NUM_BUCKETS 		2  /* a hash_set has INIT_NUM_BUCKETS at first */
+#define INIT_ORDER_BUCKETS 	    1  /* a hash_set has INIT_ORDER_BUCKETS at first */
 #define LOAD_FACTOR_DEFAULT     2
 #define MAIN_ARRAY_LEN 			1024
 #define SEGMENT_SIZE 			4096
@@ -28,7 +28,7 @@ struct hash_set {
     segment_t* main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
     float load_factor;   /* expect value of the length of each bucket list */
 	int set_size;  /* how many items in the hash_set */
-    unsigned long capacity; /* how many buckets in the hash_set, capacity <= MAX_NUM_BUCKETS */
+    unsigned long capacity_order; /* how many buckets in the hash_set, capacity_order <= MAX_NUM_BUCKETS */
     union atomic_u128 avg;
 };
 
