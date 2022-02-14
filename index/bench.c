@@ -173,7 +173,7 @@ static void do_barrier(long id) {
 void* thread_fun(void* arg) {
 	long id = (long)arg;
 
-	bind_to_cpu(2 * id);
+	bind_to_cpu(id);
     bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 
 	bonsai_user_thread_init();
