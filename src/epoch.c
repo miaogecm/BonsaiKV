@@ -24,7 +24,6 @@ extern struct bonsai_info* bonsai;
 typedef void (*signal_handler_t)(int);
 
 void thread_alarm_handler(int sig) {
-#if 0
 	int cpu = get_cpu();
 	struct log_layer* layer = LOG(bonsai);
 	struct log_region *region = &layer->region[cpu];
@@ -43,7 +42,6 @@ void thread_alarm_handler(int sig) {
 	region->curr_blk = alloc_oplog_block(cpu);
 
 	__this->t_epoch ++;
-#endif
 }
 
 /*
