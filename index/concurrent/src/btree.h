@@ -26,6 +26,12 @@
 #include <unistd.h>
 #include <vector>
 
+#if 0
+#define ff_print(fmt, args ...) fprintf(stdout, fmt, ##args)
+#else 
+#define ff_print(fmt, args ...) do{} while(0);
+#endif
+
 #define PAGESIZE 512
 
 #define CPU_FREQ_MHZ (1994)
@@ -881,34 +887,34 @@ public:
   // print a node
   void print() {
     if (hdr.leftmost_ptr == NULL)
-      printf("[%d] leaf %x \n", this->hdr.level, this);
+      ff_print("[%d] leaf %x \n", this->hdr.level, this);
     else
-      printf("[%d] internal %x \n", this->hdr.level, this);
-    printf("last_index: %d\n", hdr.last_index);
-    printf("switch_counter: %d\n", hdr.switch_counter);
-    printf("search direction: ");
+      ff_print("[%d] internal %x \n", this->hdr.level, this);
+    ff_print("last_index: %d\n", hdr.last_index);
+    ff_print("switch_counter: %d\n", hdr.switch_counter);
+    ff_print("search direction: ");
     if (IS_FORWARD(hdr.switch_counter))
-      printf("->\n");
+      ff_print("->\n");
     else
-      printf("<-\n");
+      ff_print("<-\n");
 
     if (hdr.leftmost_ptr != NULL)
-      printf("%x ", hdr.leftmost_ptr);
+      ff_print("%x ", hdr.leftmost_ptr);
 
     for (int i = 0; records[i].ptr != NULL; ++i)
-      printf("%ld,%x ", records[i].key, records[i].ptr);
+      ff_print("%ld,%x ", records[i].key, records[i].ptr);
 
-    printf("%x ", hdr.sibling_ptr);
+    ff_print("%x ", hdr.sibling_ptr);
 
-    printf("\n");
+    ff_print("\n");
   }
 
   void printAll() {
     if (hdr.leftmost_ptr == NULL) {
-      printf("printing leaf node: ");
+      ff_print("printing leaf node: ");
       print();
     } else {
-      printf("printing internal node: ");
+      ff_print("printing internal node: ");
       print();
       ((page *)hdr.leftmost_ptr)->printAll();
       for (int i = 0; records[i].ptr != NULL; ++i) {
@@ -948,7 +954,7 @@ char *btree::btree_search(entry_key_t key) {
   }
 
   if (!t) {
-    printf("NOT FOUND %lu, t = %x\n", key, t);
+    ff_print("NOT FOUND %lu, t = %x\n", key, t);
     return NULL;
   }
 
@@ -1003,7 +1009,7 @@ void btree::btree_delete(entry_key_t key) {
       btree_delete(key);
     }
   } else {
-    printf("not found the key to delete %lu\n", key);
+    ff_print("not found the key to delete %lu\n", key);
   }
 }
 
@@ -1074,7 +1080,7 @@ void btree::printAll() {
   pthread_mutex_lock(&print_mtx);
   int total_keys = 0;
   page *leftmost = (page *)root;
-  printf("root: %x\n", root);
+  ff_print("root: %x\n", root);
   do {
     page *sibling = leftmost;
     while (sibling) {
@@ -1084,10 +1090,10 @@ void btree::printAll() {
       sibling->print();
       sibling = sibling->hdr.sibling_ptr;
     }
-    printf("-----------------------------------------\n");
+    ff_print("-----------------------------------------\n");
     leftmost = leftmost->hdr.leftmost_ptr;
   } while (leftmost);
 
-  printf("total number of keys: %d\n", total_keys);
+  ff_print("total number of keys: %d\n", total_keys);
   pthread_mutex_unlock(&print_mtx);
 }
