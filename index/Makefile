@@ -11,20 +11,20 @@ CFLAGS += -Wno-unused-function
 CFLAGS += ${THRDS} ${MAXN}
 CFLAGS += ${LOCAL}
 
-LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -lkvdata 
-# LDFLAGS += -lrt -lm -lpthread -lstdc++
+LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -lkvdata
+LDFLAGS += -lrt -lm -lpthread -lstdc++
 
-SRCS = $(PWD)/index.c $(PWD)/bench.c $(LIB_DIR)/libbonsai.a
+SRCS = $(PWD)/fast_fair.c $(PWD)/bench.c $(LIB_DIR)/libbonsai.a
 
 TARGETS = kv
 
 all: $(TARGETS)
 
-kv: $(SRCS) bp.o
+kv: $(SRCS) ff.o
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
 
-bp.o: bptree.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+ff.o: ffwrapper.cpp
+	g++ $(CFLAGS) -c $^ -std=c++11 -o $@
 
 clean:
 	$(Q)rm -f $(TARGETS)
