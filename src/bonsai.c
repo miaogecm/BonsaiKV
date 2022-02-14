@@ -27,7 +27,7 @@
 #include "../index/skiplist.h"
 
 struct bonsai_info* bonsai;
-static char* bonsai_fpath = "/mnt/ext3/bonsai";
+static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
 extern void* index_struct(void* index_struct);
 extern void kv_print(void* index_struct);
@@ -58,7 +58,9 @@ static int log_layer_init(struct log_layer* layer) {
 
 	layer->nflush = 0;
 	atomic_set(&layer->exit, 0);
+	atomic_set(&layer->force_flush, 0);
 	atomic_set(&layer->checkpoint, 0);
+	atomic_set(&layer->epoch_passed, 0);
 	atomic_set(&layer->nlogs, 0);
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
@@ -181,6 +183,15 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 	return arr_size;
 }
 
+void bonsai_barrier() {
+    atomic_set(&bonsai->l_layer.force_flush, 1);
+    do {
+        wakeup_master();
+        usleep(30000);
+    } while (atomic_read(&bonsai->l_layer.force_flush));
+    bonsai_print("=== Everything is persistent. ===\n");
+}
+
 void bonsai_deinit() {
 	bonsai_print("bonsai deinit\n");
 
@@ -201,7 +212,7 @@ void bonsai_deinit() {
 	free(bonsai);
 }
 
-int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan) {
 	int error = 0, fd;
@@ -234,8 +245,8 @@ int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
 		/* 1. initialize index layer */
         //index_layer_init(index_name, &bonsai->i_layer, kv_init, 
 						//kv_insert, kv_remove, kv_lookup, kv_scan, kv_destory);
-		index_layer_init(index_name, &bonsai->i_layer, sl_init, 
-						sl_insert, sl_remove, sl_lookup, sl_scan, sl_destory);
+		index_layer_init(index_name, &bonsai->i_layer, init, 
+						insert, remove, lookup, scan, destory);
 
 		/* 2. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);

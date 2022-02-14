@@ -42,8 +42,10 @@ struct index_layer {
 struct log_layer {
 	unsigned int nflush; /* how many flushes */
 	atomic_t exit; /* thread exit */
+    atomic_t force_flush; /* force flush all logs */
 
-	atomic_t checkpoint; 
+    atomic_t epoch_passed;
+	atomic_t checkpoint;
 	atomic_t nlogs; /* how many logs */
 	
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
@@ -100,7 +102,7 @@ struct bonsai_info {
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
 
-extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destroy,
+extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();

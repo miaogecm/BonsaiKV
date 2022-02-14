@@ -2,9 +2,9 @@
 
 mkfs.ext4 /dev/pmem0
 
-mount -t ext4 -o dax /dev/pmem0 /mnt/ext3
+mount -t ext4 -o dax /dev/pmem0 /mnt/ext4
 
-mkdir /mnt/ext3/node0
+mkdir /mnt/ext4/node0
 
 ulimit -c unlimited
 

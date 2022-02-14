@@ -279,6 +279,11 @@ static void pflush_master(struct thread_info* this) {
 		do {
 			oplog_flush(bonsai);
 		}while(atomic_read(&layer->nlogs) >= CHKPT_NLOG_INTERVAL && !atomic_read(&layer->exit));
+
+        if (unlikely(atomic_read(&layer->force_flush))) {
+            oplog_flush(bonsai);
+            atomic_set(&layer->force_flush, 0);
+        }
 	}
 
 	pflush_thread_exit(this);
@@ -291,9 +296,10 @@ void bonsai_self_thread_init() {
 	bonsai->self->t_pid = gettid();
 	bonsai->self->t_state = S_RUNNING;
 
-	thread_register_stop_signal();
-
 	__this = bonsai->self;
+
+	thread_register_alarm_signal();
+	thread_register_stop_signal();
 
 	list_add(&__this->list, &bonsai->thread_list);
 
@@ -302,6 +308,8 @@ void bonsai_self_thread_init() {
 
 void bonsai_self_thread_exit() {
 	struct thread_info* thread = bonsai->self;
+
+    thread_block_alarm_signal();
 
 	list_del(&thread->list);
 	
@@ -317,12 +325,11 @@ int bonsai_user_thread_init() {
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
 
-	list_add(&thread->list, &bonsai->thread_list);
-
-	thread_register_alarm_signal();
-	thread_register_stop_signal();
+    list_add(&thread->list, &bonsai->thread_list);
 
 	__this = thread;
+
+	thread_register_stop_signal();
 
 	bonsai_print("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 
@@ -347,7 +354,7 @@ int bonsai_pflushd_thread_init() {
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = atomic_add_return(1, &tids);
-		thread->t_cpu = i + 4;
+		thread->t_cpu = 2 * (i + NUM_THREAD);
 		thread->t_state = S_UNINIT;
 		init_workqueue(thread, &thread->t_wq);
 		thread->t_data = NULL;
@@ -363,6 +370,7 @@ int bonsai_pflushd_thread_init() {
         		perror("bonsai create thread failed\n");
 			return -ETHREAD;
     	}
+        pthread_setname_np(bonsai->tids[i], (i == 0) ? "pflush_master" : "pflush_worker");
     }
 
 	wait_pflush_thread();
