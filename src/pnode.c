@@ -255,7 +255,7 @@ int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_no
     struct pnode *new_pnode, *mid_pnode; 
 	struct pnode *prev_node, *head_node = list_entry(&layer->pnode_list, struct pnode, list);
 	uint64_t new_removed, mid_removed;
-	int ret, cpu = get_cpu();
+	int ret, cpu = __this->t_cpu;
 	struct oplog* log;
 	struct numa_table* tables;
 	pval_t* addr;
