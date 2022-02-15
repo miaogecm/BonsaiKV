@@ -25,11 +25,11 @@ struct bucket_list {
 typedef struct bucket_list* segment_t[SEGMENT_SIZE];  
 
 struct hash_set {
-    segment_t* main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
     float load_factor;   /* expect value of the length of each bucket list */
 	int set_size;  /* how many items in the hash_set */
     unsigned long capacity_order; /* how many buckets in the hash_set, capacity_order <= MAX_NUM_BUCKETS */
     union atomic_u128 avg;
+    segment_t* main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
 };
 
 extern void hs_init(struct hash_set * hs);

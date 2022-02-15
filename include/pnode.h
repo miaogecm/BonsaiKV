@@ -39,7 +39,7 @@ struct pnode {
 	/* 11th cache line */
     __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many entries */
 	char				padding2[23];
-	struct numa_table* 	table;
+	struct mptable* 	table;
 
 	/* 12th cache line */
 	rwlock_t* 			bucket_lock[NUM_BUCKET];
