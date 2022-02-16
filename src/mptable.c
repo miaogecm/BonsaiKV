@@ -392,7 +392,7 @@ void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pn
      */
     smp_mb();
 
-	/* 3. copy slots from @old_table to @new_table */
+	/* 3. copy entries from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		old_m = node_ptr(&layer->mptable_arena, old_table, node);
 		new_m = node_ptr(&layer->mptable_arena, new_table, node);
@@ -606,12 +606,12 @@ void stat_mptable() {
 	list_for_each_entry(table, &layer->mptable_list, list) {
         for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
-			bonsai_print("Mapping Table[%d] total slots: %d max: %lu\n", i++, sum, max);
+			bonsai_print("Mapping Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}
 		total += sum;
 		max = 0; sum = 0;
 	}
 	spin_unlock(&layer->table_lock);
 
-	bonsai_print("log layer total slots: %d\n", total);
+	bonsai_print("log layer total entries: %d\n", total);
 }

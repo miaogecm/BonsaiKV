@@ -37,7 +37,7 @@ struct pnode {
     pentry_t 			e[NUM_ENT_PER_PNODE];
 
 	/* 11th cache line */
-    __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many slots */
+    __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many entries */
 	char				padding2[23];
 	struct mptable* 	table;
 

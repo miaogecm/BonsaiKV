@@ -786,7 +786,6 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 if (!old) {
                     data_layer_search_key(key);
                     print_pnode(new_pnode);
-                    fflush(stdout);
                     assert(0);
                 }
                 //assert(old);
