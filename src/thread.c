@@ -354,7 +354,8 @@ int bonsai_pflushd_thread_init() {
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = atomic_add_return(1, &tids);
-		thread->t_cpu = (i + NUM_USER_THREAD);
+		//thread->t_cpu = (i + NUM_USER_THREAD);
+        thread->t_cpu = i;
 		thread->t_state = S_UNINIT;
 		init_workqueue(thread, &thread->t_wq);
 		thread->t_data = NULL;

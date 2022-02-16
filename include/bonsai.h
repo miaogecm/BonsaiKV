@@ -17,6 +17,7 @@ extern "C" {
 #include "oplog.h"
 #include "arch.h"
 #include "rwlock.h"
+#include "per_node.h"
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -25,6 +26,8 @@ typedef int (*update_func_t)(void* index_struct, pkey_t key, void* value);
 typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
+
+#define MPTABLE_ARENA_SIZE          (1 * 1024 * 1024 * 1024ul)  // 1GB
 
 #define NUM_MERGE_HASH_BUCKET		131072
 
@@ -51,10 +54,12 @@ struct log_layer {
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
 	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */
 
+    per_node_arena_t mptable_arena;
+
 	struct log_region region[NUM_CPU]; /* per-cpu log region */
 
-	spinlock_t table_lock; /* protect numa_table_list */
-	struct list_head numa_table_list; /* all numa tables */
+	spinlock_t table_lock; /* protect mptable_list */
+	struct list_head mptable_list; /* all numa tables */
 
 	pthread_barrier_t barrier; /* sorting barrier */
 	struct list_head sort_list[NUM_PFLUSH_WORKER]; 

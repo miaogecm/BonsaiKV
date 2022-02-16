@@ -18,6 +18,7 @@
 
 #include "bonsai.h"
 #include "numa_config.h"
+#include "per_node.h"
 #include "hash_set.h"
 #include "mptable.h"
 #include "pnode.h"
@@ -67,7 +68,9 @@ static int log_layer_init(struct log_layer* layer) {
 		goto out;
 
 	spin_lock_init(&layer->table_lock);
-	INIT_LIST_HEAD(&layer->numa_table_list);
+	INIT_LIST_HEAD(&layer->mptable_list);
+
+    per_node_arena_create(&layer->mptable_arena, "mptable", MPTABLE_ARENA_SIZE, sizeof(struct mptable));
 
 	pthread_barrier_init(&layer->barrier, NULL, NUM_PFLUSH_WORKER);
 	for (i = 0; i < NUM_PFLUSH_WORKER; i ++)
@@ -85,8 +88,7 @@ out:
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
-	struct numa_table *table, *tmp;
-	struct mptable* m;
+	struct mptable *m, *table, *tmp;
 	int node;
 
 	clean_pflush_buckets(layer);
@@ -94,14 +96,13 @@ static void log_layer_deinit(struct log_layer* layer) {
 	log_region_deinit(layer);
 
 	spin_lock(&layer->table_lock);
-	list_for_each_entry_safe(table, tmp, &layer->numa_table_list, list) {
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(table, node);
+	list_for_each_entry_safe(table, tmp, &layer->mptable_list, list) {
+        for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_destroy(&m->hs);
 		}
 
 		list_del(&table->list);
-		numa_mptable_free(table);
+        mptable_free(layer, table);
 	}
 	spin_unlock(&layer->table_lock);
 
@@ -170,11 +171,11 @@ int bonsai_lookup(pkey_t key, pval_t* val) {
 }
 
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
-	struct numa_table *table;
+	struct mptable *table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int arr_size = 0;
 
-	table = (struct numa_table*)i_layer->lookup(i_layer->index_struct, low);
+	table = (struct mptable*)i_layer->lookup(i_layer->index_struct, low);
 
 	assert(table);
 
@@ -195,7 +196,7 @@ void bonsai_barrier() {
 void bonsai_deinit() {
 	bonsai_print("bonsai deinit\n");
 
-	//stat_numa_table();
+	//stat_mptable();
 	//dump_pnode_list_summary();
 	
 	bonsai_self_thread_exit();
