@@ -25,7 +25,7 @@ static inline void prefetch(const void *x) {;}
 /*
  * These are non-NULL pointers that will result in page faults
  * under normal circumstances, used to verify that nobody uses
- * non-initialized list entries.
+ * non-initialized list slots.
  */
 #define LIST_POISON1  ((void *) 0x00100100)
 #define LIST_POISON2  ((void *) 0x00200200)
@@ -35,8 +35,8 @@ static inline void prefetch(const void *x) {;}
  * Simple doubly linked list implementation.
  *
  * Some of the internal functions ("__xxx") are useful when
- * manipulating whole lists rather than single entries, as
- * sometimes we already know the next/prev entries and we can
+ * manipulating whole lists rather than single slots, as
+ * sometimes we already know the next/prev slots and we can
  * generate better code by using them directly rather than
  * using the generic single-entry routines.
  */
@@ -57,10 +57,10 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 }
 
 /*
- * Insert a new entry between two known consecutive entries.
+ * Insert a new entry between two known consecutive slots.
  *
  * This is only for internal list manipulation where we know
- * the prev/next entries already!
+ * the prev/next slots already!
  */
 static inline void __list_add(struct list_head *_new,
 			      struct list_head *prev,
@@ -99,11 +99,11 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 }
 
 /*
- * Delete a list entry by making the prev/next entries
+ * Delete a list entry by making the prev/next slots
  * point to each other.
  *
  * This is only for internal list manipulation where we know
- * the prev/next entries already!
+ * the prev/next slots already!
  */
 static inline void __list_del(struct list_head * prev, struct list_head * next)
 {

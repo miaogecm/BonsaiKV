@@ -518,7 +518,7 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 }
 
 /*
- * pnode_numa_move: move a bucket of entries to a remote NUMA node
+ * pnode_numa_move: move a bucket of slots to a remote NUMA node
  * @pnode: persistent node
  * @key: target key
  * @numa_node: remote NUMA node
@@ -619,7 +619,7 @@ void check_pnode(pkey_t key, struct pnode* pnode) {
 	}
 #endif
 
-	/* check pnode entries */
+	/* check pnode slots */
 	for (i = 1; i <= pnode->slot[0]; i ++) {
 			curr = pnode_entry_n_key(pnode, i);
 			if (curr < prev) {
@@ -675,7 +675,7 @@ void dump_pnode_list_summary() {
 	read_unlock(&layer->lock);
 
 	bonsai_print("total pnode [%d]\n", pnode_sum);
-	bonsai_print("data layer total entries [%d]\n", key_sum);
+	bonsai_print("data layer total slots [%d]\n", key_sum);
 }
 
 void dump_pnode_list() {

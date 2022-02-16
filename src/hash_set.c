@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <limits.h>
 
+#include "hash.h"
 #include "hash_set.h"
 #include "common.h"
 #include "atomic.h"
@@ -132,19 +133,34 @@ static void bucket_list_init(struct bucket_list** bucket, int bucket_index) {
     (*bucket)->bucket_sentinel.ll_head.is_sentinel_key = 1;
 }
 
-void hs_init(struct hash_set* hs) {
-	struct bucket_list** segment;
+#define EMPTY_SLOT_KEY      (ULONG_MAX - 1)
 
-    memset(hs->main_array, 0, MAIN_ARRAY_LEN * sizeof(segment_t*));  //important.
-    hs->load_factor = LOAD_FACTOR_DEFAULT;  // 2
-    hs->capacity_order = INIT_ORDER_BUCKETS;  // 2 at first
+void __hs_init_small(struct hash_set *hs) {
+    int i;
+    for (i = 0; i < SMALL_HASHSET_SLOTN; i++) {
+        hs->slots[i] = (kvpair_t) { EMPTY_SLOT_KEY, NULL };
+    }
+}
+
+void hs_init(struct hash_set* hs) {
+    struct bucket_list **segment;
+
     hs->set_size = 0;
     hs->avg.val = 0;
 
-    get_bucket_list(hs, 0);  //allocate the memory of the very first segment
-    segment = (struct bucket_list **)hs->main_array[0];
+    if (hs->small) {
+        __hs_init_small(hs);
+        return;
+    }
 
-	bucket_list_init(&segment[0], 0);   //here we go.
+    memset(hs->main_array, 0, MAIN_ARRAY_LEN * sizeof(segment_t *));  //important.
+    hs->load_factor = LOAD_FACTOR_DEFAULT;  // 2
+    hs->capacity_order = INIT_ORDER_BUCKETS;  // 2 at first
+
+    get_bucket_list(hs, 0);  //allocate the memory of the very first segment
+    segment = (struct bucket_list **) hs->main_array[0];
+
+    bucket_list_init(&segment[0], 0);   //here we go.
 }
 
 /* 
@@ -236,6 +252,101 @@ static void initialize_bucket(struct hash_set* hs, int tid, int bucket_index) {
     }
 }
 
+static int __hs_insert_small(struct hash_set *hs, pkey_t key, pval_t* val) {
+    pkey_t old;
+    size_t i;
+
+    /* TODO: Avoid no empty slot case. */
+    for (i = hash_64(key, SMALL_HASHSET_SLOT_SFT); ; i = (i + 1) % SMALL_HASHSET_SLOTN) {
+        old = hs->slots[i].k;
+        if (val && old == EMPTY_SLOT_KEY) {
+            old = cmpxchg(&hs->slots[i].k, EMPTY_SLOT_KEY, key);
+        }
+        if (old == EMPTY_SLOT_KEY || old == key) {
+            break;
+        }
+    }
+
+    if (val) {
+        /* Upsertion */
+        hs->slots[i].v = val;
+        if (old == EMPTY_SLOT_KEY) {
+            xadd(&hs->set_size, 1);
+            return 0;
+        } else {
+            return -EEXIST;
+        }
+    } else {
+        /* Deletion */
+        if (unlikely(old == EMPTY_SLOT_KEY)) {
+            return -ENOENT;
+        } else {
+            hs->slots[i].v = NULL;
+            xadd(&hs->set_size, -1);
+            return 0;
+        }
+    }
+}
+
+static int __hs_remove_small(struct hash_set *hs, pkey_t key) {
+    return __hs_insert_small(hs, key, NULL);
+}
+
+static pval_t *__hs_lookup_small(struct hash_set *hs, pkey_t key) {
+    pkey_t probe;
+    size_t i;
+    for (i = hash_64(key, SMALL_HASHSET_SLOT_SFT); ; i = (i + 1) % SMALL_HASHSET_SLOTN) {
+        probe = hs->slots[i].k;
+        if (probe == key) {
+            return hs->slots[i].v;
+        } else if (probe == EMPTY_SLOT_KEY) {
+            return NULL;
+        }
+    }
+}
+
+static void __hs_scan_and_ops_small(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+    int i;
+    struct ll_node tmp;
+    for (i = 0; i < SMALL_HASHSET_SLOTN; i++) {
+        kvpair_t *kv = &hs->slots[i];
+        if (kv->k != EMPTY_SLOT_KEY && kv->v) {
+            tmp.key = reverse(kv->k);
+            tmp.val = kv->v;
+            exec(&tmp, arg1, arg2, arg3, arg4, arg5);
+        }
+    }
+}
+
+static void hs_avg_insert(struct hash_set *hs, pkey_t key) {
+    union atomic_u128 old_avg, new_avg;
+    while(1) {
+        if (unlikely(key == ULONG_MAX)) {
+            break;
+        }
+        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
+        new_avg.hi = old_avg.hi + 1;
+        new_avg.lo = (old_avg.lo * old_avg.hi + key) / new_avg.hi;
+        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
+            break;
+        }
+    }
+}
+
+static void hs_avg_remove(struct hash_set *hs, pkey_t key) {
+    union atomic_u128 old_avg, new_avg;
+    while(1) {
+        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
+        new_avg.hi = old_avg.hi - 1;
+        new_avg.lo = (old_avg.lo * old_avg.hi - key) / new_avg.hi;
+        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
+            break;
+        }
+    }
+}
+
+static void hs_transform(struct hash_set *hs, int tid, int to_small);
+
 static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, int update) {
     //First, calculate the bucket index by key and capacity_order of the hash_set.
     int bucket_index = key & MASK(hs->capacity_order);
@@ -243,7 +354,6 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
 	unsigned long capacity_order_now, capacity_now, old_capacity_order;
 	int set_size_now;
     int ret = 0;
-    union atomic_u128 old_avg, new_avg;
 
     while (bucket == NULL) {
         //FIXME: It seems that the bucket will not always be initialized as we expected.
@@ -259,18 +369,6 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
         xadd(&hs_add_fail_time, 1);
 #endif
         return -EEXIST;
-    }
-
-    while(1) {
-        if (unlikely(key == ULONG_MAX)) {
-            break;
-        }
-        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
-        new_avg.hi = old_avg.hi + 1;
-        new_avg.lo = (old_avg.lo * old_avg.hi + key) / new_avg.hi;
-        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
-            break;
-        }
     }
     
     //bonsai_debug("thread [%d]: hs_insert(%lu) success!\n", tid, key);
@@ -302,25 +400,7 @@ static int __hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val, in
     return ret;
 }
 
-
-/*
- * hs_update: return 0 if key does not exists else return -EEXIST
- */
-int hs_update(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
-	return __hs_insert(hs, tid, key, val, 1);
-}
-
-/*
- * hs_insert: return 0 if succeed else return -EEXIST
- */
-int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
-	return __hs_insert(hs, tid, key, val, 0);
-}
-
-/* 
- * hs_lookup: return 1 if hs contains key, 0 otherwise.
- */
-pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
+static pval_t* __hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
     // First, get bucket index.
     // Note: it is a corner case. If the hs is resized not long ago. Some elements should be adjusted to new bucket,
     // When we find a key who is in the hs, but haven't been "moved to" the new bucket. We need to "move" it.
@@ -330,7 +410,7 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
 	pval_t* addr = NULL;
 
     while (bucket == NULL) {
-        initialize_bucket(hs, tid, bucket_index);  
+        initialize_bucket(hs, tid, bucket_index);
         bucket = get_bucket_list(hs, bucket_index);
     }
 
@@ -339,19 +419,15 @@ pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
 	return addr;
 }
 
-/*
- * hs_remove: 0 if succeed, -1 if fail.
- */
-int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
+static int __hs_remove(struct hash_set* hs, int tid, pkey_t key) {
     // First, get bucket index.
     //if the hash_set is resized now! Maybe we cannot find the new bucket. Just initialize it if the bucket if NULL.
     int bucket_index = key & MASK(hs->capacity_order);
     struct bucket_list* bucket = get_bucket_list(hs, bucket_index);
 	int ret;
-    union atomic_u128 old_avg, new_avg;
 
     if (bucket == NULL) {
-        initialize_bucket(hs, tid, bucket_index);  
+        initialize_bucket(hs, tid, bucket_index);
         bucket = get_bucket_list(hs, bucket_index);
     }
 
@@ -366,23 +442,210 @@ int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
         xadd(&hs_remove_success_time, 1);
 #endif
         //bonsai_debug("remove %d success!\n", key);
-    } 
+    }
 #ifdef BONSAI_HASHSET_DEBUG
 	else {
         xadd(&hs_remove_fail_time, 1);
     }
 #endif
+}
 
-    while(1) {
-        old_avg = (union atomic_u128) AtomicLoad128(&hs->avg);
-        new_avg.hi = old_avg.hi - 1;
-        new_avg.lo = (old_avg.lo * old_avg.hi - key) / new_avg.hi;
-        if (AtomicCAS128(&hs->avg, &old_avg, new_avg)) {
-            break;
+static int hs_update_unlocked(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	int ret;
+    if (hs->small) {
+        if (unlikely(hs->set_size > SMALL_HASHSET_MAXN)) {
+            return -ENOMEM;
+        }
+        ret = __hs_insert_small(hs, key, val);
+    } else {
+        ret = __hs_insert(hs, tid, key, val, 1);
+    }
+    if (!ret) {
+        hs_avg_insert(hs, key);
+    }
+    return ret;
+}
+
+static int hs_insert_unlocked(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	int ret;
+    if (hs->small) {
+        if (unlikely(hs->set_size > SMALL_HASHSET_MAXN)) {
+            return -ENOMEM;
+        }
+        ret = __hs_insert_small(hs, key, val);
+    } else {
+        ret = __hs_insert(hs, tid, key, val, 0);
+    }
+    if (!ret) {
+        hs_avg_insert(hs, key);
+    }
+    return ret;
+}
+
+static pval_t* hs_lookup_unlocked(struct hash_set* hs, int tid, pkey_t key) {
+    pval_t *ret;
+    if (hs->small) {
+        ret = __hs_lookup_small(hs, key);
+    } else {
+        ret = __hs_lookup(hs, tid, key);
+    }
+    return ret;
+}
+
+static int hs_remove_unlocked(struct hash_set* hs, int tid, pkey_t key) {
+    int ret;
+    if (hs->small) {
+        ret = __hs_remove_small(hs, key);
+    } else {
+        ret = __hs_remove(hs, tid, key);
+        if (!ret && hs->set_size < SMALL_HASHSET_MAXN) {
+            ret = -ENOMEM;
         }
     }
-
+    if (!ret) {
+        hs_avg_remove(hs, key);
+    }
     return ret;
+}
+
+static void hs_scan_and_ops_unlocked(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
+	struct bucket_list **buckets, *bucket;
+	segment_t* p_segment;
+	struct ll_node *head, *curr;
+	int i, j;
+
+    if (hs->small) {
+        __hs_scan_and_ops_small(hs, exec, arg1, arg2, arg3, arg4, arg5);
+        return;
+    }
+
+	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
+		p_segment = hs->main_array[i];
+        if (p_segment == NULL)
+            continue;
+
+		for (j = 0; j < SEGMENT_SIZE; j++) {
+			buckets = (struct bucket_list**)p_segment;
+			bucket = buckets[j];
+			if (bucket == NULL)
+                continue;
+
+            head = &(bucket->bucket_sentinel.ll_head);
+			curr = GET_NODE(head->next);
+			while (curr) {
+                if (is_sentinel_node(curr)) {
+                   	 break;
+                } else {
+					exec(curr, arg1, arg2, arg3, arg4, arg5);
+                }
+                curr = GET_NODE(STRIP_MARK(curr->next));
+            }
+		}
+	}
+}
+
+/*
+ * hs_update: return 0 if key does not exists else return -EEXIST
+ */
+int hs_update(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	int ret;
+retry:
+    read_lock(&hs->transform_lock);
+    ret = hs_update_unlocked(hs, tid, key, val);
+    if (ret == -ENOMEM) {
+        read_unlock(&hs->transform_lock);
+        hs_transform(hs, tid, 0);
+        goto retry;
+    }
+    read_unlock(&hs->transform_lock);
+    return ret;
+}
+
+/*
+ * hs_insert: return 0 if succeed else return -EEXIST
+ */
+int hs_insert(struct hash_set* hs, int tid, pkey_t key, pval_t* val) {
+	int ret;
+retry:
+    read_lock(&hs->transform_lock);
+    ret = hs_insert_unlocked(hs, tid, key, val);
+    if (ret == -ENOMEM) {
+        read_unlock(&hs->transform_lock);
+        hs_transform(hs, tid, 0);
+        goto retry;
+    }
+    read_unlock(&hs->transform_lock);
+    return ret;
+}
+
+/* 
+ * hs_lookup: return 1 if hs contains key, 0 otherwise.
+ */
+pval_t* hs_lookup(struct hash_set* hs, int tid, pkey_t key) {
+    pval_t *ret;
+    read_lock(&hs->transform_lock);
+    ret = hs_lookup_unlocked(hs, tid, key);
+    read_unlock(&hs->transform_lock);
+    return ret;
+}
+
+/*
+ * hs_remove: 0 if succeed, -1 if fail.
+ */
+int hs_remove(struct hash_set* hs, int tid, pkey_t key) {
+    int ret;
+    read_lock(&hs->transform_lock);
+    ret = hs_remove_unlocked(hs, tid, key);
+    if (ret == -ENOMEM) {
+        ret = 0;
+        read_unlock(&hs->transform_lock);
+        hs_transform(hs, tid, 1);
+        goto out;
+    }
+    read_unlock(&hs->transform_lock);
+out:
+    return ret;
+}
+
+static void fetch_kv(struct ll_node *node, kvpair_t *kvpairs, int *n, void *arg3, void *arg4, void *arg5) {
+    kvpairs[(*n)++] = (kvpair_t) { reverse(node->key), node->val };
+}
+
+static kvpair_t *fetch_kvs(struct hash_set *hs, int *n) {
+    kvpair_t *kvpairs = malloc(sizeof(kvpair_t) * hs->set_size);
+    *n = 0;
+    hs_scan_and_ops_unlocked(hs, fetch_kv, kvpairs, n, NULL, NULL, NULL);
+    return kvpairs;
+}
+
+static void hs_transform(struct hash_set *hs, int tid, int to_small) {
+    kvpair_t *kvpairs;
+    int n, i;
+
+    write_lock(&hs->transform_lock);
+
+    if (to_small == hs->small) {
+        goto out;
+    }
+
+    if (unlikely(to_small && hs->set_size > SMALL_HASHSET_MAXN)) {
+        goto out;
+    }
+
+    kvpairs = fetch_kvs(hs, &n);
+
+    hs_destroy(hs);
+    hs->small = to_small;
+    hs_init(hs);
+
+    for (i = 0; i < n; i++) {
+        hs_insert_unlocked(hs, tid, kvpairs[i].k, kvpairs[i].v);
+    }
+
+    free(kvpairs);
+
+out:
+    write_unlock(&hs->transform_lock);
 }
 
 #ifdef BONSAI_HASHSET_DEBUG
@@ -523,6 +786,7 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 if (!old) {
                     data_layer_search_key(key);
                     print_pnode(new_pnode);
+                    fflush(stdout);
                     assert(0);
                 }
                 //assert(old);
@@ -538,6 +802,30 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
 	return -2;
 }
 
+typedef struct {
+    struct hash_set *new, *mid;
+    pkey_t max, avg_key;
+    struct pnode *new_pnode, *mid_pnode;
+} copy_opt_t;
+
+static void do_copy_one(struct ll_node *curr, void *arg1, void *arg2, void *arg3, void *arg4, void *arg5) {
+	struct flush_work* fwork = (struct flush_work*)__this->t_work->exec_arg;
+	int *use_big = arg2;
+	pkey_t key;
+    copy_opt_t *opt = arg1;
+
+    key = hs_copy_one(curr, opt->new, opt->mid, opt->max, opt->avg_key, opt->new_pnode, opt->mid_pnode);
+    if (key != (unsigned long)-2) {
+        if (!*use_big && fwork->small_free_cnt < SEGMENT_SIZE)
+            fwork->small_free_set[fwork->small_free_cnt++] = key;
+        if (fwork->small_free_cnt == SEGMENT_SIZE) {
+            *use_big = 1;
+        }
+        if (*use_big)
+            fwork->big_free_set[fwork->big_free_cnt++] = key;
+    }
+}
+
 void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_set *mid,
 			pkey_t max, pkey_t avg_key, struct pnode* new_pnode, struct pnode* mid_pnode) {
 	struct bucket_list **buckets, *bucket;
@@ -545,67 +833,10 @@ void hs_scan_and_split(struct hash_set *old, struct hash_set *new, struct hash_s
 	struct ll_node *head, *curr;
 	int i, j, tid = get_tid();
 	int use_big = 0;
-	pkey_t key;
 	struct flush_work* fwork = (struct flush_work*)__this->t_work->exec_arg;
+    copy_opt_t opt = { new, mid, max, avg_key, new_pnode, mid_pnode };
 
-#if 0
-    p_segment = old->main_array[0];
-    if (p_segment == NULL) {
-        return;
-    }
-    buckets = (struct bucket_list**) p_segment;
-    bucket = buckets[0];
-    head = &(bucket->bucket_sentinel.ll_head);
-    curr = GET_NODE(head->next);
-    while(curr) {
-        if (!is_sentinel_node(curr)) {
-            key = hs_copy_one(curr, new, max, pnode);
-            if (key != (unsigned long)-2) {
-                if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
-                    fwork->small_free_set[fwork->small_free_cnt++] = key;
-                if (fwork->small_free_cnt == SEGMENT_SIZE) {
-                    use_big = 1;
-                }
-                if (use_big)
-                    fwork->big_free_set[fwork->big_free_cnt++] = key;
-            }
-        }
-        curr = GET_NODE(STRIP_MARK(curr->next));
-    }
-#else
-	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-		p_segment = old->main_array[i];
-        if (p_segment == NULL)
-            continue;
-
-		for (j = 0; j < SEGMENT_SIZE; j++) {
-			buckets = (struct bucket_list**)p_segment;
-			bucket = buckets[j];
-			if (bucket == NULL) 
-                continue;
-				
-            head = &(bucket->bucket_sentinel.ll_head);
-			curr = GET_NODE(head->next);
-			while (curr) {
-                if (is_sentinel_node(curr)) {
-                   	break;
-                } else {
-    				key = hs_copy_one(curr, new, mid, max, avg_key, new_pnode, mid_pnode);
-					if (key != (unsigned long)-2) {
-						if (!use_big && fwork->small_free_cnt < SEGMENT_SIZE)
-				        	fwork->small_free_set[fwork->small_free_cnt++] = key;
-						if (fwork->small_free_cnt == SEGMENT_SIZE) {
-							use_big = 1;
-						}
-						if (use_big)
-							fwork->big_free_set[fwork->big_free_cnt++] = key;
-					}
-                }
-                curr = GET_NODE(STRIP_MARK(curr->next));
-            } 
-		}
-	}
-#endif
+    hs_scan_and_ops(old, do_copy_one, &opt, &use_big, NULL, NULL, NULL);
 
 	for (i = 0; i < fwork->small_free_cnt; i ++)
 		hs_remove(old, tid, fwork->small_free_set[i]);
@@ -659,44 +890,26 @@ void hs_check_entry(struct ll_node* node, void* arg1, void* arg2, void* arg3, vo
 }
 
 void hs_scan_and_ops(struct hash_set* hs, hs_exec_t exec, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) {
-	struct bucket_list **buckets, *bucket;
-	segment_t* p_segment;
-	struct ll_node *head, *curr;
-	int i, j;
-
-	for (i = 0; i < MAIN_ARRAY_LEN; i++) {
-		p_segment = hs->main_array[i];
-        if (p_segment == NULL)
-            continue;
-
-		for (j = 0; j < SEGMENT_SIZE; j++) {
-			buckets = (struct bucket_list**)p_segment;
-			bucket = buckets[j];
-			if (bucket == NULL) 
-                continue;
-				
-            head = &(bucket->bucket_sentinel.ll_head);
-			curr = GET_NODE(head->next);
-			while (curr) {
-                if (is_sentinel_node(curr)) {
-                   	 break;
-                } else {
-					exec(curr, arg1, arg2, arg3, arg4, arg5);
-                }
-                curr = GET_NODE(STRIP_MARK(curr->next));
-            } 
-		}
-	}
+    read_lock(&hs->transform_lock);
+    hs_scan_and_ops_unlocked(hs, exec, arg1, arg2, arg3, arg4, arg5);
+    read_unlock(&hs->transform_lock);
 }
 
 void hs_destroy(struct hash_set* hs) { 
     // First , get the first linked_list of bucket-0.
-    struct bucket_list** buckets_0 = (struct bucket_list**)hs->main_array[0];
-    struct linked_list* ll_curr = &(buckets_0[0]->bucket_sentinel);  // Now, ll_curr is the most left linked_list.
+    struct bucket_list** buckets_0;
+    struct linked_list* ll_curr;  // Now, ll_curr is the most left linked_list.
 	struct bucket_list* bucket;
 	struct ll_node *p1, *p2;
 	segment_t* segment_curr;
 	int bucket_index, i;
+
+    if (hs->small) {
+        return;
+    }
+
+    buckets_0 = (struct bucket_list**)hs->main_array[0];
+    ll_curr = &(buckets_0[0]->bucket_sentinel);
 
     while (1) {
         p1 = &(ll_curr->ll_head);

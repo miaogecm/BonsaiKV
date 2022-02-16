@@ -65,6 +65,7 @@ struct mptable* mptable_alloc(struct log_layer* layer) {
 
     table = per_node_obj_alloc(&layer->mptable_arena);
     for_each_obj(&layer->mptable_arena, node, cur, table) {
+        cur->hs.small = 1;
         hs_init(&cur->hs);
         rwlock_init(&cur->rwlock);
         cur->pnode = NULL;
@@ -391,7 +392,7 @@ void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pn
      */
     smp_mb();
 
-	/* 3. copy entries from @old_table to @new_table */
+	/* 3. copy slots from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		old_m = node_ptr(&layer->mptable_arena, old_table, node);
 		new_m = node_ptr(&layer->mptable_arena, new_table, node);
@@ -569,7 +570,7 @@ void dump_mptable() {
 	spin_lock(&layer->table_lock);
 	list_for_each_entry(table, &layer->mptable_list, list) {
         for_each_obj(&layer->mptable_arena, node, m, table) {
-			bonsai_print("Node[%d] table %016lx\n", node, m);
+			bonsai_print("Node[%d] table %016lx small:%d \n", node, m, m->hs.small);
 			hs_scan_and_ops(&m->hs, hs_print_entry, NULL, NULL, NULL, NULL, NULL);
 			bonsai_print("\n");
         }
@@ -605,12 +606,12 @@ void stat_mptable() {
 	list_for_each_entry(table, &layer->mptable_list, list) {
         for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
-			bonsai_print("Mapping Table[%d] total entries: %d max: %lu\n", i++, sum, max);
+			bonsai_print("Mapping Table[%d] total slots: %d max: %lu\n", i++, sum, max);
 		}
 		total += sum;
 		max = 0; sum = 0;
 	}
 	spin_unlock(&layer->table_lock);
 
-	bonsai_print("log layer total entries: %d\n", total);
+	bonsai_print("log layer total slots: %d\n", total);
 }

@@ -170,7 +170,7 @@ void clean_pflush_buckets(struct log_layer* layer) {
 }
 
 /*
- * worker_scan_buckets: scan buckets and put entries into the list
+ * worker_scan_buckets: scan buckets and put slots into the list
  */
 static void worker_scan_buckets(struct log_layer* layer) {
 	int i, id = __this->t_id, num_bucket_per_thread = NUM_MERGE_HASH_BUCKET / (NUM_PFLUSH_THREAD - 1);
