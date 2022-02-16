@@ -128,11 +128,11 @@ static void do_op(long id) {
 
             switch (op_arr[id][i][0]) {
             case 0:
-                bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
-                break;
+                // bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                // break;
             case 1:
-                bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
-                break;
+                // bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                // break;
             case 2:
                 bonsai_lookup(op_arr[id][i][1], &v);
                 break;
