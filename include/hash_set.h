@@ -7,16 +7,25 @@ extern "C" {
 
 #include "link_list.h"
 #include "atomic128.h"
+#include "rwlock.h"
 
 #define INIT_ORDER_BUCKETS 	    1  /* a hash_set has INIT_ORDER_BUCKETS at first */
 #define LOAD_FACTOR_DEFAULT     2
 #define MAIN_ARRAY_LEN 			1024
 #define SEGMENT_SIZE 			4096
 #define MAX_NUM_BUCKETS 		MAIN_ARRAY_LEN * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT  /* a hash_set can have up to MAX_NUM_BUCKETS buckets */
+#define SMALL_HASHSET_MAXN      32
+#define SMALL_HASHSET_SLOT_SFT  9
+#define SMALL_HASHSET_SLOTN     (1 << SMALL_HASHSET_SLOT_SFT)
 
 struct bucket_list {
     struct linked_list bucket_sentinel;   /* head the bucket_list */
 };
+
+typedef struct {
+    pkey_t k;
+    pval_t *v;
+} kvpair_t;
 
 /* 
  * a continuous memory area contains SEGMENT_SIZE of pointers 
@@ -25,11 +34,20 @@ struct bucket_list {
 typedef struct bucket_list* segment_t[SEGMENT_SIZE];  
 
 struct hash_set {
-    segment_t* main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
-    float load_factor;   /* expect value of the length of each bucket list */
-	int set_size;  /* how many items in the hash_set */
-    unsigned long capacity_order; /* how many buckets in the hash_set, capacity_order <= MAX_NUM_BUCKETS */
+    rwlock_t transform_lock;
+    int small;
     union atomic_u128 avg;
+    int set_size;  /* how many items in the hash_set */
+    union {
+        struct {
+            float load_factor;   /* expect value of the length of each bucket list */
+            unsigned long capacity_order; /* how many buckets in the hash_set, capacity_order <= MAX_NUM_BUCKETS */
+            segment_t *main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
+        };
+        struct {
+            kvpair_t slots[SMALL_HASHSET_SLOTN];
+        };
+    };
 };
 
 extern void hs_init(struct hash_set * hs);

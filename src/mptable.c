@@ -21,6 +21,7 @@
 #include "ordo.h"
 #include "hash_set.h"
 #include "hash.h"
+#include "per_node.h"
 
 extern struct bonsai_info* bonsai;
 
@@ -58,60 +59,36 @@ int addr_in_pnode(unsigned long addr) {
 	return 0;
 }
 
-static struct mptable* init_one_mptable(int node) {
-    struct mptable* mptable;
-
-	mptable = (struct mptable*) numa_alloc_onnode(sizeof(struct mptable), node);
-
-	/* initialize the hash table */
-	hs_init(&mptable->hs);
-
-	rwlock_init(&mptable->rwlock);
-
-    return mptable;
-}
-
-static void free_one_mptable(struct mptable *table) {
-	numa_free(table, sizeof(struct mptable));
-}
-
-struct numa_table* numa_mptable_alloc(struct log_layer* layer) {
-	struct numa_table* tables;
+struct mptable* mptable_alloc(struct log_layer* layer) {
+    struct mptable *table, *cur;
 	int node;
 
-	tables = malloc(sizeof(struct numa_table));
-	
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		tables->tables[node] = init_one_mptable(node);
-	}
-	
-	tables->pnode = NULL;
-	tables->forward = NULL;
+    table = per_node_obj_alloc(&layer->mptable_arena);
+    for_each_obj(&layer->mptable_arena, node, cur, table) {
+        cur->hs.small = 1;
+        hs_init(&cur->hs);
+        rwlock_init(&cur->rwlock);
+        cur->pnode = NULL;
+        cur->forward = NULL;
+    }
 
 	spin_lock(&layer->table_lock);
-	list_add_tail(&tables->list, &layer->numa_table_list);
+	list_add_tail(&table->list, &layer->mptable_list);
 	spin_unlock(&layer->table_lock);
 
-	return tables;
+	return table;
 }
 
-void numa_mptable_free(struct numa_table* tables) {
-	int node;
-
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		free_one_mptable(MPTABLE_NODE(tables, node));
-	}
-
-	free(tables);
+void mptable_free(struct log_layer* layer, struct mptable *table) {
+    per_node_obj_free(&layer->mptable_arena, table);
 }
 
-static inline int in_target_table(struct numa_table *tables, pkey_t key) {
-    pkey_t lowerbound = ACCESS_ONCE(tables->lowerbound);
+static inline int in_target_table(struct mptable *table, pkey_t key) {
+    pkey_t lowerbound = ACCESS_ONCE(table->lowerbound);
     return key > lowerbound || lowerbound == ULONG_MAX;
 }
 
 int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value) {
-    struct numa_table *tables;
 	struct mptable* table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	struct oplog* log;
@@ -126,16 +103,16 @@ int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value) {
 
 #ifdef BONSAI_SUPPORT_UPDATE
 retry:
-    tables = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	assert(tables);
-    table = MPTABLE_NODE(tables, numa_node);
+    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
+	assert(table);
+    table = node_ptr(&LOG(bonsai)->mptable_arena, table, numa_node);
 
 	read_lock(&table->rwlock);
 	ret = hs_update(&table->hs, tid, key, &log->o_kv.v);
 	read_unlock(&table->rwlock);
 
     
-    if (unlikely(!in_target_table(tables, key))) {
+    if (unlikely(!in_target_table(table, key))) {
         goto retry;
     }
 #else
@@ -153,7 +130,7 @@ retry:
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, table, table->pnode);
 	hs_insert(&table->hs, tid, key, &log->o_kv.v);
 #endif
-	tables->pnode->stale = PNODE_DATA_STALE;
+	table->pnode->stale = PNODE_DATA_STALE;
 
 	bonsai_debug("mptable_insert: cpu[%d] <%lu, %lu>\n", cpu, key, value);
 
@@ -162,58 +139,11 @@ retry:
 
 #if 1
 int mptable_update(int numa_node, int cpu, pkey_t key, pval_t *address) {
-    struct numa_table *tables;
-	struct mptable* table;
-	struct index_layer* i_layer = INDEX(bonsai);
-	struct oplog* log;
-	int tid = get_tid();
-	pval_t value = *address;
-#ifndef BONSAI_SUPPORT_UPDATE
-	pval_t* addr;
-	int node;
-#endif
-
-    /* TODO: It's dangerous to bind oplog entry directly with pnode! */
-	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, NULL);
-
-#ifdef BONSAI_SUPPORT_UPDATE
-retry:
-    tables = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	assert(tables);
-    table = MPTABLE_NODE(tables, numa_node);
-
-	read_lock(&table->rwlock);
-	hs_update(&table->hs, tid, key, &log->o_kv.v);
-	read_unlock(&table->rwlock);
-
-    if (unlikely(!in_target_table(tables, key))) {
-        goto retry;
-    }
-#else
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		mptable = MPTABLE_NODE(tables, node);
-		read_lock(&mptable->rwlock);
-		addr = hs_lookup(&mptable->hs, tid, key);
-		if (addr) {
-			read_unlock(&mptable->rwlock);
-			return -ENOENT;
-		}
-		else {
-			log = oplog_insert(key, *address, OP_INSERT, numa_node, cpu, mptable, mptable->pnode);
-			hs_insert(&mptable->hs, tid, key, &log->o_kv.v);
-			read_unlock(&mptable->rwlock);
-		}
-	}
-#endif
-	tables->pnode->stale = PNODE_DATA_STALE;
-
-	bonsai_debug("mptable_update: cpu[%d] <%lu, %lu>\n", cpu, key, value);
-
-	return 0;
+    assert(0);
 }
 #endif
 
-static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, pkey_t key, 
+static int __mptable_remove(struct mptable* table, int numa_node, int cpu, pkey_t key,
 		int* latest_op_type, int* found_in_pnode) {
 	unsigned long max_op_t = 0;
 	struct oplog* log;
@@ -221,9 +151,9 @@ static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, p
 	int tid = get_tid();
 	struct mptable* m;
 	int node, found = 0;
-		
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(tables, node);
+    struct log_layer *layer = LOG(bonsai);
+
+    for_each_obj(&layer->mptable_arena, node, m, table) {
 		addr = hs_lookup(&m->hs, tid, key);
 		if (addr) {
 			if (addr_in_log((unsigned long)addr)) {
@@ -249,55 +179,56 @@ static int __mptable_remove(struct numa_table* tables, int numa_node, int cpu, p
 }
 
 int mptable_remove(int numa_node, int cpu, pkey_t key) {
-    struct numa_table *tables;
+    struct mptable *table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int latest_op_type = OP_NONE, found_in_pnode = 0;
-	struct mptable* m = MPTABLE_NODE(tables, numa_node);
 	struct oplog* log;
 	int tid = get_tid();
+    struct log_layer *layer = LOG(bonsai);
 
     /* TODO: It's dangerous to bind oplog entry directly with pnode! */
 	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, NULL);
 
 retry:
-	tables = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	assert(tables);
+	table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
+	assert(table);
+    table = node_ptr(&layer->mptable_arena, table, numa_node);
 	
-	if (unlikely(!__mptable_remove(tables, numa_node, cpu, key, &latest_op_type, &found_in_pnode) 
-				&& tables->forward)) {
+	if (unlikely(!__mptable_remove(table, numa_node, cpu, key, &latest_op_type, &found_in_pnode)
+				&& table->forward)) {
 		/* search forward table */
-		__mptable_remove(tables->forward, numa_node, cpu, key, &latest_op_type, &found_in_pnode);
+		__mptable_remove(table->forward, numa_node, cpu, key, &latest_op_type, &found_in_pnode);
 	}
 
 	if (latest_op_type == OP_REMOVE) {
 		bonsai_print("latest_op_type == OP_REMOVE [%lu] %d %d\n", key, latest_op_type, found_in_pnode);
-		check_numa_table();
+		check_mptable();
 		return -ENOENT;
 	}
 
 	if (latest_op_type == OP_NONE && !found_in_pnode) {
         /* Maybe not in this table now. */
-        if (unlikely(!in_target_table(tables, key))) {
+        if (unlikely(!in_target_table(table, key))) {
             goto retry;
         }
 		bonsai_print("no such entry [%lu]\n", key);
 		return -ENOENT;
 	}
 
-	hs_update(&m->hs, tid, key, &log->o_kv.v);
+	hs_update(&table->hs, tid, key, &log->o_kv.v);
 
-    if (unlikely(!in_target_table(tables, key))) {
+    if (unlikely(!in_target_table(table, key))) {
         goto retry;
     }
 
-	tables->pnode->stale = PNODE_DATA_STALE;
+	table->pnode->stale = PNODE_DATA_STALE;
 
 	bonsai_debug("mptable_remove: cpu[%d] %lu\n", cpu, key);
 
 	return 0;
 }
 
-pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
+pval_t* __mptable_lookup(struct mptable* mptable, pkey_t key, int cpu) {
 	int node, tid = get_tid();
 	struct mptable *m;
 	pval_t *addr, *ret = NULL;
@@ -305,9 +236,9 @@ pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 	//int numa_node = get_numa_node(cpu);
 	unsigned long max_op_t = 0;
 	struct oplog *log;
+    struct log_layer *layer = LOG(bonsai);
 
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(mptables, node);
+    for_each_obj(&layer->mptable_arena, node, m, mptable) {
 		addr = hs_lookup(&m->hs, tid, key);
 
 		if (addr_in_log((unsigned long)addr)) {
@@ -341,25 +272,25 @@ pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu) {
 }
 
 int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val) {
-	struct numa_table *tables;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int tid = get_tid();
 	struct pnode* pnode;
 	void* map_addrs[NUM_SOCKET];
-	struct mptable *m;
+	struct mptable *table;
 	pval_t *addr = NULL;
 	struct oplog* log;
+    struct log_layer *layer = LOG(bonsai);
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 
 retry:
-    tables = (struct numa_table*)i_layer->lookup(i_layer->index_struct, key);
-	assert(tables);
+    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
+    table = node_ptr(&layer->mptable_arena, table, numa_node);
 
-	addr = __mptable_lookup(tables, key, cpu);
+	addr = __mptable_lookup(table, key, cpu);
 	
-	if (!addr && tables->forward) {
-		addr = __mptable_lookup(tables->forward, key, cpu);
+	if (!addr && table->forward) {
+		addr = __mptable_lookup(table->forward, key, cpu);
 	}
 	
 	if (addr_in_log((unsigned long)addr)) {
@@ -381,6 +312,7 @@ retry:
 		} else {
 			/* FIXME */
 			assert(0);
+#if 0
 			if (map_addrs[0]) {
 				/* pull latest value */
 				m = MPTABLE_NODE(tables, numa_node);
@@ -392,16 +324,17 @@ retry:
 				*val = *addr;
 				return 0;
 			}
+#endif
 		}
 	} else {
-        if (unlikely(!in_target_table(tables, key))) {
+        if (unlikely(!in_target_table(table, key))) {
             goto retry;
         }
 
 		stop_the_world();
 		bonsai_print("***************************key: %lu; addr: %016lx*****************************\n", key, addr);
-		printf("table anchor_key: %016lx; forward: %016lx\n", tables->pnode, tables->forward ? tables->forward->pnode : NULL);
-		numa_table_search_key(key);
+		printf("table anchor_key: %016lx; forward: %016lx\n", table->pnode, table->forward ? table->forward->pnode : NULL);
+		mptable_search_key(key);
 		data_layer_search_key(key);
 		dump_pnode_list_summary();
 		assert(0);
@@ -410,32 +343,36 @@ retry:
 	return -ENOENT;
 }
 
-void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr) {
-	struct mptable *table = tables->tables[numa_node];
+void mptable_update_addr(struct mptable* table, pkey_t key, pval_t* addr) {
 	int tid = get_tid();
-
 	hs_update(&table->hs, tid, key, addr);
 }
 
-void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key) {	
+void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key) {
 	int node;
-	struct numa_table *new_table, *mid_table;
+	struct mptable *new_table, *mid_table, *cur;
 	struct mptable *old_m, *new_m, *mid_m;
 	struct index_layer* i_layer = INDEX(bonsai);
+    pkey_t lowerbound;
+    struct log_layer *layer = LOG(bonsai);
 
 	/* 1. allocate a new mapping table */
-	new_table = numa_mptable_alloc(LOG(bonsai));
+	new_table = mptable_alloc(LOG(bonsai));
 	new_pnode->table = new_table;
-	new_table->pnode = new_pnode;
-	new_table->forward = old_table;
-    new_table->lowerbound = old_table->lowerbound;
+    for_each_obj(&layer->mptable_arena, node, cur, new_table) {
+        cur->pnode = new_pnode;
+        cur->forward = old_table;
+        cur->lowerbound = old_table->lowerbound;
+    }
 
 	if (mid_pnode) {
-		mid_table = numa_mptable_alloc(LOG(bonsai));
+		mid_table = mptable_alloc(LOG(bonsai));
 		mid_pnode->table = mid_table;
-		mid_table->pnode = mid_pnode;
-		mid_table->forward = old_table;
-        mid_table->lowerbound = new_pnode->anchor_key;
+        for_each_obj(&layer->mptable_arena, node, cur, mid_table) {
+            cur->pnode = mid_pnode;
+            cur->forward = old_table;
+            cur->lowerbound = new_pnode->anchor_key;
+        }
 	}
 
 	/* 2. update the index layer */
@@ -445,7 +382,10 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 		i_layer->insert(i_layer->index_struct, avg_key, mid_table);
 	}
 
-    old_table->lowerbound = (mid_pnode ? mid_pnode : new_pnode)->anchor_key;
+    lowerbound = (mid_pnode ? mid_pnode : new_pnode)->anchor_key;
+    for_each_obj(&layer->mptable_arena, node, cur, old_table) {
+        cur->lowerbound = lowerbound;
+    }
     /*
      * When entry migration is running, we must ensure that all threads insert
      * into the correct mptable.
@@ -454,20 +394,24 @@ void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct
 
 	/* 3. copy entries from @old_table to @new_table */
 	for (node = 0; node < NUM_SOCKET; node ++) {
-		old_m = MPTABLE_NODE(old_table, node);
-		new_m = MPTABLE_NODE(new_table, node);
+		old_m = node_ptr(&layer->mptable_arena, old_table, node);
+		new_m = node_ptr(&layer->mptable_arena, new_table, node);
 		if (mid_pnode) {
-			mid_m = MPTABLE_NODE(mid_table, node);
+			mid_m = node_ptr(&layer->mptable_arena, mid_table, node);
 			hs_scan_and_split(&old_m->hs, &new_m->hs, &mid_m->hs, pnode_max_key(new_pnode), avg_key, new_pnode, mid_pnode);
 		} else {
 			hs_scan_and_split(&old_m->hs, &new_m->hs, NULL, pnode_max_key(new_pnode), avg_key, new_pnode, NULL);
 		}
 	}
 
-	new_table->forward = NULL;
+    for_each_obj(&layer->mptable_arena, node, cur, new_table) {
+        cur->forward = NULL;
+    }
 	
 	if (mid_pnode) {
-		mid_table->forward = NULL;
+        for_each_obj(&layer->mptable_arena, node, cur, mid_table) {
+		    cur->forward = NULL;
+        }
 	}
 }
 
@@ -523,7 +467,7 @@ int __compare(const void* a, const void* b) {
 }
 
 #define MAX_LEN		(16 * 1024 * 1024)
-static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
+static int __mptable_scan(struct mptable* table, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr_key) {
 	struct hbucket* merge_buckets;
 	struct mptable *m;
 	struct hlist_node *hnode, *n_hnode;
@@ -532,6 +476,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	scan_merge_ent* e;
 	pentry_t** arr;
 	pkey_t max_key = 0;
+    struct log_layer *layer = LOG(bonsai);
 
 	merge_buckets = malloc(sizeof(struct hbucket) * NUM_MERGE_HASH_BUCKET);
 	arr = malloc(sizeof(pentry_t*) * MAX_LEN);
@@ -541,10 +486,9 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
     }
 
 	/* 1. scan mapping table, merge logs */
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		m =  table->tables[node];
+    for_each_obj(&layer->mptable_arena, node, m, table) {
 		hs_scan_and_ops(&m->hs, merge_one_log, (void*)merge_buckets, (void*)low, (void*)high, (void*)&max_key, (void*)NULL);
-	}
+    }
 
 	/* 2. scan merge hash table and copy */
 	for (i = 0, j = 0; i < NUM_MERGE_HASH_BUCKET; i ++) {
@@ -576,7 +520,7 @@ static int __mptable_scan(struct numa_table* table, int n, pkey_t low, pkey_t hi
 	return n;
 }
 
-int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* result) {
+int mptable_scan(struct mptable* table, pkey_t low, pkey_t high, pval_t* result) {
 	struct pnode* pnode;
 	pkey_t curr = low;
 	int n = 0, ret = 0;
@@ -600,76 +544,67 @@ int mptable_scan(struct numa_table* table, pkey_t low, pkey_t high, pval_t* resu
 	return ret;
 }
 
-void numa_table_search_key(pkey_t key) {
+void mptable_search_key(pkey_t key) {
 	struct log_layer* layer = LOG(bonsai);
-	struct numa_table* table;
-	struct mptable* m;
+	struct mptable *m, *table;
 	int node;
 
 	spin_lock(&layer->table_lock);
-	list_for_each_entry(table, &layer->numa_table_list, list) {
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(table, node);
-			//bonsai_print("numa table %016lx hs[%d]: %016lx\n", table, i++, &m->hs);
+	list_for_each_entry(table, &layer->mptable_list, list) {
+        for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_scan_and_ops(&m->hs, hs_search_key, (void*)key, NULL, NULL, NULL, NULL);
-		}
+        }
 	}
 	spin_unlock(&layer->table_lock);
 
 	bonsai_print("numa table find no such key[%lu]\n", key);
 }
 
-void dump_numa_table() {
+void dump_mptable() {
 	struct log_layer* layer = LOG(bonsai);
-	struct numa_table* table;
-	struct mptable* m;
+	struct mptable *m, *table;
 	int node;
 
-	bonsai_print("====================================DUMP NUMA TABLE================================================\n");
+	bonsai_print("====================================DUMP MPTABLE================================================\n");
 
 	spin_lock(&layer->table_lock);
-	list_for_each_entry(table, &layer->numa_table_list, list) {
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(table, node);
-			bonsai_print("Node[%d] table %016lx\n", node, m);
+	list_for_each_entry(table, &layer->mptable_list, list) {
+        for_each_obj(&layer->mptable_arena, node, m, table) {
+			bonsai_print("Node[%d] table %016lx small:%d \n", node, m, m->hs.small);
 			hs_scan_and_ops(&m->hs, hs_print_entry, NULL, NULL, NULL, NULL, NULL);
 			bonsai_print("\n");
-		}
+        }
 	}
 	spin_unlock(&layer->table_lock);
 }
 
-void check_numa_table() {
+void check_mptable() {
 	struct log_layer* layer = LOG(bonsai);
-	struct numa_table* table;
-	struct mptable* m;
+	struct mptable *m, *table;
 	int node;
 
-	bonsai_print("====================================CHECK NUMA TABLE================================================\n");
+	bonsai_print("====================================CHECK MPTABLE================================================\n");
 
 	spin_lock(&layer->table_lock);
-	list_for_each_entry(table, &layer->numa_table_list, list) {
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(table, node);
+	list_for_each_entry(table, &layer->mptable_list, list) {
+        for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_scan_and_ops(&m->hs, hs_check_entry, NULL, NULL, NULL, NULL, NULL);
 		}
 	}
 	spin_unlock(&layer->table_lock);
 }
 
-void stat_numa_table() {
+void stat_mptable() {
 	struct log_layer* layer = LOG(bonsai);
-	struct numa_table* table;
-	struct mptable* m;
+	struct mptable *m, *table;
 	int node, i = 0, sum = 0, total = 0;
 	pkey_t max = 0;
 
-	bonsai_print("====================================COUNT NUMA TABLE================================================\n");
+	bonsai_print("====================================COUNT MPTABLE================================================\n");
 
 	spin_lock(&layer->table_lock);
-	list_for_each_entry(table, &layer->numa_table_list, list) {
-		for (node = 0; node < NUM_SOCKET; node ++) {
-			m = MPTABLE_NODE(table, node);
+	list_for_each_entry(table, &layer->mptable_list, list) {
+        for_each_obj(&layer->mptable_arena, node, m, table) {
 			hs_scan_and_ops(&m->hs, hs_count_entry, (void*)&sum, (void*)&max, NULL, NULL, NULL);
 			bonsai_print("Mapping Table[%d] total entries: %d max: %lu\n", i++, sum, max);
 		}

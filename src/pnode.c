@@ -21,6 +21,7 @@
 #include "bitmap.h"
 #include "ordo.h"
 #include "atomic128.h"
+#include "per_node.h"
 
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
@@ -233,12 +234,12 @@ static void pnode_sort_slot(struct pnode* pnode, int pos_e, pkey_t key, optype_t
  */
 static struct pnode* pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
-	struct numa_table* table;
+	struct mptable* table;
 
-	table = (struct numa_table*)layer->lookup(layer->index_struct, key);
+	table = (struct mptable*)layer->lookup(layer->index_struct, key);
 	assert(table);
 	
-	return table->pnode;
+	return this_node(&LOG(bonsai)->mptable_arena, table)->pnode;
 }
 
 /*
@@ -257,7 +258,7 @@ int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_no
 	uint64_t new_removed, mid_removed;
 	int ret, cpu = __this->t_cpu;
 	struct oplog* log;
-	struct numa_table* tables;
+	struct mptable* table;
 	pval_t* addr;
 	struct pnode* pnode;
 	union atomic_u128 avg;
@@ -267,6 +268,8 @@ int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_no
 
 retry:
 	pnode = pnode_find_lowbound(key);
+
+    table = this_node(&LOG(bonsai)->mptable_arena, pnode->table);
 	
 	assert(pnode);
 	assert(key_cmp(key, pnode_anchor_key(pnode)) <= 0);
@@ -297,10 +300,9 @@ retry:
 		pentry_t e = {key, value};
         pnode->e[pos] = e;
 
-		tables = pnode->table;
-		addr = __mptable_lookup(tables, key, cpu);
-		if (!addr && ACCESS_ONCE(tables->forward)) {
-			addr = __mptable_lookup(tables->forward, key, cpu);
+		addr = __mptable_lookup(table, key, cpu);
+		if (!addr && ACCESS_ONCE(table->forward)) {
+			addr = __mptable_lookup(table->forward, key, cpu);
 		}
 
 		//FIXME: need lock
@@ -308,10 +310,10 @@ retry:
 			log = OPLOG(addr);
 			ret = ordo_cmp_clock(log->o_stamp, time_stamp);
 			if (ret == ORDO_LESS_THAN || ret == ORDO_UNCERTAIN) {
-				mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+				mptable_update_addr(table, key, &pnode->e[pos].v);
 			}
 		} else {
-			mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+			mptable_update_addr(table, key, &pnode->e[pos].v);
 		}
 
 		write_lock(pnode->slot_lock);
@@ -357,7 +359,7 @@ retry:
 	mid_pnode = alloc_pnode(numa_node);
     memcpy(mid_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
 	mid_removed = 0;
-	avg = (union atomic_u128) AtomicLoad128(&pnode->table->tables[0]->hs.avg);
+	avg = (union atomic_u128) AtomicLoad128(&table->hs.avg);
 	avg_key = (pkey_t) avg.lo;
 
 	for (i = d + 1; i <= n; i++) {
@@ -380,7 +382,7 @@ retry:
 		mid_pnode = NULL;
 	}
 	/* split the mapping table */
-    mptable_split(pnode->table, new_pnode, mid_pnode, avg_key);
+    mptable_split(table, new_pnode, mid_pnode, avg_key);
 
 	insert_pnode_list_fast(new_pnode, pnode);
 	if (mid_pnode) {
@@ -420,11 +422,10 @@ int pnode_remove(pkey_t key) {
 	
 	pnode = pnode_find_lowbound(key);
 	assert(pnode);
-	
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		m = MPTABLE_NODE(pnode->table, node);
+
+    for_each_obj(&LOG(bonsai)->mptable_arena, node, m, pnode->table) {
 		hs_remove(&m->hs, get_tid(), key);
-	}
+    }
 
 	bucket_id = PNODE_BUCKET_HASH(key);
     offset = NUM_ENT_PER_BUCKET * bucket_id;
@@ -457,7 +458,7 @@ find:
 	if (unlikely(!pnode->slot[0])) {
 		i_layer->remove(i_layer->index_struct, pnode_anchor_key(pnode));
 		remove_pnode_list(pnode);
-		numa_mptable_free(pnode->table);
+        mptable_free(LOG(bonsai), pnode->table);
 		free_pnode(pnode);
 	} else {
 		bonsai_flush((void*)&pnode->bitmap, sizeof(__le64), 0);
@@ -552,8 +553,8 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 
 void sentinel_node_init() {
 	struct index_layer *i_layer = INDEX(bonsai);
-	struct numa_table* table;
-	int numa_node = get_numa_node(get_cpu());
+	struct mptable *table, *m;
+	int numa_node = get_numa_node(get_cpu()), node;
 	pkey_t key = ULONG_MAX;
 	pval_t val = ULONG_MAX;
 	struct pnode* pnode;
@@ -561,24 +562,25 @@ void sentinel_node_init() {
 	pentry_t e = {key, val};
 		
 	/* LOG Layer: allocate a mapping table */
-	table = numa_mptable_alloc(&bonsai->l_layer);
-	hs_insert(&MPTABLE_NODE(table, numa_node)->hs, get_tid(), key, NULL);
+	table = mptable_alloc(&bonsai->l_layer);
+	hs_insert(&table->hs, get_tid(), key, NULL);
 
 	/* DATA Layer: allocate a persistent node */
 	pnode = alloc_pnode(numa_node);
 	pnode->anchor_key = key;
 	insert_pnode_list(pnode, key);
-	table->pnode = pnode;
+    for_each_obj(&LOG(bonsai)->mptable_arena, node, m, table) {
+        m->pnode = pnode;
+        m->lowerbound = ULONG_MAX;
+    }
 	pnode->table = table;
-
-    table->lowerbound = ULONG_MAX;
 
 	bucket_id = PNODE_BUCKET_HASH(key);
     write_lock(pnode->bucket_lock[bucket_id]);
     pos = find_unused_entry(key, pnode->bitmap, bucket_id);
     pnode->e[pos] = e;
 
-    mptable_update_addr(pnode->table, numa_node, key, &pnode->e[pos].v);
+    mptable_update_addr(table, key, &pnode->e[pos].v);
 
     write_lock(pnode->slot_lock);
     pnode_sort_slot(pnode, pos, key, OP_INSERT);

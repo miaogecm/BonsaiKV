@@ -13,46 +13,44 @@ extern "C" {
 
 struct mptable {
 	struct hash_set hs;
-	rwlock_t rwlock;
-};
 
-struct numa_table {
-	struct mptable* tables[NUM_SOCKET];
-	struct pnode* pnode;
-	struct numa_table* forward;
-	struct list_head list;
+	rwlock_t rwlock;
+
+    struct pnode* pnode;
+	struct mptable *forward;
+
     /*
      * The anchor key of last pnode.
-     * Invariant: Each key in this numa table must be > lowerbound.
+     * Invariant: Each key in this mptable must be > lowerbound.
      */
     pkey_t lowerbound;
-};
 
-#define MPTABLE_NODE(TABLE, NODE)	TABLE->tables[NODE]
+	struct list_head list;
+};
 
 extern int addr_in_log(unsigned long addr);
 extern int addr_in_pnode(unsigned long addr);
 
 struct log_layer;
-extern struct numa_table* numa_mptable_alloc(struct log_layer* layer);
-extern void numa_mptable_free(struct numa_table* tables);
+extern struct mptable* mptable_alloc(struct log_layer* layer);
+extern void mptable_free(struct log_layer* layer, struct mptable* table);
 
 extern int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value);
 extern int mptable_update(int numa_node, int cpu, pkey_t key, pval_t *address);
 extern int mptable_remove(int numa_node, int cpu, pkey_t key);
 extern int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val);
-extern int mptable_scan(struct numa_table* table, pkey_t high, pkey_t low, pval_t* val_arr);
+extern int mptable_scan(struct mptable* table, pkey_t high, pkey_t low, pval_t* val_arr);
 
-extern void mptable_update_addr(struct numa_table* tables, int numa_node, pkey_t key, pval_t* addr);
+extern void mptable_update_addr(struct mptable* table, pkey_t key, pval_t* addr);
 
-extern void mptable_split(struct numa_table* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key);
+extern void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pnode* mid_pnode, pkey_t avg_key);
 
-extern pval_t* __mptable_lookup(struct numa_table* mptables, pkey_t key, int cpu);
+extern pval_t* __mptable_lookup(struct mptable* mptable, pkey_t key, int cpu);
 
-extern void numa_table_search_key(pkey_t key);
-extern void check_numa_table();
-extern void dump_numa_table();
-extern void stat_numa_table();
+extern void mptable_search_key(pkey_t key);
+extern void check_mptable();
+extern void dump_mptable();
+extern void stat_mptable();
 
 #ifdef __cplusplus
 }
