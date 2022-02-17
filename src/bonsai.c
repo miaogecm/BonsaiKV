@@ -25,8 +25,6 @@
 #include "epoch.h"
 #include "cpu.h"
 
-#include "../index/skiplist.h"
-
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 

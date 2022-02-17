@@ -1,9 +1,11 @@
 #!/bin/bash
 
-sudo ./clean.sh
-cd ../src
+sudo ../clean.sh
+
+pushd ../../src
 make clean
 make
-cd ../index
+
+popd
 make clean
 make

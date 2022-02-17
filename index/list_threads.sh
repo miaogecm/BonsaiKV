@@ -1,3 +1,3 @@
 #!/bin/bash
 
-ps H -C kv -o 'pid tid psr args comm'
+ps H -C $1 -o 'pid tid psr args comm'

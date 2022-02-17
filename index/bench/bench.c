@@ -20,10 +20,9 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "ffwrapper.h"
 #include "bench.h"
 
-#include "data/kvdata.h"
+#include "../data/kvdata.h"
 
 #ifndef N
 #define N			1000000
@@ -36,6 +35,15 @@ pkey_t a[N];
 #endif
 
 #define NUM_CPU		8
+
+static void           *index_struct;
+static init_func_t    fn_init;
+static destory_func_t fn_destroy;
+static insert_func_t  fn_insert;
+static remove_func_t  fn_remove;
+static lookup_func_t  fn_lookup;
+static lookup_func_t  fn_lowerbound;
+static scan_func_t    fn_scan;
 
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove,
@@ -54,6 +62,8 @@ extern void bonsai_user_thread_exit();
 
 struct toy_kv *toy;
 pthread_t tids[NUM_THREAD];
+
+int in_bonsai;
 
 static inline int get_cpu() {
 	cpu_set_t mask;
@@ -100,15 +110,24 @@ static inline double end_measure() {
 static void do_load(long id) {
     double interval;
 	long i;
+    int ret;
+
     if (id == 0) {
         start_measure();
         for (i = 0; i < N; i ++) {
-            assert(bonsai_insert(load_arr[i][0], load_arr[i][1]) == 0);
+            if (in_bonsai) {
+                ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
+            } else {
+                ret = fn_insert(index_struct, load_arr[i][0], (void *) load_arr[i][1]);
+            }
+            assert(ret == 0);
         }
         interval = end_measure();
         printf("load finished in %.3lf seconds\n", interval);
 
-        bonsai_barrier();
+        if (in_bonsai) {
+            bonsai_barrier();
+        }
 
         interval = end_measure();
         printf("load total: %.3lf seconds\n", interval);
@@ -134,10 +153,19 @@ static void do_op(long id) {
                 // bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
                 // break;
             case 2:
-                bonsai_lookup(op_arr[id][i][1], &v);
+                if (in_bonsai) {
+                    bonsai_lookup(op_arr[id][i][1], &v);
+                } else {
+                    v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1]);
+                }
                 break;
             case 3:
-                bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
+                if (in_bonsai) {
+                    bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
+                } else {
+                    // TODO: Implement it
+                    assert(0);
+                }
                 break;
             default:
                 printf("unknown type\n");
@@ -152,7 +180,9 @@ static void do_op(long id) {
 
 	printf("user thread[%ld]---------------------end---------------------\n", id);
 
-	bonsai_user_thread_exit();
+    if (in_bonsai) {
+        bonsai_user_thread_exit();
+    }
 
 	free(val_arr);
 
@@ -163,7 +193,9 @@ static void do_barrier(long id) {
     double interval;
 
     if (id == 0) {
-        bonsai_barrier();
+        if (in_bonsai) {
+            bonsai_barrier();
+        }
 
         interval = end_measure();
         printf("op total: %.3lf seconds\n", interval);
@@ -176,7 +208,9 @@ void* thread_fun(void* arg) {
 	bind_to_cpu(id);
     bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 
-	bonsai_user_thread_init();
+    if (in_bonsai) {
+        bonsai_user_thread_init();
+    }
 
     pthread_barrier_wait(&barrier);
 
@@ -207,21 +241,46 @@ void *user_thread_parent_fun(void *arg) {
 
 int bench(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove,
-				lookup_func_t lookup, scan_func_t scan) {
+				lookup_func_t lookup, lookup_func_t lowerbound,
+                scan_func_t scan) {
     pthread_t user_thread_parent;
+    char *use_bonsai;
+
+    use_bonsai = getenv("bonsai");
+    in_bonsai = use_bonsai && !strcmp(use_bonsai, "yes");
+
+    if (in_bonsai) {
+        printf("Using bonsai.\n");
+    }
+
+    fn_init = init;
+    fn_destroy = destory;
+    fn_insert = insert;
+    fn_remove = remove;
+    fn_lookup = lookup;
+    fn_lowerbound = lowerbound;
+    fn_scan = scan;
 
 	bind_to_cpu(0);
 
     pthread_barrier_init(&barrier, NULL, NUM_THREAD);
 
-	if (bonsai_init(index_name, init, destory, insert, remove, lookup, scan) < 0)
-		goto out;
+    if (in_bonsai) {
+        if (bonsai_init(index_name, init, destory, insert, remove, lowerbound, scan) < 0)
+            goto out;
+    } else {
+        index_struct = init();
+    }
 
     pthread_create(&user_thread_parent, NULL, user_thread_parent_fun, NULL);
     pthread_setname_np(user_thread_parent, "user_thread_parent");
     pthread_join(user_thread_parent, NULL);
 
-	bonsai_deinit();
+    if (in_bonsai) {
+        bonsai_deinit();
+    } else {
+        destory(index_struct);
+    }
 
 out:
 	return 0;
