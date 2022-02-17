@@ -88,8 +88,7 @@ enum {
 #define NUM_ENTRY_PER_PNODE		47
 #define PNODE_CACHE_SIZE		4
 
-#define PNODE_BITMAP_FULL		0x3fff
-#define FGPRT_MASK				0x7f
+#define PNODE_BITMAP_FULL		0x7fffffffffff
 
 /**/
 struct pnode_meta {
@@ -119,7 +118,7 @@ struct pnode {
 
 #define PNODE_LOCK(node)			((node)->meta.lock)
 #define PNODE_FGPRT(node, i) 		((node)->meta.fgprt[i])
-#define PNODE_BITAMP(node) 			((node)->meta.bitmap)
+#define PNODE_BITMAP(node) 			((node)->meta.bitmap)
 #define PNODE_CACHE_KEY(node, i)	((node)->cache_e[i].k)
 #define PNODE_CACHE_VAL(node, i)	((node)->cache_e[i].v)
 #define PNODE_KEY(node, i)			((node)->e[i].k)
