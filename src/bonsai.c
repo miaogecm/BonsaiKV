@@ -60,7 +60,9 @@ static int log_layer_init(struct log_layer* layer) {
 	atomic_set(&layer->force_flush, 0);
 	atomic_set(&layer->checkpoint, 0);
 	atomic_set(&layer->epoch_passed, 0);
-	atomic_set(&layer->nlogs, 0);
+    for (i = 0; i < NUM_CPU; i++) {
+        atomic_set(&layer->nlogs[i].cnt, 0);
+    }
 	err = log_region_init(layer, bonsai->desc);
 	if (err)
 		goto out;

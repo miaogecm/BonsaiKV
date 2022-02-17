@@ -49,7 +49,11 @@ struct log_layer {
 
     atomic_t epoch_passed;
 	atomic_t checkpoint;
-	atomic_t nlogs; /* how many logs */
+
+    struct {
+        atomic_t cnt;
+        char padding[CACHELINE_SIZE];
+    } nlogs[NUM_CPU];
 	
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
 	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */

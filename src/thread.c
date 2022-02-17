@@ -253,6 +253,18 @@ static void master_wait_workers(struct thread_info* master) {
 	}
 }
 
+static inline int need_flush_log() {
+	struct log_layer *layer = LOG(bonsai);
+    int cpu, total = 0;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        total += atomic_read(&layer->nlogs[cpu].cnt);
+        if (total >= CHKPT_NLOG_INTERVAL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void pflush_master(struct thread_info* this) {
 	struct log_layer *layer = LOG(bonsai);
 	
@@ -276,9 +288,9 @@ static void pflush_master(struct thread_info* this) {
 		park_master();
 
 		__this->t_state = S_RUNNING;
-		do {
+		while(need_flush_log() && !atomic_read(&layer->exit)) {
 			oplog_flush(bonsai);
-		}while(atomic_read(&layer->nlogs) >= CHKPT_NLOG_INTERVAL && !atomic_read(&layer->exit));
+        }
 
         if (unlikely(atomic_read(&layer->force_flush))) {
             oplog_flush(bonsai);

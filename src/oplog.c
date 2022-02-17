@@ -92,7 +92,7 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 
 	log = &block->logs[block->cnt++];
 
-	if (atomic_add_return(1, &layer->nlogs) >= CHKPT_NLOG_INTERVAL &&
+	if (atomic_add_return(1, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
 		!atomic_read(&layer->checkpoint)) {
 		wakeup_master();
 	}
@@ -363,7 +363,8 @@ static int worker_oplog_merge_and_sort(void *arg) {
 
 				try_free_log_page((struct oplog_blk*)block, &mwork->page_list);
 
-				nlog++; atomic_dec(&layer->nlogs);
+				nlog++;
+                atomic_dec(&layer->nlogs[block->cpu].cnt);
 				bonsai_debug("pflush thread[%d] merge <%lu, %lu> in bucket[%d]\n", 
 						__this->t_id, log->o_kv.k, log->o_kv.v, p_hash(key));
 
@@ -559,9 +560,10 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 1);
 
 	/* 1. fetch and merge all log lists */
-    nlogs = atomic_read(&l_layer->nlogs);
+    nlogs = 0;
 	for (cpu = 0; cpu < NUM_CPU; cpu ++) {
 		region = &l_layer->region[cpu];
+        nlogs += atomic_read(&l_layer->nlogs[cpu].cnt);
 		curr_blk = ACCESS_ONCE(region->curr_blk);
         /* TODO: Non-full log blocks can not be flushed! */
 		if (curr_blk && region->first_blk != curr_blk) {
