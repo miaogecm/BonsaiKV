@@ -69,7 +69,10 @@ again:
 	return new_block;
 }
 
+#define CHECK_NLOG_INTERVAL     20
+
 struct oplog* alloc_oplog(struct log_region* region, int cpu) {
+    static __thread int last = 0;
 	volatile struct oplog_blk* block = region->curr_blk;
 	struct log_layer* layer = LOG(bonsai);
 	struct oplog* log;
@@ -92,10 +95,13 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 
 	log = &block->logs[block->cnt++];
 
-	if (atomic_add_return(1, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
-		!atomic_read(&layer->checkpoint)) {
-		wakeup_master();
-	}
+    if (++last == CHECK_NLOG_INTERVAL) {
+        if (atomic_add_return(CHECK_NLOG_INTERVAL, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
+            !atomic_read(&layer->checkpoint)) {
+            wakeup_master();
+        }
+        last = 0;
+    }
 
 	return log;
 }
