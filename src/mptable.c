@@ -376,7 +376,7 @@ void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pn
 	}
 
 	/* 2. update the index layer */
-	i_layer->insert(i_layer->index_struct, pnode_anchor_key(new_pnode), new_table);
+	i_layer->insert(i_layer->index_struct, PNODE_ANCHOR_KEY(new_pnode), new_table);
 
 	if (mid_pnode) {
 		i_layer->insert(i_layer->index_struct, avg_key, mid_table);
@@ -398,9 +398,9 @@ void mptable_split(struct mptable* old_table, struct pnode* new_pnode, struct pn
 		new_m = node_ptr(&layer->mptable_arena, new_table, node);
 		if (mid_pnode) {
 			mid_m = node_ptr(&layer->mptable_arena, mid_table, node);
-			hs_scan_and_split(&old_m->hs, &new_m->hs, &mid_m->hs, pnode_max_key(new_pnode), avg_key, new_pnode, mid_pnode);
+			hs_scan_and_split(&old_m->hs, &new_m->hs, &mid_m->hs, PNODE_MAX_KEY(new_pnode), avg_key, new_pnode, mid_pnode);
 		} else {
-			hs_scan_and_split(&old_m->hs, &new_m->hs, NULL, pnode_max_key(new_pnode), avg_key, new_pnode, NULL);
+			hs_scan_and_split(&old_m->hs, &new_m->hs, NULL, PNODE_MAX_KEY(new_pnode), avg_key, new_pnode, NULL);
 		}
 	}
 
