@@ -764,14 +764,15 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 return key;
             } else if (addr_in_pnode((unsigned long)old)) {
                 old = pnode_lookup(new_pnode, key);
-                if (!old) {
-                    data_layer_search_key(key);
-                    print_pnode(new_pnode);
-                    assert(0);
-                }
+                // if (!old) {
+                //     data_layer_search_key(key);
+                //     print_pnode(new_pnode);
+                //     assert(0);
+                // }
                 hs_insert(new, tid, key, old);
                 return key;		
             } else {
+                printf("%lu %016lx\n", key, old);
                 perror("invalid address\n");
                 assert(0);
             }
@@ -782,15 +783,15 @@ static pkey_t hs_copy_one(struct ll_node* node, struct hash_set *new, struct has
                 return key;
             } else if (addr_in_pnode((unsigned long)old)) {
                 old = pnode_lookup(mid_pnode, key);
-                if (!old) {
-                    // stop_the_world();
-                    data_layer_search_key(key);
-                    printf("avg_key: %lu\n", avg_key);
-                    print_pnode(mid_pnode);
-                    print_pnode(mid_pnode->table->forward->pnode);
-                    // dump_pnode_list_summary();
-                    assert(0);
-                }
+                // if (!old) {
+                //     // stop_the_world();
+                //     data_layer_search_key(key);
+                //     printf("avg_key: %lu\n", avg_key);
+                //     print_pnode(mid_pnode);
+                //     print_pnode(mid_pnode->table->forward->pnode);
+                //     // dump_pnode_list_summary();
+                //     assert(0);
+                // }
                 hs_insert(mid, tid, key, old);
                 return key;		
             } else {
