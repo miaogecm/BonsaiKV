@@ -253,6 +253,18 @@ static void master_wait_workers(struct thread_info* master) {
 	}
 }
 
+static inline int need_flush_log() {
+	struct log_layer *layer = LOG(bonsai);
+    int cpu, total = 0;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        total += atomic_read(&layer->nlogs[cpu].cnt);
+        if (total >= CHKPT_NLOG_INTERVAL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void pflush_master(struct thread_info* this) {
 	struct log_layer *layer = LOG(bonsai);
 	
@@ -276,9 +288,9 @@ static void pflush_master(struct thread_info* this) {
 		park_master();
 
 		__this->t_state = S_RUNNING;
-		do {
+		while(need_flush_log() && !atomic_read(&layer->exit)) {
 			oplog_flush(bonsai);
-		}while(atomic_read(&layer->nlogs) >= CHKPT_NLOG_INTERVAL && !atomic_read(&layer->exit));
+        }
 
         if (unlikely(atomic_read(&layer->force_flush))) {
             oplog_flush(bonsai);
@@ -322,6 +334,7 @@ int bonsai_user_thread_init() {
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
 	thread->t_pid = gettid();
+    thread->t_cpu = get_cpu();
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
 
@@ -354,8 +367,7 @@ int bonsai_pflushd_thread_init() {
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = atomic_add_return(1, &tids);
-		//thread->t_cpu = (i + NUM_USER_THREAD);
-        thread->t_cpu = i;
+		thread->t_cpu = (i + NUM_USER_THREAD);
 		thread->t_state = S_UNINIT;
 		init_workqueue(thread, &thread->t_wq);
 		thread->t_data = NULL;

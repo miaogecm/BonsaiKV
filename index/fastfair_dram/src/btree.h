@@ -105,6 +105,8 @@ public:
   void printAll();
 
   friend class page;
+
+    char *btree_lowerbound(entry_key_t key);
 };
 
 class header {
@@ -759,6 +761,137 @@ public:
     }
   }
 
+  char *linear_search_lowbound(entry_key_t key) {
+    int i = 1;
+    uint8_t previous_switch_counter;
+    char *ret = NULL;
+    char *t;
+    entry_key_t k;
+
+retry:
+    if (hdr.leftmost_ptr == NULL) { // Search a leaf node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        // search from left ro right
+        if (IS_FORWARD(previous_switch_counter)) {
+          if ((k = records[0].key) >= key) {
+            if ((t = records[0].ptr) != NULL) {
+              if (k == records[0].key) {
+                ret = t;
+                continue;
+              }
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if ((k = records[i].key) >= key) {
+              if (records[i - 1].ptr != (t = records[i].ptr)) {
+                if (k == records[i].key) {
+                  ret = t;
+                  break;
+                }
+              }
+            }
+          }
+        } else { // search from right to left
+          for (i = count() - 1; i > 0; --i) {
+            if ((k = records[i].key) >= key) {
+              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
+                if (k == records[i].key) {
+                  ret = t;
+                  // break;
+                }
+              }
+            }
+          }
+
+          if (!ret) {
+            if ((k = records[0].key) >= key) {
+              if (NULL != (t = records[0].ptr) && t) {
+                if (k == records[0].key) {
+                  ret = t;
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if (ret) {
+        return ret;
+      }
+
+      // if ((t = (char *)hdr.sibling_ptr) && key >= ((page *)t)->records[0].key)
+      if ((t = (char *)hdr.sibling_ptr)) {
+        return t;
+      }
+
+      printf("key: %lu\n", key);
+      goto retry;
+      assert(0);
+      return NULL;
+    } else { // internal node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        if (IS_FORWARD(previous_switch_counter)) {
+          if (key < (k = records[0].key)) {
+            if ((t = (char *)hdr.leftmost_ptr) != records[0].ptr) {
+              ret = t;
+              continue;
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if (key < (k = records[i].key)) {
+              if ((t = records[i - 1].ptr) != records[i].ptr) {
+                ret = t;
+                break;
+              }
+            }
+          }
+
+          if (!ret) {
+            ret = records[i - 1].ptr;
+            continue;
+          }
+        } else { // search from right to left
+          for (i = count() - 1; i >= 0; --i) {
+            if (key >= (k = records[i].key)) {
+              if (i == 0) {
+                if ((char *)hdr.leftmost_ptr != (t = records[i].ptr)) {
+                  ret = t;
+                  break;
+                }
+              } else {
+                if (records[i - 1].ptr != (t = records[i].ptr)) {
+                  ret = t;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if ((t = (char *)hdr.sibling_ptr) != NULL) {
+        if (key >= ((page *)t)->records[0].key)
+          return t;
+      }
+
+      if (ret) {
+        return ret;
+      } else
+        return (char *)hdr.leftmost_ptr;
+    }
+
+    return NULL;
+  }
+
   char *linear_search(entry_key_t key) {
     int i = 1;
     uint8_t previous_switch_counter;
@@ -953,9 +1086,22 @@ char *btree::btree_search(entry_key_t key) {
     }
   }
 
-  if (!t) {
-    ff_print("NOT FOUND %lu, t = %x\n", key, t);
-    return NULL;
+  return (char *)t;
+}
+
+char *btree::btree_lowerbound(entry_key_t key) {
+  page *p = (page *)root;
+
+  while (p->hdr.leftmost_ptr != NULL) {
+    p = (page *)p->linear_search(key);
+  }
+
+  page *t;
+  while ((t = (page *)p->linear_search_lowbound(key)) == p->hdr.sibling_ptr) {
+    p = t;
+    if (!p) {
+      break;
+    }
   }
 
   return (char *)t;
