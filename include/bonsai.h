@@ -27,7 +27,7 @@ typedef int (*remove_func_t)(void* index_struct, pkey_t key);
 typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
-#define MPTABLE_ARENA_SIZE          (1 * 1024 * 1024 * 1024ul)  // 1GB
+#define MPTABLE_ARENA_SIZE          (2 * 1024 * 1024 * 1024ul)  // 2GB
 
 #define NUM_MERGE_HASH_BUCKET		131072
 

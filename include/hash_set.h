@@ -40,7 +40,7 @@ struct hash_set {
     int set_size;  /* how many items in the hash_set */
     union {
         struct {
-            float load_factor;   /* expect value of the length of each bucket list */
+            int load_factor;   /* expect value of the length of each bucket list */
             unsigned long capacity_order; /* how many buckets in the hash_set, capacity_order <= MAX_NUM_BUCKETS */
             segment_t *main_array[MAIN_ARRAY_LEN];  /* main_array is static allocated */
         };
