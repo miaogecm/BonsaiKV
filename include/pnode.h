@@ -10,6 +10,7 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "numa_config.h"
+#include "atomic128_2.h"
 
 #if 0
 #define NUM_ENT_PER_PNODE      		32
@@ -89,7 +90,7 @@ enum {
 #define PNODE_CACHE_SIZE		4
 
 #define PNODE_BITMAP_FULL		0x7fffffffffff
-
+#define CACHE_MASK			   0x3800000000000
 /**/
 struct pnode_meta {
 	__le64		bitmap;
@@ -102,7 +103,7 @@ struct pnode {
 	/*cacheline 0*/
 	struct pnode_meta 	meta;
 
-	pentry_t			cache_e[PNODE_CACHE_SIZE];
+	union atomic_u128_2	cache_e[PNODE_CACHE_SIZE];
 	
 	/*cacheline 1 ~ 4*/
 	pentry_t 			e[NUM_ENTRY_PER_PNODE];
@@ -116,18 +117,19 @@ struct pnode {
 	__le8				stale;
 };
 
-#define PNODE_LOCK(node)			((node)->meta.lock)
-#define PNODE_FGPRT(node, i) 		((node)->meta.fgprt[i])
-#define PNODE_BITMAP(node) 			((node)->meta.bitmap)
-#define PNODE_CACHE_KEY(node, i)	((node)->cache_e[i].k)
-#define PNODE_CACHE_VAL(node, i)	((node)->cache_e[i].v)
-#define PNODE_KEY(node, i)			((node)->e[i].k)
-#define PNODE_VAL(node, i)			((node)->e[i].v)
-#define PNODE_SORTED_KEY(node, i)	(PNODE_KEY(node, (node)->slot[i]))
-#define PNODE_SORTED_VAL(node, i)	(PNODE_VAL(node, (node)->slot[i]))
-#define PNODE_ANCHOR_KEY(node)		((node)->anchor_key)
-#define PNODE_MAX_KEY(node)			(PNODE_SORTED_KEY(node, (node)->slot[0]))
-#define PNODE_MIN_KEY(node)			(PNODE_SORTED_KEY(node, 0))
+#define PNODE_LOCK(node)						((node)->meta.lock)
+#define PNODE_FGPRT(node, i) 					((node)->meta.fgprt[i])
+#define PNODE_NRU(node)							((node)->meta.nru)
+#define PNODE_BITMAP(node) 						((node)->meta.bitmap)
+#define PNODE_CACHE_ENT(node, i)				((union atomic_u128_2)AtomicLoad128_2(&(node)->cache_e[i]))
+#define PNODE_SET_CACHE_ENT(node, i, old, new)	(AtomicCAS128_2(&(node)->cache_e[i], old, new))
+#define PNODE_KEY(node, i)						((node)->e[i].k)
+#define PNODE_VAL(node, i)						((node)->e[i].v)
+#define PNODE_SORTED_KEY(node, i)				(PNODE_KEY(node, (node)->slot[i]))
+#define PNODE_SORTED_VAL(node, i)				(PNODE_VAL(node, (node)->slot[i]))
+#define PNODE_ANCHOR_KEY(node)					((node)->anchor_key)
+#define PNODE_MAX_KEY(node)						(PNODE_SORTED_KEY(node, (node)->slot[0]))
+#define PNODE_MIN_KEY(node)						(PNODE_SORTED_KEY(node, 1))
 
 static int key_cmp(pkey_t a, pkey_t b) {
 	if (a < b) return -1;

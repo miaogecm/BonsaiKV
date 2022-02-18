@@ -331,13 +331,13 @@ retry:
             goto retry;
         }
 
-		stop_the_world();
-		bonsai_print("***************************key: %lu; addr: %016lx*****************************\n", key, addr);
-		printf("table anchor_key: %016lx; forward: %016lx\n", table->pnode, table->forward ? table->forward->pnode : NULL);
-		mptable_search_key(key);
-		data_layer_search_key(key);
-		dump_pnode_list_summary();
-		assert(0);
+		// stop_the_world();
+		// bonsai_print("***************************key: %lu; addr: %016lx*****************************\n", key, addr);
+		// printf("table anchor_key: %016lx; forward: %016lx\n", table->pnode, table->forward ? table->forward->pnode : NULL);
+		// mptable_search_key(key);
+		// data_layer_search_key(key);
+		// dump_pnode_list_summary();
+		// assert(0);
 	}
 
 	return -ENOENT;

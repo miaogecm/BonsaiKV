@@ -744,23 +744,72 @@ static uint8_t hash8(pkey_t key) {
 }
 
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
-	int h, i;
+	int h, i, j, nru_flag;
+	union atomic_u128_2 ent, old_ent, new_ent;
+	uint8_t off;
+	static int cache_hit = 0, cache_miss = 0;
 	
+	if (unlikely((cache_hit + cache_miss) % 100000 == 0)) {
+		printf("cache hit rate: %.2lf\n", 1.0 * cache_hit / (cache_hit + cache_miss));
+	}
+
 	h = hash8(key);
 	read_lock(&PNODE_LOCK(pnode));
 
 	for (i = 0; i < PNODE_CACHE_SIZE; i++) {
-		if (key_cmp(PNODE_CACHE_KEY(pnode, i), key) == 0) {
-			read_unlock(&PNODE_LOCK(pnode));
-			return PNODE_CACHE_VAL(pnode, i);
+		if (PNODE_BITMAP(pnode) & (1ULL << (NUM_ENTRY_PER_PNODE + i))) {
+			ent = PNODE_CACHE_ENT(pnode, i);
+			if (key_cmp(ent.hi, key) == 0) {
+				read_unlock(&PNODE_LOCK(pnode));
+				cache_hit++;
+				return (pval_t*) ent.lo;
+			}
 		}
 	}
+	cache_miss++;
 
+	nru_flag = 0;
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i++) {
-		if (PNODE_FGPRT(pnode, i) == h) {
-			if (key_cmp(PNODE_KEY(pnode, i), key) == 0) {
-				read_unlock(&PNODE_LOCK(pnode));
-				return PNODE_VAL(pnode, i);
+		if (PNODE_BITMAP(pnode) & (1ULL << i)) {
+			if (PNODE_FGPRT(pnode, i) == h) {
+				if (key_cmp(PNODE_KEY(pnode, i), key) == 0) {
+					if (PNODE_BITMAP(pnode) & CACHE_MASK != CACHE_MASK) {
+						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
+							off = 1ULL << (NUM_ENTRY_PER_PNODE + j);
+							if (!(PNODE_BITMAP(pnode) & off)) {
+								old_ent = PNODE_CACHE_ENT(pnode, j);
+								new_ent.hi = PNODE_KEY(pnode, i);
+								new_ent.lo = &PNODE_VAL(pnode, i);
+								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
+									PNODE_BITMAP(pnode) |= off;
+									PNODE_NRU(pnode) &= ~(1 << j);
+								}
+							}
+						}
+					} else {
+retry:
+						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
+							off = 1 << j;
+							if (PNODE_NRU(pnode) & off) {
+								old_ent = PNODE_CACHE_ENT(pnode, j);
+								new_ent.hi = PNODE_KEY(pnode, i);
+								new_ent.lo = &PNODE_VAL(pnode, i);
+								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
+									PNODE_NRU(pnode) &= ~off;
+								}
+								nru_flag = 1;
+								break;
+							}
+							if (!nru_flag) {
+								nru_flag = 1;
+								PNODE_NRU(pnode) = 0x7;
+								goto retry;
+							}
+						}
+					}
+					read_unlock(&PNODE_LOCK(pnode));
+					return &PNODE_VAL(pnode, i);
+				}
 			}
 		}
 	}
@@ -950,17 +999,17 @@ retry:
 			log = OPLOG(addr);
 			ret = ordo_cmp_clock(log->o_stamp, time_stamp);
 			if (ret == ORDO_LESS_THAN || ret == ORDO_UNCERTAIN) {
-				mptable_update_addr(table, key, &pnode->e[pos].v);
+				mptable_update_addr(table, key, &PNODE_VAL(pnode, pos));
 			}
 		} else {
-			mptable_update_addr(table, key, &pnode->e[pos].v);
+			mptable_update_addr(table, key, &PNODE_VAL(pnode, pos));
 		}
 		
 		pnode_sort_slot(pnode, pos, key, OP_INSERT);
 		bonsai_flush(&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
 
 		PNODE_FGPRT(pnode, pos) = hash8(key);
-		PNODE_BITMAP(pnode) |= 1ULL << pos;
+		set_bit(pos, &PNODE_BITMAP(pnode));
 		bonsai_flush(&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 
 		write_unlock(&PNODE_LOCK(pnode));
@@ -1037,7 +1086,7 @@ retry:
 	}
 	bonsai_flush((void*)&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
 	bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
-
+	
 	write_unlock(&PNODE_LOCK(pnode));
 
 	goto retry;
@@ -1269,8 +1318,8 @@ die:
 void print_pnode(struct pnode* pnode) {
 	int i;
 	
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", 
-			PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu] anchor{%lu}:\n", 
+			PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -1281,12 +1330,15 @@ void print_pnode(struct pnode* pnode) {
 	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i ++)
+		bonsai_print("fp[%d]: %d; ", i, PNODE_FGPRT(pnode, i));
+	bonsai_print("\n");
+	for (i = 0; i < NUM_ENTRY_PER_PNODE; i ++)
 		bonsai_print("[%d]: <%lu, %lu> ", i, pnode->e[i].k, pnode->e[i].v);
 	bonsai_print("\n");
 }
 
 void print_pnode_summary(struct pnode* pnode) {
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu] anchor{%lu}\n", PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(pnode));
 }
 
 void dump_pnode_list_summary() {
