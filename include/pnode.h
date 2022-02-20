@@ -12,7 +12,7 @@ extern "C" {
 #include "numa_config.h"
 #include "atomic128_2.h"
 
-#if 0
+#ifndef USE_FP
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
@@ -50,12 +50,14 @@ struct pnode {
 	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
 }__packed;
 
-#define pnode_anchor_key(pnode) pnode->anchor_key
-#define pnode_max_key(pnode) pnode->e[pnode->slot[pnode->slot[0]]].k
-#define pnode_min_key(pnode) pnode->e[pnode->slot[1]].k
+#define PNODE_ANCHOR_KEY(pnode) 	pnode->anchor_key
+#define PNODE_MAX_KEY(pnode) 		pnode->e[pnode->slot[pnode->slot[0]]].k
+#define PNODE_MIN_KEY(pnode)		pnode->e[pnode->slot[1]].k
 
-#define pnode_entry_n_key(pnode, n) pnode->e[pnode->slot[n]].k
-#define pnode_entry_n_val(pnode, n) pnode->e[pnode->slot[n]].v
+#define PNODE_SORTED_KEY(pnode, n) 	pnode->e[pnode->slot[n]].k
+#define PNODE_SORTED_VAL(pnode, n) 	pnode->e[pnode->slot[n]].v
+
+#define PNODE_BITMAP(node) 			((node)->bitmap)
 
 static int key_cmp(pkey_t a, pkey_t b) {
     if (a < b) return -1;

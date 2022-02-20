@@ -29,7 +29,7 @@ POBJ_LAYOUT_END(BONSAI);
 
 extern struct bonsai_info *bonsai;
 
-#if 0
+#ifndef USE_FP
 void print_pnode(struct pnode* pnode);
 
 static uint64_t hash(uint64_t x) {
@@ -103,7 +103,7 @@ static void insert_pnode_list(struct pnode* pnode, pkey_t max_key) {
 
 	write_lock(&layer->lock);
 	list_for_each_entry(pos, head, list) {
-		if (key_cmp(pnode_anchor_key(pos), max_key) > 0)
+		if (key_cmp(PNODE_ANCHOR_KEY(pos), max_key) > 0)
 			break;
 		else
 			prev = pos;
@@ -273,16 +273,16 @@ retry:
     table = this_node(&LOG(bonsai)->mptable_arena, pnode->table);
 	
 	assert(pnode);
-	assert(key_cmp(key, pnode_anchor_key(pnode)) <= 0);
+	assert(key_cmp(key, PNODE_ANCHOR_KEY(pnode)) <= 0);
 
 	bonsai_debug("thread[%d] <%lu %lu> find_lowbound: pnode %016lx max %lu\n", 
-		get_tid(), key, value, pnode, pnode_anchor_key(pnode));
+		get_tid(), key, value, pnode, PNODE_ANCHOR_KEY(pnode));
 	
 	write_lock(pnode->bucket_lock[bucket_id]);
 	
 	prev_node = list_prev_entry(pnode, list);
 
-	if (prev_node != head_node && key_cmp(pnode_anchor_key(prev_node), key) >= 0) {
+	if (prev_node != head_node && key_cmp(PNODE_ANCHOR_KEY(prev_node), key) >= 0) {
 		write_unlock(pnode->bucket_lock[bucket_id]);
 		goto retry;
 	}
@@ -355,7 +355,7 @@ retry:
     }
     new_pnode->slot[0] = d;
    	new_pnode->bitmap = new_removed;
-	new_pnode->anchor_key = pnode_max_key(new_pnode);
+	new_pnode->anchor_key = PNODE_MAX_KEY(new_pnode);
 
 	mid_pnode = alloc_pnode(numa_node);
     memcpy(mid_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENT_PER_PNODE);
@@ -364,7 +364,7 @@ retry:
 	avg_key = (pkey_t) avg.lo;
 
 	for (i = d + 1; i <= n; i++) {
-		if (key_cmp(pnode_entry_n_key(pnode, i), avg_key) > 0) {
+		if (key_cmp(PNODE_SORTED_KEY(pnode, i), avg_key) > 0) {
 			break;
 		}
 		mid_removed |= (1ULL << pnode->slot[i]);
@@ -457,7 +457,7 @@ find:
     write_unlock(pnode->slot_lock);
 
 	if (unlikely(!pnode->slot[0])) {
-		i_layer->remove(i_layer->index_struct, pnode_anchor_key(pnode));
+		i_layer->remove(i_layer->index_struct, PNODE_ANCHOR_KEY(pnode));
 		remove_pnode_list(pnode);
         mptable_free(LOG(bonsai), pnode->table);
 		free_pnode(pnode);
@@ -483,14 +483,14 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
 	
 	slot = pnode->slot;
 	while(index <= slot[0]) {
-		if (likely(key_cmp(pnode_entry_n_key(pnode, index), high) <= 0 
-				&& key_cmp(pnode_entry_n_key(pnode, index), low) >= 0)) {
-			result[n++] = pnode_entry_n_val(pnode, index);
+		if (likely(key_cmp(PNODE_SORTED_KEY(pnode, index), high) <= 0 
+				&& key_cmp(PNODE_SORTED_KEY(pnode, index), low) >= 0)) {
+			result[n++] = PNODE_SORTED_VAL(pnode, index);
 		}
 		index++;
 	}
 
-	*curr = pnode_anchor_key(pnode);
+	*curr = PNODE_ANCHOR_KEY(pnode);
 
 	return n;
 }
@@ -622,7 +622,7 @@ void check_pnode(pkey_t key, struct pnode* pnode) {
 
 	/* check pnode entries */
 	for (i = 1; i <= pnode->slot[0]; i ++) {
-			curr = pnode_entry_n_key(pnode, i);
+			curr = PNODE_SORTED_KEY(pnode, i);
 			if (curr < prev) {
 				bonsai_print("pnode bad key order key[%d]:%lu key[%d]:%lu [%lu]\n", 
 							i - 1, prev, i, curr, key);
@@ -641,14 +641,14 @@ void print_pnode(struct pnode* pnode) {
 	int i;
 	
 	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", 
-			pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
+			pnode->bitmap, pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
 	bonsai_print("\n");
 
 	for (i = 1; i <= pnode->slot[0]; i ++)
-		bonsai_print("key[%d]: %lu; ", i, pnode_entry_n_key(pnode, i));
+		bonsai_print("key[%d]: %lu; ", i, PNODE_SORTED_KEY(pnode, i));
 	bonsai_print("\n");
 	
 	for (i = 0; i < NUM_ENT_PER_PNODE; i ++)
@@ -657,7 +657,7 @@ void print_pnode(struct pnode* pnode) {
 }
 
 void print_pnode_summary(struct pnode* pnode) {
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu]\n", pnode->bitmap, pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode));
 }
 
 void dump_pnode_list_summary() {
@@ -669,7 +669,7 @@ void dump_pnode_list_summary() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_debug("[pnode[%d]{%016lx} == bitmap: %016lx slot[0]: %d max: %lu anchor: %lu]\n", j++, pnode, pnode->bitmap, pnode->slot[0], pnode_max_key(pnode), pnode_anchor_key(pnode));
+		bonsai_debug("[pnode[%d]{%016lx} == bitmap: %016lx slot[0]: %d max: %lu anchor: %lu]\n", j++, pnode, pnode->bitmap, pnode->slot[0], PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(pnode));
 		key_sum += pnode->slot[0];
 		pnode_sum ++;
 	}
@@ -689,7 +689,7 @@ void dump_pnode_list() {
 
 	read_lock(&layer->lock);
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
-		bonsai_print("pnode[%d] == bitmap: %016lx slot[0]: %d [%lu %lu]\n", j++, pnode->bitmap, pnode->slot[0], pnode_min_key(pnode), pnode_max_key(pnode));
+		bonsai_print("pnode[%d] == bitmap: %016lx slot[0]: %d [%lu %lu]\n", j++, pnode->bitmap, pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode));
 		key_sum += pnode->slot[0];
 		pnode_sum ++;
 
@@ -698,8 +698,8 @@ void dump_pnode_list() {
 		bonsai_print("\n");
 
 		for (i = 1; i <= pnode->slot[0]; i ++) {
-			curr = pnode_entry_n_key(pnode, i);
-			bonsai_print("key[%d]: %lu; ", i, pnode_entry_n_key(pnode, i));
+			curr = PNODE_SORTED_KEY(pnode, i);
+			bonsai_print("key[%d]: %lu; ", i, PNODE_SORTED_KEY(pnode, i));
 			if (curr < prev) assert(0);
 			prev = curr;
 		}
@@ -725,7 +725,7 @@ struct pnode* data_layer_search_key(pkey_t key) {
 	
 	list_for_each_entry(pnode, &layer->pnode_list, list) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
-			if (!key_cmp(pnode_entry_n_key(pnode, i), key)) {
+			if (!key_cmp(PNODE_SORTED_KEY(pnode, i), key)) {
 				bonsai_print("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);
 				print_pnode(pnode);
 				return pnode;
