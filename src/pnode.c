@@ -29,7 +29,7 @@ POBJ_LAYOUT_END(BONSAI);
 
 extern struct bonsai_info *bonsai;
 
-#ifndef USE_FP
+#ifndef PNODE_FP
 void print_pnode(struct pnode* pnode);
 
 static uint64_t hash(uint64_t x) {

@@ -12,7 +12,7 @@ extern "C" {
 #include "numa_config.h"
 #include "atomic128_2.h"
 
-#ifndef USE_FP
+#ifndef PNODE_FP
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
 #define NUM_ENT_PER_BUCKET     		4
