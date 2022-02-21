@@ -747,66 +747,15 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 	int h, i, j, nru_flag;
 	union atomic_u128_2 ent, old_ent, new_ent;
 	uint8_t off;
-	static int cache_hit = 0, cache_miss = 0;
-	
-	if (unlikely((cache_hit + cache_miss) % 100000 == 0)) {
-		printf("cache hit rate: %.2lf\n", 1.0 * cache_hit / (cache_hit + cache_miss));
-	}
 
 	h = hash8(key);
 	read_lock(&PNODE_LOCK(pnode));
-
-	for (i = 0; i < PNODE_CACHE_SIZE; i++) {
-		if (PNODE_BITMAP(pnode) & (1ULL << (NUM_ENTRY_PER_PNODE + i))) {
-			ent = PNODE_CACHE_ENT(pnode, i);
-			if (key_cmp(ent.hi, key) == 0) {
-				read_unlock(&PNODE_LOCK(pnode));
-				cache_hit++;
-				return (pval_t*) ent.lo;
-			}
-		}
-	}
-	cache_miss++;
 
 	nru_flag = 0;
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i++) {
 		if (PNODE_BITMAP(pnode) & (1ULL << i)) {
 			if (PNODE_FGPRT(pnode, i) == h) {
 				if (key_cmp(PNODE_KEY(pnode, i), key) == 0) {
-					if (PNODE_BITMAP(pnode) & CACHE_MASK != CACHE_MASK) {
-						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
-							off = 1ULL << (NUM_ENTRY_PER_PNODE + j);
-							if (!(PNODE_BITMAP(pnode) & off)) {
-								old_ent = PNODE_CACHE_ENT(pnode, j);
-								new_ent.hi = PNODE_KEY(pnode, i);
-								new_ent.lo = &PNODE_VAL(pnode, i);
-								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
-									PNODE_BITMAP(pnode) |= off;
-									PNODE_NRU(pnode) &= ~(1 << j);
-								}
-							}
-						}
-					} else {
-retry:
-						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
-							off = 1 << j;
-							if (PNODE_NRU(pnode) & off) {
-								old_ent = PNODE_CACHE_ENT(pnode, j);
-								new_ent.hi = PNODE_KEY(pnode, i);
-								new_ent.lo = &PNODE_VAL(pnode, i);
-								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
-									PNODE_NRU(pnode) &= ~off;
-								}
-								nru_flag = 1;
-								break;
-							}
-							if (!nru_flag) {
-								nru_flag = 1;
-								PNODE_NRU(pnode) = 0x7;
-								goto retry;
-							}
-						}
-					}
 					read_unlock(&PNODE_LOCK(pnode));
 					return &PNODE_VAL(pnode, i);
 				}
@@ -870,7 +819,7 @@ static struct pnode* alloc_pnode(int node) {
 
 	pnode->table = NULL;
 
-	memset(pnode->forward, 0, NUM_SOCKET * sizeof(__le64));
+	memset(pnode->forward, 0, NUM_SOCKET * NUM_BUCKET * sizeof(__le64));
 
 	pnode->anchor_key = 0;
 
@@ -1230,16 +1179,16 @@ void sentinel_node_init() {
  * @key: target key
  * @numa_node: remote NUMA node
  */
-pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
-#if 0
+pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr) {
 	struct pnode* remote_pnode = NULL;
 	int bucket_id, i, offset;
 
-	bucket_id = PNODE_BUCKET_HASH(key);
+	bucket_id = ((uint64_t)addr - (uint64_t)pnode->e) / CACHELINE_SIZE;
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
+
 	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode(numa_node);
-		memcpy(&remote_pnode[offset], &pnode->e[offset], 
+		memcpy(&remote_pnode->e[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg2(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
 			free_pnode(pnode); /* fail */
@@ -1255,7 +1204,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 		if (key_cmp(remote_pnode->e[i].k, key))
 			return &remote_pnode->e[i].v;
 	}
-#endif
+	
 	return NULL;
 }
 
@@ -1287,7 +1236,7 @@ void check_pnode(pkey_t key, struct pnode* pnode) {
 	int i, die = 0;
 
 	for (i = 1; i <= pnode->slot[0]; i ++) {
-		bitmap |= (1<<pnode->slot[i]);
+		bitmap |= (1ULL << pnode->slot[i]);
 	}
 
 #if 0
