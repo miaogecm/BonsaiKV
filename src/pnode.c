@@ -744,14 +744,11 @@ static uint8_t hash8(pkey_t key) {
 }
 
 pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
-	int h, i, j, nru_flag;
-	union atomic_u128_2 ent, old_ent, new_ent;
-	uint8_t off;
+	int h, i, j;
 
 	h = hash8(key);
 	read_lock(&PNODE_LOCK(pnode));
 
-	nru_flag = 0;
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i++) {
 		if (PNODE_BITMAP(pnode) & (1ULL << i)) {
 			if (PNODE_FGPRT(pnode, i) == h) {
@@ -1057,10 +1054,54 @@ static void remove_pnode_list(struct pnode* pnode) {
 	write_unlock(&layer->lock);
 }
 
+static void pnode_insert_one(struct pnode* pnode, pkey_t key, pval_t val, struct mptable* table) {
+	pval_t* addr;
+	int pos, ret;
+	
+	pos = find_unused_entry(PNODE_BITMAP(pnode));
+
+	PNODE_KEY(pnode, pos) = key;
+	PNODE_VAL(pnode, pos) = val;
+	bonsai_flush(&(PNODE_KEY(pnode, pos)), sizeof(pentry_t), 1);
+
+	addr = __mptable_lookup(table, key, 0);
+	if (!addr && ACCESS_ONCE(table->forward)) {
+		addr = __mptable_lookup(table->forward, key, 0);
+	}
+
+	if (addr_in_log((unsigned long)addr)) {
+		mptable_update_addr(table, key, &PNODE_VAL(pnode, pos));
+	} else {
+		mptable_update_addr(table, key, &PNODE_VAL(pnode, pos));
+	}
+
+	pnode_sort_slot(pnode, pos, key, OP_INSERT);
+	
+	PNODE_FGPRT(pnode, pos) = hash8(key);
+	set_bit(pos, &PNODE_BITMAP(pnode));
+}
+
+static int pnode_merge(struct pnode* pnode, struct pnode* near) {
+	int i;
+	struct mptable* table;
+
+	table = this_node(&LOG(bonsai)->mptable_arena, pnode->table);
+
+	for (i = 0; i < pnode->slot[0]; i++) {
+		pnode_insert_one(near, PNODE_KEY(pnode, i), PNODE_VAL(pnode, i), table);
+	}
+	
+	bonsai_flush((void*)&near->slot, NUM_ENTRY_PER_PNODE + 1, 0);	
+	bonsai_flush((void*)&PNODE_BITMAP(near), sizeof(__le64), 1);
+
+	list_del(pnode);
+}
+
 int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
+	struct data_layer* d_layer = DATA(bonsai);
 	struct mptable* m;
-	struct pnode* pnode;
+	struct pnode *pnode, *near;
 	int h, pos, i, node;
 	
 	pnode = pnode_find_lowbound(key);
@@ -1098,9 +1139,20 @@ int pnode_remove(pkey_t key) {
 		remove_pnode_list(pnode);
         mptable_free(LOG(bonsai), pnode->table);
 		free_pnode(pnode);
-	} else {
+	} else if (pnode->slot[0] > NUM_ENTRY_PER_PNODE / 2) {
 		bonsai_flush((void*)&pnode->slot, sizeof(NUM_ENTRY_PER_PNODE + 1), 0);	
 		bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
+		write_unlock(&PNODE_LOCK(pnode));
+	} else {
+		// merge
+		near = list_next_entry(pnode, list);
+		if (near != list_entry(&d_layer->pnode_list, struct pnode, list)) {
+			write_lock(&PNODE_LOCK(near));
+			if (near->slot[0] + pnode->slot[0] <= NUM_ENTRY_PER_PNODE) {
+				pnode_merge(pnode, near);
+			}
+			write_unlock(&PNODE_LOCK(near));
+		}
 		write_unlock(&PNODE_LOCK(pnode));
 	}
 

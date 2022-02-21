@@ -146,7 +146,7 @@ extern int pnode_remove(pkey_t key);
 extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
 
 
-extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
+extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr);
 
 extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr);
 

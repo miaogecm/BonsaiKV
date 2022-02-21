@@ -312,7 +312,7 @@ retry:
 		} else {
 			/* FIXME */
 			assert(0);
-#if 1
+#if 0
 			if (map_addrs[0]) {
 				/* pull latest value */
 				m = MPTABLE_NODE(tables, numa_node);
