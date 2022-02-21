@@ -1,4 +1,4 @@
-## Bonsai: A Transparent, Scalable, NUMA-aware Persistent Data Store for DRAM Index Structures
+## Building High-performance Key-Value Stores for DRAM-NVMM tiered Systems with Bonsai
 
 ### Introduction
 
