@@ -819,7 +819,7 @@ static struct pnode* alloc_pnode(int node) {
 
 	pnode->table = NULL;
 
-	memset(pnode->forward, 0, NUM_SOCKET * sizeof(__le64));
+	memset(pnode->forward, 0, NUM_SOCKET * NUM_BUCKET * sizeof(__le64));
 
 	pnode->anchor_key = 0;
 
@@ -1179,16 +1179,16 @@ void sentinel_node_init() {
  * @key: target key
  * @numa_node: remote NUMA node
  */
-pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
-#if 0
+pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr) {
 	struct pnode* remote_pnode = NULL;
 	int bucket_id, i, offset;
 
-	bucket_id = PNODE_BUCKET_HASH(key);
+	bucket_id = ((uint64_t)addr - (uint64_t)pnode->e) / CACHELINE_SIZE;
 	offset = bucket_id * NUM_ENT_PER_BUCKET;
+
 	if (pnode->forward[numa_node][bucket_id] == 0) {
 		remote_pnode = alloc_pnode(numa_node);
-		memcpy(&remote_pnode[offset], &pnode->e[offset], 
+		memcpy(&remote_pnode->e[offset], &pnode->e[offset], 
             NUM_ENT_PER_BUCKET * sizeof(pentry_t));
 		if (!cmpxchg2(&pnode->forward[numa_node][bucket_id], NULL, remote_pnode))
 			free_pnode(pnode); /* fail */
@@ -1204,7 +1204,7 @@ pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node) {
 		if (key_cmp(remote_pnode->e[i].k, key))
 			return &remote_pnode->e[i].v;
 	}
-#endif
+	
 	return NULL;
 }
 
@@ -1236,7 +1236,7 @@ void check_pnode(pkey_t key, struct pnode* pnode) {
 	int i, die = 0;
 
 	for (i = 1; i <= pnode->slot[0]; i ++) {
-		bitmap |= (1<<pnode->slot[i]);
+		bitmap |= (1ULL << pnode->slot[i]);
 	}
 
 #if 0

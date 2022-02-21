@@ -312,7 +312,7 @@ retry:
 		} else {
 			/* FIXME */
 			assert(0);
-#if 0
+#if 1
 			if (map_addrs[0]) {
 				/* pull latest value */
 				m = MPTABLE_NODE(tables, numa_node);
@@ -320,7 +320,7 @@ retry:
 				
 				/* migrate this value */
 				//pnode = (struct pnode*)log->o_addr;
-				addr = pnode_numa_move(pnode, key, numa_node);
+				addr = pnode_numa_move(pnode, key, numa_node, map_addrs[0]);
 				*val = *addr;
 				return 0;
 			}

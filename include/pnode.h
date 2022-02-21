@@ -91,7 +91,8 @@ enum {
 };
 
 #define NUM_ENTRY_PER_PNODE		48
-#define PNODE_CACHE_SIZE		4
+#define NUM_BUCKET				13
+#define NUM_ENT_PER_BUCKET		4
 
 #define PNODE_BITMAP_FULL		0xffffffffffff
 
@@ -114,11 +115,11 @@ struct pnode {
 	__le8				stale;
 	__le8				padding[CACHELINE_SIZE - NUM_ENTRY_PER_PNODE - 2];
 
-	/*cacheline 14*/
+	/*cacheline 14+*/
 	pkey_t 				anchor_key;
 	struct list_head 	list;
 	struct mptable*		table;
-	__le64 				forward[NUM_SOCKET];
+	__le64 				forward[NUM_SOCKET][NUM_BUCKET];
 };
 
 #define PNODE_LOCK(node)						((node)->meta.lock)
