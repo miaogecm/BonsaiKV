@@ -747,66 +747,15 @@ pval_t* pnode_lookup(struct pnode* pnode, pkey_t key) {
 	int h, i, j, nru_flag;
 	union atomic_u128_2 ent, old_ent, new_ent;
 	uint8_t off;
-	static int cache_hit = 0, cache_miss = 0;
-	
-	if (unlikely((cache_hit + cache_miss) % 100000 == 0)) {
-		printf("cache hit rate: %.2lf\n", 1.0 * cache_hit / (cache_hit + cache_miss));
-	}
 
 	h = hash8(key);
 	read_lock(&PNODE_LOCK(pnode));
-
-	for (i = 0; i < PNODE_CACHE_SIZE; i++) {
-		if (PNODE_BITMAP(pnode) & (1ULL << (NUM_ENTRY_PER_PNODE + i))) {
-			ent = PNODE_CACHE_ENT(pnode, i);
-			if (key_cmp(ent.hi, key) == 0) {
-				read_unlock(&PNODE_LOCK(pnode));
-				cache_hit++;
-				return (pval_t*) ent.lo;
-			}
-		}
-	}
-	cache_miss++;
 
 	nru_flag = 0;
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i++) {
 		if (PNODE_BITMAP(pnode) & (1ULL << i)) {
 			if (PNODE_FGPRT(pnode, i) == h) {
 				if (key_cmp(PNODE_KEY(pnode, i), key) == 0) {
-					if (PNODE_BITMAP(pnode) & CACHE_MASK != CACHE_MASK) {
-						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
-							off = 1ULL << (NUM_ENTRY_PER_PNODE + j);
-							if (!(PNODE_BITMAP(pnode) & off)) {
-								old_ent = PNODE_CACHE_ENT(pnode, j);
-								new_ent.hi = PNODE_KEY(pnode, i);
-								new_ent.lo = &PNODE_VAL(pnode, i);
-								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
-									PNODE_BITMAP(pnode) |= off;
-									PNODE_NRU(pnode) &= ~(1 << j);
-								}
-							}
-						}
-					} else {
-retry:
-						for (j = 0; j < PNODE_CACHE_SIZE; j++) {
-							off = 1 << j;
-							if (PNODE_NRU(pnode) & off) {
-								old_ent = PNODE_CACHE_ENT(pnode, j);
-								new_ent.hi = PNODE_KEY(pnode, i);
-								new_ent.lo = &PNODE_VAL(pnode, i);
-								if (PNODE_SET_CACHE_ENT(pnode, j, &old_ent, new_ent)) {
-									PNODE_NRU(pnode) &= ~off;
-								}
-								nru_flag = 1;
-								break;
-							}
-							if (!nru_flag) {
-								nru_flag = 1;
-								PNODE_NRU(pnode) = 0x7;
-								goto retry;
-							}
-						}
-					}
 					read_unlock(&PNODE_LOCK(pnode));
 					return &PNODE_VAL(pnode, i);
 				}

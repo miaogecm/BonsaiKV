@@ -12,6 +12,8 @@ extern "C" {
 #include "numa_config.h"
 #include "atomic128_2.h"
 
+#define PNODE_FP
+
 #ifndef PNODE_FP
 #define NUM_ENT_PER_PNODE      		32
 #define NUM_BUCKET      			8
@@ -88,43 +90,40 @@ enum {
 	PNODE_DATA_STALE,
 };
 
-#define NUM_ENTRY_PER_PNODE		47
+#define NUM_ENTRY_PER_PNODE		48
 #define PNODE_CACHE_SIZE		4
 
-#define PNODE_BITMAP_FULL		0x7fffffffffff
-#define CACHE_MASK			   0x3800000000000
-/**/
+#define PNODE_BITMAP_FULL		0xffffffffffff
+
+/*64 bytes*/
 struct pnode_meta {
 	__le64		bitmap;
 	rwlock_t 	lock;
-	__le8		nru;
 	__le8		fgprt[NUM_ENTRY_PER_PNODE];
 };
 
 struct pnode {
 	/*cacheline 0*/
 	struct pnode_meta 	meta;
-
-	union atomic_u128_2	cache_e[PNODE_CACHE_SIZE];
 	
-	/*cacheline 1 ~ 4*/
+	/*cacheline 1 ~ 12*/
 	pentry_t 			e[NUM_ENTRY_PER_PNODE];
 	
+	/*cacheline 13*/
+	__le8				slot[NUM_ENTRY_PER_PNODE + 1];
+	__le8				stale;
+	__le8				padding[CACHELINE_SIZE - NUM_ENTRY_PER_PNODE - 2];
+
+	/*cacheline 14*/
 	pkey_t 				anchor_key;
 	struct list_head 	list;
 	struct mptable*		table;
-	__le8				slot[NUM_ENTRY_PER_PNODE + 1];
-
 	__le64 				forward[NUM_SOCKET];
-	__le8				stale;
 };
 
 #define PNODE_LOCK(node)						((node)->meta.lock)
 #define PNODE_FGPRT(node, i) 					((node)->meta.fgprt[i])
-#define PNODE_NRU(node)							((node)->meta.nru)
 #define PNODE_BITMAP(node) 						((node)->meta.bitmap)
-#define PNODE_CACHE_ENT(node, i)				((union atomic_u128_2)AtomicLoad128_2(&(node)->cache_e[i]))
-#define PNODE_SET_CACHE_ENT(node, i, old, new)	(AtomicCAS128_2(&(node)->cache_e[i], old, new))
 #define PNODE_KEY(node, i)						((node)->e[i].k)
 #define PNODE_VAL(node, i)						((node)->e[i].v)
 #define PNODE_SORTED_KEY(node, i)				(PNODE_KEY(node, (node)->slot[i]))
