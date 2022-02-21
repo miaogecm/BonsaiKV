@@ -131,11 +131,6 @@ static void data_layer_deinit(struct data_layer* layer) {
 
 	write_lock(&layer->lock);
 	list_for_each_entry_safe(pnode, tmp, &layer->pnode_list, list) {
-		free(pnode->slot_lock);
-		for (i = 0; i < NUM_BUCKET; i ++) {
-			free(pnode->bucket_lock[i]);
-		}
-
 		list_del(&pnode->list);
 	}
 	write_unlock(&layer->lock);
