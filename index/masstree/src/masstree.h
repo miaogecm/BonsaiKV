@@ -30,6 +30,8 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+#include "utils.h"
+
 __BEGIN_DECLS
 
 struct masstree;
@@ -40,16 +42,16 @@ typedef struct {
 	void	(*free)(void *, size_t);
 } masstree_ops_t;
 
-masstree_t *	masstree_create(const masstree_ops_t *);
-void		masstree_destroy(masstree_t *);
+extern masstree_t *	masstree_create(const masstree_ops_t *);
+extern void			masstree_destroy(masstree_t *);
 
-void *		masstree_gc_prepare(masstree_t *);
-void		masstree_gc(masstree_t *, void *);
-size_t		masstree_maxheight(void);
+extern void *		masstree_gc_prepare(masstree_t *);
+extern void			masstree_gc(masstree_t *, void *);
+extern size_t		masstree_maxheight(void);
 
-void *		masstree_get(masstree_t *, const void *, size_t);
-bool		masstree_put(masstree_t *, const void *, size_t, void *);
-bool		masstree_del(masstree_t *, const void *, size_t);
+extern void *		masstree_get(masstree_t *, const void *, size_t);
+extern bool			masstree_put(masstree_t *, const void *, size_t, void *);
+extern bool			masstree_del(masstree_t *, const void *, size_t);
 
 __END_DECLS
 
