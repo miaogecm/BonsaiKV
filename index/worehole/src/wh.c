@@ -1597,7 +1597,7 @@ __wormleaf_search_ss(const struct wormleaf * const leaf, const struct kref * con
   }
 
   while (lo < hi) {
-    const u32 i = (lo + hi + 1) >> 1;
+    const int i = (lo + hi + 1) >> 1;
     const struct kv * const curr = wormleaf_kv_at_is(leaf, i);
     const int cmp = kref_kv_compare(key, curr);
     debug_assert(cmp != 0);
@@ -1653,7 +1653,7 @@ wormleaf_search_ss(const struct wormleaf * const leaf, const struct kref * const
 }
 
   static u32
-wormleaf_seek(const struct wormleaf * const leaf, const struct kref * const key)
+__wormleaf_seek(const struct wormleaf * const leaf, const struct kref * const key)
 {
   debug_assert(leaf->nr_sorted == leaf->nr_keys);
   wormleaf_prefetch_ss(leaf); // effective for both hit and miss
@@ -1663,6 +1663,21 @@ wormleaf_seek(const struct wormleaf * const leaf, const struct kref * const key)
   } else { // miss, binary search for gt
     int idx;
     idx = __wormleaf_search_ss(leaf, key);
+    return idx;
+  }
+}
+
+  static u32
+wormleaf_seek(const struct wormleaf * const leaf, const struct kref * const key)
+{
+  debug_assert(leaf->nr_sorted == leaf->nr_keys);
+  wormleaf_prefetch_ss(leaf); // effective for both hit and miss
+  const u32 ih = wormleaf_match_hs(leaf, key);
+  if (ih < WH_KPN) { // hit
+    return wormleaf_search_is(leaf, (u8)ih);
+  } else { // miss, binary search for gt
+    int idx;
+    idx = wormleaf_search_ss(leaf, key);
     return idx;
   }
 }
@@ -3193,7 +3208,7 @@ wormhole_iter_seek(struct wormhole_iter * const iter, const struct kref * const 
   wormhole_iter_leaf_sync_sorted(leaf);
 
   iter->leaf = leaf;
-  iter->is = wormleaf_seek(leaf, key);
+  iter->is = __wormleaf_seek(leaf, key);
   wormhole_iter_fix(iter);
 }
 

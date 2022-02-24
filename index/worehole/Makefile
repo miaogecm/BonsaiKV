@@ -1,45 +1,25 @@
-# Makefile
-# rules (always with .out)
-# SRC-X.out += abc        # extra source: abc.c
-# MOD-X.out += abc        # extra module: abc.c abc.h
-# ASM-X.out += abc        # extra assembly: abc.S
-# DEP-X.out += abc        # extra dependency: abc
-# FLG-X.out += -finline   # extra flags
-# LIB-X.out += abc        # extra -labc options
+CUR_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-# X.out : xyz.h xyz.c # for extra dependences that are to be compiled/linked.
+include $(CUR_DIR)/../Makefile.inc
 
-# X => X.out
-TARGETS += easydemo
-# X => X.c only
-SOURCES +=
-# X => X.S only
-ASSMBLY +=
-# X => X.c X.h
-MODULES += lib kv wh
-# X => X.h
-HEADERS += ctypes
+TARGETS = worehole
 
-FLG +=
-LIB += m
+IDX_SRCS 	= $(PWD)/src/index.c 
+BENCH_SRCS	= $(PWD)/../bench/bench.c
 
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),FreeBSD)
-LIB += execinfo
-endif
+LDFLAGS += -lwh 
 
-# when $ make FORKER_PAPI=y
-ifeq ($(strip $(FORKER_PAPI)),y)
-LIB += papi
-FLG += -DFORKER_PAPI
-endif
+all: $(TARGETS)
 
-bin : libwh.so
-libwh.so : Makefile Makefile.common lib.c lib.h kv.c kv.h wh.c wh.h wh.strip
-	$(eval ALLFLG := $(CSTD) $(EXTRA) $(FLG) -shared -fPIC)
-	$(eval ALLLIB := $(addprefix -l,$(LIB) $(LIB-$@)))
-	$(CCC) $(ALLFLG) -o $@ lib.c kv.c wh.c $(ALLLIB)
-	strip --strip-all --discard-all @wh.strip $@
+worehole: index.o bench.o $(LIB_DIR)/libbonsai.a
+	$(CC) $^ $(LDFLAGS) -o $@
 
+index.o: $(IDX_SRCS)
+	$(CC) -c $(CFLAGS) $^ $(LDFLAGS) -o $@
+	
+bench.o: $(BENCH_SRCS)
+	$(CC) -c $(CFLAGS) $^ $(LDFLAGS) -o $@
 
-include Makefile.common
+clean:
+	$(Q)rm -f $(TARGETS)
+	$(Q)rm -f bench.o index.o
