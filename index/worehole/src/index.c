@@ -11,22 +11,24 @@
 #include "kv.h"
 #include "wh.h"
 
+struct wormhole* wh;
+
 static void *_wh_init() {
-    struct wormhole* wh = wh_create();
+    wh = wh_create();
     struct wormref* ref = wh_ref(wh);
-    return (void*) wh;
+    return (void*) ref;
 }
 
 static void _wh_destory(void* index_struct) {
-    struct wormhole* wh = (struct wormhole*) index_struct;
-    struct wormref* ref = wh_ref(wh);
+    struct wormref* ref = (struct wormref*) index_struct;
+    
+    wh_unref(ref);
 
     wh_destroy(wh);
 }
 
 static int _wh_insert(void* index_struct, pkey_t key, void* value) {
-    struct wormhole* wh = (struct wormhole*) index_struct;
-    struct wormref* ref = wh_ref(wh);
+    struct wormref* ref = (struct wormref*) index_struct;
 
     pkey_t r_key = __builtin_bswap64(key);
     pval_t r_val = __builtin_bswap64(value);
@@ -36,8 +38,7 @@ static int _wh_insert(void* index_struct, pkey_t key, void* value) {
 }
 
 static int _wh_remove(void* index_struct, pkey_t key) {
-    struct wormhole* wh = (struct wormhole*) index_struct;
-    struct wormref* ref = wh_ref(wh);
+    struct wormref* ref = (struct wormref*) index_struct;
 
     pkey_t r_key = __builtin_bswap64(key);
     wh_del(ref, &r_key, sizeof(r_key));
@@ -46,8 +47,7 @@ static int _wh_remove(void* index_struct, pkey_t key) {
 }
 
 static void* _wh_lookup(void* index_struct, pkey_t key) {
-    struct wormhole* wh = (struct wormhole*) index_struct;
-    struct wormref* ref = wh_ref(wh);
+    struct wormref* ref = (struct wormref*) index_struct;
 
     struct wormhole_iter* iter = wh_iter_create(ref);
     pkey_t r_key = __builtin_bswap64(key);
@@ -63,8 +63,7 @@ static void* _wh_lookup(void* index_struct, pkey_t key) {
 }
 
 static void* _wh_lowerbound(void* index_struct, pkey_t key) {
-    struct wormhole* wh = (struct wormhole*) index_struct;
-    struct wormref* ref = wh_ref(wh);
+    struct wormref* ref = (struct wormref*) index_struct;
 
     struct wormhole_iter* iter = wh_iter_create(ref);
     pkey_t r_key = __builtin_bswap64(key);

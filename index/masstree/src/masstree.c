@@ -501,7 +501,7 @@ leaf_find_lv(const mtree_leaf_t *leaf, uint64_t key,
 	return 0;
 }
 
-static inline unsigned
+static unsigned
 __leaf_find_lv(const mtree_leaf_t *leaf, uint64_t key,
     unsigned kinfo, unsigned *type)
 {
@@ -1319,9 +1319,6 @@ forward:
 
 	/* Fetch the value (or pointer to the next layer). */
 	idx = __leaf_find_lv(leaf, skey, slen, &type);
-	if (__predict_false(type == MTREE_NOTFOUND)) {
-		idx = __leaf_find_lv(leaf->prev, skey, slen, &type);
-	}
 
 	lv = leaf->lv[idx];
 	atomic_thread_fence(memory_order_seq_cst);
