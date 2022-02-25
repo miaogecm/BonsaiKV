@@ -20,7 +20,7 @@
 #include "oplog.h"
 #include "hp.h"
 #include "hash_set.h"
-#include "mptable.h"
+#include "shim.h"
 #include "epoch.h"
 
 __thread struct thread_info* __this = NULL;

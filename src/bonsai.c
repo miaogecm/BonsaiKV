@@ -20,7 +20,7 @@
 #include "numa_config.h"
 #include "per_node.h"
 #include "hash_set.h"
-#include "mptable.h"
+#include "shim.h"
 #include "pnode.h"
 #include "epoch.h"
 #include "cpu.h"
@@ -147,7 +147,7 @@ void index_layer_dump() {
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_insert(numa_node, cpu, key, value);
+	return shim_upsert(numa_node, cpu, key, value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {
@@ -157,12 +157,12 @@ int bonsai_update(pkey_t key, pval_t value) {
 
 int bonsai_remove(pkey_t key) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_remove(numa_node, cpu, key);
+	return shim_remove(numa_node, cpu, key);
 }
 
 int bonsai_lookup(pkey_t key, pval_t* val) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_lookup(numa_node, key, cpu, val);
+	return shim_lookup(numa_node, key, cpu, val);
 }
 
 int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {

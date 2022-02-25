@@ -7,7 +7,7 @@ typedef uint32_t mptable_off_t;
 
 struct mptable {
 	/* Header - 5 words */
-	unsigned int entry_seq;
+	unsigned int seq;
 	union {
 		// MT
 		struct {

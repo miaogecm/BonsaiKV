@@ -26,7 +26,7 @@
 #include "atomic.h"
 #include "pnode.h"
 #include "oplog.h"
-#include "mptable.h"
+#include "shim.h"
 
 #define HI_MASK 0x8000000000000000  /* the MSB of a unsigned long value */
 

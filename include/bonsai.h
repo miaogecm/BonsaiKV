@@ -35,6 +35,7 @@ struct index_layer {
 	void *index_struct;
 
 	insert_func_t insert;
+    update_func_t update;
 	remove_func_t remove;
 	lookup_func_t lookup;
 	scan_func_t   scan;

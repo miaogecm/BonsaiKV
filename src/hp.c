@@ -19,7 +19,7 @@
 #include "atomic.h"
 #include "numa_config.h"
 #include "bonsai.h"
-#include "mptable.h"
+#include "shim.h"
 #include "common.h"
 
 void hp_scan(struct linked_list* ll, struct hp_item* hp);

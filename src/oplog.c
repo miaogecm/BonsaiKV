@@ -19,7 +19,7 @@
 #include "common.h"
 #include "thread.h"
 #include "pnode.h"
-#include "mptable.h"
+#include "shim.h"
 #include "hash.h"
 #include "epoch.h"
 

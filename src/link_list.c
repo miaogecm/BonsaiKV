@@ -16,7 +16,7 @@
 #include "hp.h"
 #include "atomic.h"
 #include "pnode.h"
-#include "mptable.h"
+#include "shim.h"
 
 #ifdef BONSAI_HASHSET_DEBUG
 static int node_count = 0;
