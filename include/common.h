@@ -13,6 +13,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 
 #ifndef LOCAL
 typedef uint64_t 	pkey_t;
@@ -58,32 +59,17 @@ typedef struct pentry {
     __le64 v;
 } pentry_t;
 #else
-typedef struct pentry {
-    __le64 k        :KEY_OFF_BITS;
-    __le64 k_len    :KEY_LEN_BITS;
-    __le64 v;
+typedef union pentry {
+    struct {
+        __le64 k;
+        __le64 v;
+    };
+    struct {
+        __le64 k_off    :KEY_OFF_BITS;
+        __le64 k_len    :KEY_LEN_BITS;
+        __le64 _v;
+    };
 } pentry_t;
-
-extern struct bonasi_info;
-extern struct bonsai_info* bonsai;
-
-static int key_cmp(pkey_t a, pkey_t b) {
-#ifndef LONG_KEY
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
-#else
-    struct data_layer* layer = &(bonsai->d_layer);
-    char* start = layer->key_start;
-    char* desta = start + (a >> KEY_LEN_BITS) << KEY_LEN_BITS;
-    char* destb = start + (b >> KEY_LEN_BITS) << KEY_LEN_BITS;
-    char sa[a_len];
-    char sb[b_len];
-    memcpy(sa, desta, a_len);
-    memcpy(sb, destb, b_len);
-    return strcmp(sa, sb);
-#endif
-}
 
 #endif
 #define EOPEN		104 /* open file error */

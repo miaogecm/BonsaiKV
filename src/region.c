@@ -254,7 +254,7 @@ int data_region_init(struct data_layer *layer) {
 		return -EPMEMOBJ;
 	}
 	layer->key_pop = pop;
-	layer->start = (unsigned long)pop;
+	layer->key_start = (unsigned long)pop;
 #endif
 	return 0;
 }
@@ -266,8 +266,8 @@ void data_region_deinit(struct data_layer *layer) {
 	for (node = 0; node < NUM_SOCKET; node ++) {
 		region = &layer->region[node];
 		pmemobj_close(region->pop);
-#ifdef LONG_KEY
-		pmemobj_close(region->key_pop);
-#endif
 	}
+#ifdef LONG_KEY
+	pmemobj_close(layer->key_pop);
+#endif
 }

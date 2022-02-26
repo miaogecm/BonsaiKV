@@ -17,6 +17,7 @@
 #include "atomic.h"
 #include "pnode.h"
 #include "mptable.h"
+#include "bonsai.h"
 
 #ifdef BONSAI_HASHSET_DEBUG
 static int node_count = 0;

@@ -101,8 +101,8 @@ static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_
 	root = pmemobj_direct(toid.oid);
 	
 	root->len = k_len;
-	pmemobj_persist(&root->length, sizeof(uint16_t));
-	pmemobj_memcpy_persist(root->key, key, k_len);
+	pmemobj_persist(pop, &root->len, sizeof(uint16_t));
+	pmemobj_memcpy_persist(pop, root->key, key, k_len);
 
 	return toid.oid.off;
 }
@@ -212,6 +212,17 @@ static int __mptable_remove(struct mptable* table, int numa_node, int cpu, pkey_
 	return found;
 }
 
+static void free_long_key(pkey_t key) {
+	struct data_layer* layer = &(bonsai->d_layer);
+	PMEMoid oid;
+	char* addr;
+	
+	addr = (key >> KEY_LEN_BITS) + layer->key_start;
+	oid = pmemobj_oid(addr);
+	
+	POBJ_FREE(&oid);
+}
+
 int mptable_remove(int numa_node, int cpu, pkey_t key) {
     struct mptable *table;
 	struct index_layer* i_layer = INDEX(bonsai);
@@ -254,6 +265,8 @@ retry:
     if (unlikely(!in_target_table(table, key))) {
         goto retry;
     }
+
+	free_long_key(log->o_kv.k);
 
 	table->pnode->stale = PNODE_DATA_STALE;
 

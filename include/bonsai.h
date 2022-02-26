@@ -116,6 +116,33 @@ struct bonsai_info {
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
 
+extern struct bonsai_info* bonsai;
+
+static int key_cmp(pkey_t a, pkey_t b) {
+#ifndef LONG_KEY
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+#else
+    struct data_layer* layer = DATA(bonsai);
+    char* start = layer->key_start;
+    char* desta = start + ((a >> KEY_LEN_BITS) << KEY_LEN_BITS);
+    char* destb = start + ((b >> KEY_LEN_BITS) << KEY_LEN_BITS);
+    const uint16_t a_len = (uint16_t) ((a >> KEY_OFF_BITS) << KEY_OFF_BITS);
+    const uint16_t b_len = (uint16_t) ((b >> KEY_OFF_BITS) << KEY_OFF_BITS);
+    char sa[a_len];
+    char sb[b_len];
+    memcpy(sa, desta, a_len);
+    memcpy(sb, destb, b_len);
+    return strcmp(sa, sb);
+#endif
+}
+
+POBJ_LAYOUT_BEGIN(BONSAI);
+POBJ_LAYOUT_TOID(BONSAI, struct pnode);
+POBJ_LAYOUT_TOID(BONSAI, struct long_key);
+POBJ_LAYOUT_END(BONSAI);
+
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan);
