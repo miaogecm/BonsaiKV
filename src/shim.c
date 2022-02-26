@@ -51,11 +51,11 @@ struct mptable {
     seqcount_t seq;
     /* @slots_seq protects @slots only */
     seqcount_t slots_seq;
-    spinlock_t lock;
     uint8_t slots[SLOTS_SIZE];
-    mptable_off_t slave, next;
+    unsigned short generation;
     pkey_t fence, max;
-    unsigned int generation;
+    mptable_off_t slave, next;
+    spinlock_t lock;
 
     /* Both: */
 
@@ -313,7 +313,7 @@ static inline int mptable_find_upperbound(struct mptable *mt, struct mptable *st
     mptable_get_pos_range(mt, target, slots, &from, &to);
     for (i = from; i < to; i++) {
         idx = slot_get(slots, i);
-        if (pkey_compare(mt->entries[idx].k, key) > 0) {
+        if (pkey_compare(target->entries[idx].k, key) > 0) {
             break;
         }
     }
@@ -327,8 +327,8 @@ static inline int mptable_find_equal(struct mptable *mt, struct mptable *st, uin
     mptable_get_pos_range(mt, target, slots, &from, &to);
     for (i = from; i < to; i++) {
         idx = slot_get(slots, i);
-        if (mt->signatures[idx] == pkey_get_signature(key)) {
-            if (!pkey_compare(mt->entries[idx].k, key)) {
+        if (target->signatures[idx] == pkey_get_signature(key)) {
+            if (!pkey_compare(target->entries[idx].k, key)) {
                 return idx;
             }
         }
@@ -383,21 +383,45 @@ static inline struct mptable *mptable_seek(int node, pkey_t key, seek_opt_t seek
 static void mptable_dump(int node, struct mptable *mt) {
     struct mptable *st;
     kvpair_t *ent;
+    uint8_t idx;
     int i, cnt;
 
     st = mptable_off2addr(node, mt->slave);
 
     cnt = slot_get_cnt(mt->slots);
-    printf("Buddy table %p->%p->%u nr:%u max:%lu\n", mt, st, st->next, cnt, mt->max);
+    printf("Buddy table %p->%p->%p nr:%u max:%lu fence:%lu\n",
+           mt, st, mptable_off2addr(node, mt->next), cnt, mt->max, mt->fence);
     printf("MT:\n");
     for (i = 0; i < cnt && i < MPTABLE_MAX_KEYN; i++) {
-        ent = &mt->entries[slot_get(mt->slots, i)];
-        printf("MT[%lu]=%p\n", ent->k, ent->v);
+        idx = slot_get(mt->slots, i);
+        ent = &mt->entries[idx];
+        printf("MT[%lu{%d}]=%p\n", ent->k, mt->signatures[idx], ent->v);
     }
     printf("ST:\n");
     for (i = 0; i + ST_FROM_POS < cnt && i < MPTABLE_MAX_KEYN; i++) {
-        ent = &st->entries[slot_get(mt->slots, i + ST_FROM_POS)];
-        printf("ST[%lu]=%p\n", ent->k, ent->v);
+        idx = slot_get(mt->slots, i + ST_FROM_POS);
+        ent = &st->entries[idx];
+        printf("ST[%lu{%d}]=%p\n", ent->k, st->signatures[idx], ent->v);
+    }
+}
+
+static void mptable_check(int node, struct mptable *mt) {
+    struct mptable *st;
+    uint8_t i1, i2;
+    int i, cnt;
+
+    st = mptable_off2addr(node, mt->slave);
+
+    cnt = slot_get_cnt(mt->slots);
+    for (i = 1; i < cnt && i < MPTABLE_MAX_KEYN; i++) {
+        i1 = slot_get(mt->slots, i);
+        i2 = slot_get(mt->slots, i - 1);
+        assert(pkey_compare(mt->entries[i1].k, mt->entries[i2].k) >= 0);
+    }
+    for (i = 1; i + ST_FROM_POS < cnt && i < MPTABLE_MAX_KEYN; i++) {
+        i1 = slot_get(mt->slots, i + ST_FROM_POS);
+        i2 = slot_get(mt->slots, i - 1 + ST_FROM_POS);
+        assert(pkey_compare(st->entries[i1].k, st->entries[i2].k) >= 0);
     }
 }
 
@@ -415,6 +439,7 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
 
     mt_header_init(st);
     slot_set_cnt(slots, MPTABLE_MAX_KEYN);
+    slot_set_cnt(st->slots, MPTABLE_MAX_KEYN);
     st->slave = mptable_addr2off(node, &bdt[1]);
     for (i = 0; i < MPTABLE_MAX_KEYN; i++) {
         idx = slot_get(slots, i + ST_FROM_POS);
@@ -441,7 +466,7 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
 
     bt.mt = mptable_addr2off(node, mt);
     bt.st_hint = mptable_addr2off(node, &bdt[0]);
-    i_layer->update(i_layer->index_struct[node], bdt[0].fence, *(void **) &bt);
+    i_layer->update(i_layer->index_struct[node], mt->fence, *(void **) &bt);
 
     if (key >= fence) {
         mptable_unlock(mt);
@@ -468,7 +493,7 @@ int shim_layer_init(struct shim_layer *s_layer) {
 
 int shim_upsert(int node, pkey_t key, pval_t *val) {
     struct mptable *mt, *st, *target;
-    uint8_t slots[SLOTS_SIZE];
+    uint8_t slots[SLOTS_SIZE], *sig;
     uint8_t src_idx, dst_idx;
     int i, overlap, ret;
     kvpair_t *ent;
@@ -522,6 +547,7 @@ relookup:
             write_seqcount_begin(&mt->seq);
         }
 
+        target->signatures[dst_idx] = pkey_get_signature(key);
         target->entries[dst_idx] = (kvpair_t) { key, val };
 
         /* The linearization point of non-overlapping insert operation without exchange */
@@ -534,8 +560,10 @@ relookup:
         dst_idx = slot_find_unused_idx(slots, 1);
         src_idx = slot_get(slots, MID_POS);
         ent = &mt->entries[src_idx];
+        sig = &mt->signatures[src_idx];
 
         st->entries[dst_idx] = *ent;
+        st->signatures[dst_idx] = *sig;
 
         slot_set(slots, MID_POS, dst_idx);
         slot_insert(slots, i, src_idx);
@@ -543,6 +571,7 @@ relookup:
         /* The linearization point of insert operation with exchange */
         write_seqcount_begin(&mt->seq);
 
+        *sig = pkey_get_signature(key);
         ent->k = key;
         ent->v = val;
 
