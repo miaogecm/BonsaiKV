@@ -61,12 +61,6 @@ struct pnode {
 
 #define PNODE_BITMAP(node) 			((node)->bitmap)
 
-static int key_cmp(pkey_t a, pkey_t b) {
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
-}
-
 extern void sentinel_node_init();
 
 extern int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node);
@@ -132,12 +126,6 @@ struct pnode {
 #define PNODE_ANCHOR_KEY(node)					((node)->anchor_key)
 #define PNODE_MAX_KEY(node)						(PNODE_SORTED_KEY(node, (node)->slot[0]))
 #define PNODE_MIN_KEY(node)						(PNODE_SORTED_KEY(node, 1))
-
-static int key_cmp(pkey_t a, pkey_t b) {
-	if (a < b) return -1;
-	if (a > b) return 1;
-	return 0;
-}
 
 extern void sentinel_node_init();
 

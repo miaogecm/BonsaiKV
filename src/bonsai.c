@@ -147,7 +147,7 @@ void index_layer_dump() {
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_insert(numa_node, cpu, key, value);
+	return mptable_insert(numa_node, cpu, key, sizeof(key), value);
 }
 
 int bonsai_update(pkey_t key, pval_t value) {

@@ -76,6 +76,11 @@ struct data_layer {
 
 	rwlock_t lock;
 	struct list_head pnode_list;
+
+#ifdef LONG_KEY
+	PMEMobjpool* key_pop;
+	unsigned long key_start;
+#endif
 };
 
 #define REGION_FPATH_LEN	19

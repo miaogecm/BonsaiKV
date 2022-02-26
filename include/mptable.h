@@ -35,7 +35,7 @@ struct log_layer;
 extern struct mptable* mptable_alloc(struct log_layer* layer);
 extern void mptable_free(struct log_layer* layer, struct mptable* table);
 
-extern int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value);
+extern int mptable_insert(int numa_node, int cpu, pkey_t key, uint16_t k_len, pval_t value);
 extern int mptable_update(int numa_node, int cpu, pkey_t key, pval_t *address);
 extern int mptable_remove(int numa_node, int cpu, pkey_t key);
 extern int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val);

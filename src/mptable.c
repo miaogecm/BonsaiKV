@@ -10,6 +10,7 @@
 #include <numa.h>
 #include <assert.h>
 #include <limits.h>
+#include <libpmemobj.h>
 
 #include "mptable.h"
 #include "oplog.h"
@@ -22,6 +23,7 @@
 #include "hash_set.h"
 #include "hash.h"
 #include "per_node.h"
+#include "long_key.h"
 
 extern struct bonsai_info* bonsai;
 
@@ -88,7 +90,27 @@ static inline int in_target_table(struct mptable *table, pkey_t key) {
     return key > lowerbound || lowerbound == ULONG_MAX;
 }
 
-int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value) {
+#ifdef LONG_KEY
+static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_len) {
+	PMEMobjpool* pop = layer->key_pop;
+	TOID(struct long_key) toid;
+	struct long_key* root;
+
+	POBJ_ALLOC(pop, &toid, struct long_key, sizeof(struct pnode), NULL, NULL);
+
+	root = pmemobj_direct(toid.oid);
+	
+	root->len = k_len;
+	pmemobj_persist(&root->length, sizeof(uint16_t));
+	pmemobj_memcpy_persist(root->key, key, k_len);
+
+	return toid.oid.off;
+}
+#endif
+
+#define OFF_CHECK_MASK	0xffff000000000000
+
+int mptable_insert(int numa_node, int cpu, pkey_t key, uint16_t k_len, pval_t value) {
 	struct mptable* table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	struct oplog* log;
@@ -99,7 +121,19 @@ int mptable_insert(int numa_node, int cpu, pkey_t key, pval_t value) {
 #endif
 
     /* TODO: It's dangerous to bind oplog entry directly with pnode! */
+#ifdef LONG_KEY
+	uint64_t __key, off;
+	struct data_layer* d_layer = DATA(bonsai);
+
+	off = alloc_long_key(d_layer, key, k_len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__key = (off << KEY_LEN_BITS) & k_len;
+
+	log = oplog_insert(__key, value, OP_INSERT, numa_node, cpu, NULL);
+#else
 	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, NULL);
+#endif
 
 #ifdef BONSAI_SUPPORT_UPDATE
 retry:

@@ -22,9 +22,11 @@
 #include "ordo.h"
 #include "atomic128.h"
 #include "per_node.h"
+#include "long_key.h"
 
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
+POBJ_LAYOUT_TOID(BONSAI, struct long_key);
 POBJ_LAYOUT_END(BONSAI);
 
 extern struct bonsai_info *bonsai;
