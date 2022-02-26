@@ -18,8 +18,6 @@
 #include "common.h"
 #include "bonsai.h"
 #include "oplog.h"
-#include "hp.h"
-#include "hash_set.h"
 #include "shim.h"
 #include "epoch.h"
 

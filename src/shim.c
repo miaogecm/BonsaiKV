@@ -16,8 +16,13 @@
 #include "arch.h"
 #include "shim.h"
 #include "rcu.h"
+#include "cpu.h"
 
 extern struct bonsai_info* bonsai;
+
+#define BDTABLE_MAX_KEYN        24
+#define MPTABLE_MAX_KEYN        (BDTABLE_MAX_KEYN / 2)
+#define SLOTS_SIZE              13
 
 #define MID_POS         (MPTABLE_MAX_KEYN - 1)
 /* [from, to) */
@@ -29,6 +34,47 @@ extern struct bonsai_info* bonsai;
 
 #define NOT_FOUND           (-1)
 #define SIGNATURE_NOENT     0xff
+
+typedef uint32_t mptable_off_t;
+
+typedef struct {
+    pkey_t k;
+    pval_t *v;
+} kvpair_t;
+
+struct mptable {
+	/* Header - 6 words */
+
+    /* MT Only: */
+
+    /* @seq protects @slots, @slave, @next, @max, and entries */
+    seqcount_t seq;
+    /* @slots_seq protects @slots only */
+    seqcount_t slots_seq;
+    spinlock_t lock;
+    uint8_t slots[SLOTS_SIZE];
+    mptable_off_t slave, next;
+    pkey_t fence, max;
+    unsigned int generation;
+
+    /* Both: */
+
+    /* Key signatures - 2 words */
+    uint8_t signatures[MPTABLE_MAX_KEYN];
+
+    /* Key-Value pairs - 24 words */
+    kvpair_t entries[MPTABLE_MAX_KEYN];
+};
+
+struct mptable_pool_hdr {
+    atomic_t used;
+    char padding[60];
+};
+
+struct mptable_pool {
+    struct mptable_pool_hdr hdr;
+    uint8_t data[MPTABLE_POOL_SIZE_PER_NODE];
+};
 
 struct buddy_table_off {
     mptable_off_t mt, st_hint;
@@ -68,24 +114,57 @@ static inline int slot_get_cnt(const uint8_t *slots) {
     return slots[0];
 }
 
-static inline uint8_t slot_find_unused_idx(const uint8_t *slots, int slave) {
-
-}
-
 static inline uint8_t slot_get(const uint8_t *slots, int pos) {
-
+    return ((slots + 1)[pos / 2u] >> (4 * (pos % 2u))) & 0xf;
 }
 
 static inline void slot_set(uint8_t *slots, int pos, uint8_t idx) {
+    unsigned int off = 4 * (pos % 2u);
+    uint8_t *start = &(slots + 1)[pos / 2u];
+    *start = (*start & ~(0xf << off)) + (idx << off);
+}
 
+static inline uint8_t slot_find_unused_idx(const uint8_t *slots, int slave) {
+    uint8_t used[MPTABLE_MAX_KEYN] = { 0 };
+    int from, to, i;
+
+    from = MT_FROM_POS;
+    to = slot_get_cnt(slots);
+
+    if (slave) {
+        from = ST_FROM_POS;
+    } else if (to > MT_TO_POS) {
+        to = MT_TO_POS;
+    }
+
+    for (i = from; i < to; i++) {
+        used[slot_get(slots, i)] = 1;
+    }
+
+    for (i = 0; i < MPTABLE_MAX_KEYN; i++) {
+        if (!used[i]) {
+            return i;
+        }
+    }
+
+    return NOT_FOUND;
 }
 
 static inline void slot_insert(uint8_t *slots, int pos, uint8_t idx) {
-
+    int i, cnt = slot_get_cnt(slots);
+    for (i = cnt; i >= pos + 1; i--) {
+        slot_set(slots, i, slot_get(slots, i - 1));
+    }
+    slot_set(slots, pos, idx);
+    slot_set_cnt(slots, cnt + 1);
 }
 
 static inline void slot_remove(uint8_t *slots, int pos) {
-
+    int i, cnt = slot_get_cnt(slots);
+    for (i = pos; i < cnt - 1; i++) {
+        slot_set(slots, i, slot_get(slots, i + 1));
+    }
+    slot_set_cnt(slots, cnt - 1);
 }
 
 static inline int slot_is_full(const uint8_t *slots) {
@@ -100,12 +179,26 @@ static inline int slot_is_empty(const uint8_t *slots) {
     return slot_get_cnt(slots) == 0;
 }
 
-static inline mptable_off_t mptable_addr2off(struct mptable *addr) {
-
+static struct mptable *buddy_table_alloc(int node) {
+    struct shim_layer *s_layer = SHIM(bonsai);
+    struct mptable_pool *pool = s_layer->pools[node];
+    int i = atomic_add_return(1, &pool->hdr.used) - 1;
+    size_t obj_size = 2 * sizeof(struct mptable);
+    size_t off = obj_size * i;
+    assert(off + obj_size <= MPTABLE_POOL_SIZE_PER_NODE);
+    return (struct mptable *) (pool->data + off);
 }
 
-static inline struct mptable *mptable_off2addr(mptable_off_t off) {
+static void buddy_table_dealloc(int node, struct mptable *mt) {
+    /* TODO: Implement it! */
+}
 
+static inline mptable_off_t mptable_addr2off(int node, struct mptable *addr) {
+    return (void *) addr - (void *) SHIM(bonsai)->pools[node];
+}
+
+static inline struct mptable *mptable_off2addr(int node, mptable_off_t off) {
+    return (struct mptable *) ((void *) SHIM(bonsai)->pools[node] + off);
 }
 
 static inline void mt_header_init(struct mptable *mt) {
@@ -135,11 +228,11 @@ static inline void mt_init(struct mptable *mt) {
     signature_init(mt);
 }
 
-static void *mptable_create() {
-    struct mptable *m = memalign(CACHELINE_SIZE, 2 * sizeof(*m));
+static struct mptable *mptable_create(int node) {
+    struct mptable *m = buddy_table_alloc(node);
     mt_init(&m[0]);
     st_init(&m[1]);
-    m[0].slave = mptable_addr2off(&m[1]);
+    m[0].slave = mptable_addr2off(node, &m[1]);
     return &m[0];
 }
 
@@ -152,10 +245,10 @@ static inline void mptable_unlock(struct mptable *mptable) {
 }
 
 static inline void mptable_free(struct mptable *mt) {
-
+    /* TODO: Implement it! */
 }
 
-static inline int mptable_lock_correct(struct mptable **mt, pkey_t key) {
+static inline int mptable_lock_correct(int node, struct mptable **mt, pkey_t key) {
     struct mptable *target;
     mptable_lock(*mt);
     if (unlikely((*mt)->fence == ULONG_MAX)) {
@@ -164,9 +257,10 @@ static inline int mptable_lock_correct(struct mptable **mt, pkey_t key) {
         return -EAGAIN;
     }
     while (pkey_compare(key, (*mt)->max) >= 0) {
-        target = mptable_off2addr((*mt)->next);
+        target = mptable_off2addr(node, (*mt)->next);
         mptable_lock(target);
         mptable_unlock(*mt);
+        *mt = target;
     }
     return 0;
 }
@@ -223,7 +317,7 @@ static inline int mptable_find_upperbound(struct mptable *mt, struct mptable *st
             break;
         }
     }
-    return i == from ? NOT_FOUND : i - 1;
+    return i - 1;
 }
 
 static inline int mptable_find_equal(struct mptable *mt, struct mptable *st, uint8_t *slots, pkey_t key) {
@@ -248,17 +342,68 @@ typedef enum {
     SEEK_ST_W = 6,  // 0b110
 } seek_opt_t;
 
+#define mptable_prefetch(prefetcher, t) do { \
+        void *__UNIQUE_ID(prefetch_ptr);    \
+        for (__UNIQUE_ID(prefetch_ptr) = (void *) (t); \
+             __UNIQUE_ID(prefetch_ptr) < (void *) (t) + sizeof(struct mptable); \
+             __UNIQUE_ID(prefetch_ptr) += CACHELINE_SIZE) {    \
+            prefetcher(__UNIQUE_ID(prefetch_ptr));  \
+        }                                     \
+    } while (0)
+
 /*
  * Find the key's corresponding mptable. Prefetch the MT and ST
  * beforehand.
  */
-static inline struct mptable *mptable_seek(pkey_t key, seek_opt_t seek_opt) {
+static inline struct mptable *mptable_seek(int node, pkey_t key, seek_opt_t seek_opt) {
+    struct index_layer *i_layer = INDEX(bonsai);
+    struct mptable *mt, *st_hint;
+    struct buddy_table_off bt;
 
+    *(void **) &bt = i_layer->lookup(i_layer->index_struct[node], key);
+
+    mt = mptable_off2addr(node, bt.mt);
+    st_hint = mptable_off2addr(node, bt.st_hint);
+
+    if (seek_opt & SEEK_MT_W) {
+        mptable_prefetch(cache_prefetchw_high, mt);
+    } else {
+        mptable_prefetch(cache_prefetchr_high, mt);
+    }
+
+    if (seek_opt & SEEK_ST_W) {
+        mptable_prefetch(cache_prefetchw_high, st_hint);
+    } else if (seek_opt & SEEK_ST) {
+        mptable_prefetch(cache_prefetchr_high, st_hint);
+    }
+
+    return mt;
 }
 
-static void mptable_split(struct mptable *mt, uint8_t *slots) {
-    struct mptable *bdt = memalign(CACHELINE_SIZE, 2 * sizeof(*bdt));
-    struct mptable *st = mptable_off2addr(mt->slave);
+static void mptable_dump(int node, struct mptable *mt) {
+    struct mptable *st;
+    kvpair_t *ent;
+    int i, cnt;
+
+    st = mptable_off2addr(node, mt->slave);
+
+    cnt = slot_get_cnt(mt->slots);
+    printf("Buddy table %p->%p->%u nr:%u max:%lu\n", mt, st, st->next, cnt, mt->max);
+    printf("MT:\n");
+    for (i = 0; i < cnt && i < MPTABLE_MAX_KEYN; i++) {
+        ent = &mt->entries[slot_get(mt->slots, i)];
+        printf("MT[%lu]=%p\n", ent->k, ent->v);
+    }
+    printf("ST:\n");
+    for (i = 0; i + ST_FROM_POS < cnt && i < MPTABLE_MAX_KEYN; i++) {
+        ent = &st->entries[slot_get(mt->slots, i + ST_FROM_POS)];
+        printf("ST[%lu]=%p\n", ent->k, ent->v);
+    }
+}
+
+static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
+    struct mptable *bdt = buddy_table_alloc(node), *mt = *mt_ptr;
+    struct mptable *st = mptable_off2addr(node, mt->slave);
     struct index_layer *i_layer = INDEX(bonsai);
     struct buddy_table_off bt;
     pkey_t fence;
@@ -270,7 +415,7 @@ static void mptable_split(struct mptable *mt, uint8_t *slots) {
 
     mt_header_init(st);
     slot_set_cnt(slots, MPTABLE_MAX_KEYN);
-    st->slave = mptable_addr2off(&bdt[1]);
+    st->slave = mptable_addr2off(node, &bdt[1]);
     for (i = 0; i < MPTABLE_MAX_KEYN; i++) {
         idx = slot_get(slots, i + ST_FROM_POS);
         slot_set(st->slots, i, idx);
@@ -281,27 +426,47 @@ static void mptable_split(struct mptable *mt, uint8_t *slots) {
     st->fence = fence;
     st->max = mt->max;
 
+    mptable_lock(st);
+
     write_seqcount_begin(&mt->seq);
     mptable_set_slots_unlocked(mt, slots);
     mt->max = fence;
-    mt->slave = mptable_addr2off(&bdt[0]);
-    mt->next = mptable_addr2off(st);
+    mt->slave = mptable_addr2off(node, &bdt[0]);
+    mt->next = mptable_addr2off(node, st);
     write_seqcount_end(&mt->seq);
 
-    mptable_unlock(mt);
+    bt.mt = mptable_addr2off(node, st);
+    bt.st_hint = mptable_addr2off(node, &bdt[1]);
+    i_layer->insert(i_layer->index_struct[node], fence, *(void **) &bt);
 
-    // TODO: Optimize this
+    bt.mt = mptable_addr2off(node, mt);
+    bt.st_hint = mptable_addr2off(node, &bdt[0]);
+    i_layer->update(i_layer->index_struct[node], bdt[0].fence, *(void **) &bt);
 
-    bt.mt = mptable_addr2off(st);
-    bt.st_hint = mptable_addr2off(&bdt[1]);
-    i_layer->insert(i_layer->index_struct, fence, *(void **) &bt);
-
-    bt.mt = mptable_addr2off(mt);
-    bt.st_hint = mptable_addr2off(&bdt[0]);
-    i_layer->update(i_layer->index_struct, bdt[0].fence, *(void **) &bt);
+    if (key >= fence) {
+        mptable_unlock(mt);
+        *mt_ptr = st;
+    } else {
+        mptable_unlock(st);
+    }
 }
 
-int shim_upsert(pkey_t key, pval_t *val) {
+int shim_layer_init(struct shim_layer *s_layer) {
+    struct index_layer *i_layer = INDEX(bonsai);
+    struct mptable *mt;
+    struct buddy_table_off bt;
+    int node;
+    for (node = 0; node < NUM_SOCKET; node++) {
+        s_layer->pools[node] = numa_alloc_onnode(sizeof(struct mptable_pool), node);
+        mt = mptable_create(node);
+        bt.mt = mptable_addr2off(node, mt);
+        bt.st_hint = mt->slave;
+        i_layer->insert(i_layer->index_struct[node], 0, *(void **) &bt);
+    }
+    return 0;
+}
+
+int shim_upsert(int node, pkey_t key, pval_t *val) {
     struct mptable *mt, *st, *target;
     uint8_t slots[SLOTS_SIZE];
     uint8_t src_idx, dst_idx;
@@ -309,10 +474,9 @@ int shim_upsert(pkey_t key, pval_t *val) {
     kvpair_t *ent;
 
 relookup:
-    mt = mptable_seek(key, SEEK_MT_W | SEEK_ST_W);
+    mt = mptable_seek(node, key, SEEK_MT_W | SEEK_ST_W);
 
-retry:
-    ret = mptable_lock_correct(&mt, key);
+    ret = mptable_lock_correct(node, &mt, key);
     if (unlikely(ret == -EAGAIN)) {
         /* The mptable has been deleted. */
         goto relookup;
@@ -321,11 +485,11 @@ retry:
     memcpy(slots, mt->slots, SLOTS_SIZE);
 
     if (unlikely(slot_is_full(slots))) {
-        mptable_split(mt, slots);
-        goto retry;
+        mptable_split(node, &mt, slots, key);
+        memcpy(slots, mt->slots, SLOTS_SIZE);
     }
 
-    st = mptable_off2addr(mt->slave);
+    st = mptable_off2addr(node, mt->slave);
 
     i = mptable_find_upperbound(mt, st, slots, key);
 
@@ -339,6 +503,7 @@ retry:
              * still access the correct data inside grace period.
              */
             ent->v = val;
+            ret = -EEXIST;
             goto out;
         }
     }
@@ -388,15 +553,16 @@ retry:
 
 out:
     mptable_unlock(mt);
+    return ret;
 }
 
-static void mptable_detach(struct mptable *mt) {
+static void mptable_detach(int node, struct mptable *mt) {
     struct mptable *prev;
 
 relookup:
-    prev = mptable_seek(pkey_prev(mt->fence), SEEK_MT_W);
+    prev = mptable_seek(node, pkey_prev(mt->fence), SEEK_MT_W);
     mptable_lock(prev);
-    if (unlikely(mptable_off2addr(prev->next) != mt)) {
+    if (unlikely(mptable_off2addr(node, prev->next) != mt)) {
         mptable_unlock(prev);
         goto relookup;
     }
@@ -416,14 +582,14 @@ relookup:
     call_rcu(NULL, mptable_free, mt);
 }
 
-int shim_remove(pkey_t key) {
+int shim_remove(int node, pkey_t key) {
     struct mptable *mt, *st;
     uint8_t slots[SLOTS_SIZE];
-    int ret = 0, pos;
+    int ret, pos;
 
-    mt = mptable_seek(key, SEEK_MT_W | SEEK_ST);
+    mt = mptable_seek(node, key, SEEK_MT_W | SEEK_ST);
 
-    ret = mptable_lock_correct(&mt, key);
+    ret = mptable_lock_correct(node, &mt, key);
     if (unlikely(ret == -EAGAIN)) {
         /* The mptable has been deleted. */
         ret = -ENOENT;
@@ -432,7 +598,7 @@ int shim_remove(pkey_t key) {
 
     memcpy(slots, mt->slots, SLOTS_SIZE);
 
-    st = mptable_off2addr(mt->slave);
+    st = mptable_off2addr(node, mt->slave);
     pos = mptable_find_equal(mt, st, slots, key);
     if (unlikely(pos == NOT_FOUND)) {
         ret = -ENOENT;
@@ -445,7 +611,7 @@ int shim_remove(pkey_t key) {
     mptable_set_slots(mt, slots);
 
     if (slot_is_empty(slots)) {
-        mptable_detach(mt);
+        mptable_detach(node, mt);
         goto out_unlocked;
     }
 
@@ -456,15 +622,15 @@ out_unlocked:
     return ret;
 }
 
-int shim_lookup(pkey_t key, pval_t *val) {
+int shim_lookup(int node, pkey_t key, pval_t *val) {
     struct mptable *mt, *st, *target;
     uint8_t slots[SLOTS_SIZE];
+    pval_t *addr, tmp = 0;
     struct oplog *log;
-    pval_t *addr, tmp;
     unsigned int seq;
     int ret, pos;
 
-    mt = mptable_seek(key, SEEK_ST);
+    mt = mptable_seek(node, key, SEEK_ST);
 
 retry:
     seq = read_seqcount_begin(&mt->seq);
@@ -480,7 +646,7 @@ retry:
          * go to the target node. But we should guarantee that our
          * mt->max and mt->target are consistent.
          */
-        target = mptable_off2addr(mt->next);
+        target = mptable_off2addr(node, mt->next);
         if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
             goto retry;
         }
@@ -490,7 +656,7 @@ retry:
 
     mptable_get_slots_optimistic(mt, slots);
 
-    st = mptable_off2addr(ACCESS_ONCE(mt->slave));
+    st = mptable_off2addr(node, ACCESS_ONCE(mt->slave));
     if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
         /*
          * We should guarantee that @target is still consistent
@@ -538,4 +704,15 @@ done:
         *val = tmp;
     }
     return ret;
+}
+
+void shim_dump(int node) {
+    struct mptable *mt = mptable_seek(node, 0, SEEK_ST);
+    while (1) {
+        mptable_dump(node, mt);
+        if (!mt->next) {
+            break;
+        }
+        mt = mptable_off2addr(node, mt->next);
+    }
 }

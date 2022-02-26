@@ -28,7 +28,7 @@
 
 #if 0
 #define ff_print(fmt, args ...) fprintf(stdout, fmt, ##args)
-#else 
+#else
 #define ff_print(fmt, args ...) do{} while(0)
 #endif
 
@@ -107,6 +107,8 @@ public:
   friend class page;
 
     char *btree_lowerbound(entry_key_t key);
+
+    void btree_update(entry_key_t key, char *right);
 };
 
 class header {
@@ -500,6 +502,18 @@ public:
     return true;
   }
 
+  inline void update_key(entry_key_t key, char *ptr, int *num_entries,
+                         bool flush = true, bool update_last_index = true) {
+      for (int i = 0; i < *num_entries; i++) {
+          if (records[i].key == key) {
+              records[i].ptr = ptr;
+              return;
+          }
+      }
+      printf("can not update!\n");
+      assert(0);
+  }
+
   inline void insert_key(entry_key_t key, char *ptr, int *num_entries,
                          bool flush = true, bool update_last_index = true) {
     // update switch_counter
@@ -570,6 +584,43 @@ public:
       hdr.last_index = *num_entries;
     }
     ++(*num_entries);
+  }
+
+  bool update(btree *bt, char *left, entry_key_t key, char *right, bool flush,
+              bool with_lock, page *invalid_sibling = NULL) {
+
+    if (with_lock) {
+      hdr.mtx->lock(); // Lock the write lock
+    }
+    if (hdr.is_deleted) {
+      if (with_lock) {
+        hdr.mtx->unlock();
+      }
+
+      return false;
+    }
+
+    // If this node has a sibling node,
+    if (hdr.sibling_ptr && (hdr.sibling_ptr != invalid_sibling)) {
+      // Compare this key with the first key of the sibling
+      if (key >= hdr.sibling_ptr->records[0].key) {
+        if (with_lock) {
+          hdr.mtx->unlock(); // Unlock the write lock
+        }
+        return hdr.sibling_ptr->update(bt, NULL, key, right, true, with_lock,
+                                       invalid_sibling);
+      }
+    }
+
+    register int num_entries = count();
+
+    update_key(key, right, &num_entries, flush);
+
+    if (with_lock) {
+      hdr.mtx->unlock(); // Unlock the write lock
+    }
+
+    return true;
   }
 
   // Insert a new key - FAST and FAIR
@@ -776,47 +827,29 @@ retry:
 
         // search from left ro right
         if (IS_FORWARD(previous_switch_counter)) {
-          if ((k = records[0].key) >= key) {
+          if ((k = records[0].key) <= key) {
             if ((t = records[0].ptr) != NULL) {
               if (k == records[0].key) {
                 ret = t;
-                continue;
               }
             }
           }
 
-          for (i = 1; records[i].ptr != NULL; ++i) {
-            if ((k = records[i].key) >= key) {
-              if (records[i - 1].ptr != (t = records[i].ptr)) {
-                if (k == records[i].key) {
-                  ret = t;
+          if (ret) {
+              for (i = 1; records[i].ptr != NULL; ++i) {
+                  if ((k = records[i].key) <= key) {
+                      if (records[i - 1].ptr != (t = records[i].ptr)) {
+                          if (k == records[i].key) {
+                              ret = t;
+                              continue;
+                          }
+                      }
+                  }
                   break;
-                }
               }
-            }
           }
         } else { // search from right to left
-          for (i = count() - 1; i > 0; --i) {
-            if ((k = records[i].key) >= key) {
-              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
-                if (k == records[i].key) {
-                  ret = t;
-                  // break;
-                }
-              }
-            }
-          }
-
-          if (!ret) {
-            if ((k = records[0].key) >= key) {
-              if (NULL != (t = records[0].ptr) && t) {
-                if (k == records[0].key) {
-                  ret = t;
-                  continue;
-                }
-              }
-            }
-          }
+            assert(0);
         }
       } while (hdr.switch_counter != previous_switch_counter);
 
@@ -824,10 +857,14 @@ retry:
         return ret;
       }
 
-      // if ((t = (char *)hdr.sibling_ptr) && key >= ((page *)t)->records[0].key)
       if ((t = (char *)hdr.sibling_ptr)) {
-        return t;
+          return t;
       }
+
+      // if ((t = (char *)hdr.sibling_ptr) && key >= ((page *)t)->records[0].key)
+      //if ((t = (char *)hdr.sibling_ptr)) {
+      //return t;
+      //}
 
       printf("key: %lu\n", key);
       goto retry;
@@ -1117,6 +1154,19 @@ void btree::btree_insert(entry_key_t key, char *right) { // need to be string
 
   if (!p->store(this, NULL, key, right, true, true)) { // store
     btree_insert(key, right);
+  }
+}
+
+// insert the key in the leaf node
+void btree::btree_update(entry_key_t key, char *right) { // need to be string
+  page *p = (page *)root;
+
+  while (p->hdr.leftmost_ptr != NULL) {
+    p = (page *)p->linear_search(key);
+  }
+
+  if (!p->update(this, NULL, key, right, true, true)) { // store
+    btree_update(key, right);
   }
 }
 

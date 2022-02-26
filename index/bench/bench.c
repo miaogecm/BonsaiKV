@@ -40,14 +40,15 @@ static void           *index_struct;
 static init_func_t    fn_init;
 static destory_func_t fn_destroy;
 static insert_func_t  fn_insert;
+static update_func_t  fn_update;
 static remove_func_t  fn_remove;
 static lookup_func_t  fn_lookup;
 static lookup_func_t  fn_lowerbound;
 static scan_func_t    fn_scan;
 
-extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
-				insert_func_t insert, remove_func_t remove,
-				lookup_func_t lookup, scan_func_t scan);
+extern int
+bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
+            remove_func_t remove, lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();
 
 extern void bonsai_barrier();
@@ -160,6 +161,7 @@ static void do_op(long id) {
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1]);
                 }
+                asm volatile("" : : "r"(v) : "memory");
                 break;
             case 3:
                 if (in_bonsai) {
@@ -196,7 +198,7 @@ static void do_barrier(long id) {
 
     if (id == 0) {
         if (in_bonsai) {
-            bonsai_barrier();
+            //bonsai_barrier();
         }
 
         interval = end_measure();
@@ -242,9 +244,8 @@ void *user_thread_parent_fun(void *arg) {
 }
 
 int bench(char* index_name, init_func_t init, destory_func_t destory,
-				insert_func_t insert, remove_func_t remove,
-				lookup_func_t lookup, lookup_func_t lowerbound,
-                scan_func_t scan) {
+          insert_func_t insert, update_func_t update, remove_func_t remove,
+          lookup_func_t lookup, lookup_func_t lowerbound, scan_func_t scan) {
     pthread_t user_thread_parent;
     char *use_bonsai;
 
@@ -258,6 +259,7 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     fn_init = init;
     fn_destroy = destory;
     fn_insert = insert;
+    fn_update = update;
     fn_remove = remove;
     fn_lookup = lookup;
     fn_lowerbound = lowerbound;
@@ -268,7 +270,7 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     pthread_barrier_init(&barrier, NULL, NUM_THREAD);
 
     if (in_bonsai) {
-        if (bonsai_init(index_name, init, destory, insert, remove, lowerbound, scan) < 0)
+        if (bonsai_init(index_name, init, destory, insert, update, remove, lowerbound, scan) < 0)
             goto out;
     } else {
         index_struct = init();
