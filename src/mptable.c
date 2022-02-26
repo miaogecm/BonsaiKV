@@ -115,6 +115,7 @@ int mptable_insert(int numa_node, int cpu, pkey_t key, uint16_t k_len, pval_t va
 	struct index_layer* i_layer = INDEX(bonsai);
 	struct oplog* log;
 	int ret = 0, tid = get_tid();
+	uint64_t __key = key;
 #ifndef BONSAI_SUPPORT_UPDATE
 	pval_t* addr;
 	int node;
@@ -122,27 +123,24 @@ int mptable_insert(int numa_node, int cpu, pkey_t key, uint16_t k_len, pval_t va
 
     /* TODO: It's dangerous to bind oplog entry directly with pnode! */
 #ifdef LONG_KEY
-	uint64_t __key, off;
+	uint64_t off;
 	struct data_layer* d_layer = DATA(bonsai);
 
 	off = alloc_long_key(d_layer, key, k_len);
 
 	assert(!(off & OFF_CHECK_MASK));
 	__key = (off << KEY_LEN_BITS) & k_len;
-
-	log = oplog_insert(__key, value, OP_INSERT, numa_node, cpu, NULL);
-#else
-	log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, NULL);
 #endif
+	log = oplog_insert(__key, value, OP_INSERT, numa_node, cpu, NULL);
 
 #ifdef BONSAI_SUPPORT_UPDATE
 retry:
-    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
+    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, __key);
 	assert(table);
     table = node_ptr(&LOG(bonsai)->mptable_arena, table, numa_node);
 
 	read_lock(&table->rwlock);
-	ret = hs_update(&table->hs, tid, key, &log->o_kv.v);
+	ret = hs_update(&table->hs, tid, __key, &log->o_kv.v);
 	read_unlock(&table->rwlock);
 
     
@@ -172,7 +170,7 @@ retry:
 }
 
 #if 1
-int mptable_update(int numa_node, int cpu, pkey_t key, pval_t *address) {
+int mptable_update(int numa_node, int cpu, pkey_t key, uint16_t k_len, pval_t *address) {
     assert(0);
 }
 #endif
@@ -223,26 +221,37 @@ static void free_long_key(pkey_t key) {
 	POBJ_FREE(&oid);
 }
 
-int mptable_remove(int numa_node, int cpu, pkey_t key) {
+int mptable_remove(int numa_node, int cpu, pkey_t key, uint16_t k_len) {
     struct mptable *table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int latest_op_type = OP_NONE, found_in_pnode = 0;
 	struct oplog* log;
 	int tid = get_tid();
     struct log_layer *layer = LOG(bonsai);
+	uint64_t __key = key;
 
+#ifdef LONG_KEY
+	uint64_t off;
+	struct data_layer* d_layer = DATA(bonsai);
+
+	off = alloc_long_key(d_layer, key, k_len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__key = (off << KEY_LEN_BITS) & k_len;
+#endif
     /* TODO: It's dangerous to bind oplog entry directly with pnode! */
-	log = oplog_insert(key, 0, OP_REMOVE, numa_node, cpu, NULL);
+	log = oplog_insert(__key, 0, OP_REMOVE, numa_node, cpu, NULL);
+
 
 retry:
 	table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
 	assert(table);
     table = node_ptr(&layer->mptable_arena, table, numa_node);
 	
-	if (unlikely(!__mptable_remove(table, numa_node, cpu, key, &latest_op_type, &found_in_pnode)
+	if (unlikely(!__mptable_remove(table, numa_node, cpu, __key, &latest_op_type, &found_in_pnode)
 				&& table->forward)) {
 		/* search forward table */
-		__mptable_remove(table->forward, numa_node, cpu, key, &latest_op_type, &found_in_pnode);
+		__mptable_remove(table->forward, numa_node, cpu, __key, &latest_op_type, &found_in_pnode);
 	}
 
 	if (latest_op_type == OP_REMOVE) {
@@ -318,7 +327,7 @@ pval_t* __mptable_lookup(struct mptable* mptable, pkey_t key, int cpu) {
 	return ret;
 }
 
-int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val) {
+int mptable_lookup(int numa_node, pkey_t key, uint16_t k_len, int cpu, pval_t *val) {
 	struct index_layer* i_layer = INDEX(bonsai);
 	int tid = get_tid();
 	struct pnode* pnode;
@@ -327,17 +336,28 @@ int mptable_lookup(int numa_node, pkey_t key, int cpu, pval_t *val) {
 	pval_t *addr = NULL;
 	struct oplog* log;
     struct log_layer *layer = LOG(bonsai);
+	uint64_t __key = key;
+
+#ifdef LONG_KEY
+	uint64_t off;
+	struct data_layer* d_layer = DATA(bonsai);
+
+	off = alloc_long_key(d_layer, key, k_len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__key = (off << KEY_LEN_BITS) & k_len;
+#endif
 
 	bonsai_debug("mptable_lookup: cpu[%d] %lu\n", cpu, key);
 
 retry:
-    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, key);
+    table = (struct mptable*)i_layer->lookup(i_layer->index_struct, __key);
     table = node_ptr(&layer->mptable_arena, table, numa_node);
 
-	addr = __mptable_lookup(table, key, cpu);
+	addr = __mptable_lookup(table, __key, cpu);
 	
 	if (!addr && table->forward) {
-		addr = __mptable_lookup(table->forward, key, cpu);
+		addr = __mptable_lookup(table->forward, __key, cpu);
 	}
 	
 	if (addr_in_log((unsigned long)addr)) {
@@ -567,21 +587,38 @@ static int __mptable_scan(struct mptable* table, int n, pkey_t low, pkey_t high,
 	return n;
 }
 
-int mptable_scan(struct mptable* table, pkey_t low, pkey_t high, pval_t* result) {
+int mptable_scan(struct mptable* table, pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* result) {
 	struct pnode* pnode;
-	pkey_t curr = low;
+	pkey_t curr;
 	int n = 0, ret = 0;
+	uint64_t __high = high, __low = low;
 
-	if (low > high) {
+#ifdef LONG_KEY
+	uint64_t off;
+	struct data_layer* d_layer = DATA(bonsai);
+
+	off = alloc_long_key(d_layer, low, lo_len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__low = (off << KEY_LEN_BITS) & lo_len;
+
+	off = alloc_long_key(d_layer, high, hi_len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__high = (off << KEY_LEN_BITS) & hi_len;
+#endif
+
+	if (key_cmp(__low, __high) > 0) {
 		return 0;
 	}
 
+	curr = __low;
 	pnode = table->pnode;
-	while (key_cmp(curr, high) <= 0) {
+	while (key_cmp(curr, __high) <= 0) {
 		if (pnode->stale == PNODE_DATA_CLEAN) {
-			n = scan_one_pnode(pnode, n, low, high, result, &curr);	
+			n = scan_one_pnode(pnode, n, __low, __high, result, &curr);	
 		} else {
-			n = __mptable_scan(table, n, low, high, result, &curr);
+			n = __mptable_scan(table, n, __low, __high, result, &curr);
 		}
 		pnode = list_next_entry(pnode, list);
 		table = pnode->table;

@@ -145,27 +145,27 @@ void index_layer_dump() {
 	kv_print(i_layer->index_struct);
 }
 
-int bonsai_insert(pkey_t key, pval_t value) {
+int bonsai_insert(pkey_t key, uint16_t k_len, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_insert(numa_node, cpu, key, sizeof(key), value);
+	return mptable_insert(numa_node, cpu, key, k_len, value);
 }
 
-int bonsai_update(pkey_t key, pval_t value) {
+int bonsai_update(pkey_t key, uint16_t k_len, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_update(numa_node, cpu, key, &value);
+	return mptable_update(numa_node, cpu, key, k_len, &value);
 }
 
-int bonsai_remove(pkey_t key) {
+int bonsai_remove(pkey_t key, uint16_t k_len) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_remove(numa_node, cpu, key);
+	return mptable_remove(numa_node, cpu, key, k_len);
 }
 
-int bonsai_lookup(pkey_t key, pval_t* val) {
+int bonsai_lookup(pkey_t key, uint16_t k_len, pval_t* val) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return mptable_lookup(numa_node, key, cpu, val);
+	return mptable_lookup(numa_node, key, k_len, cpu, val);
 }
 
-int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
+int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
 	struct mptable *table;
 	struct index_layer* i_layer = INDEX(bonsai);
 	int arr_size = 0;
@@ -174,7 +174,7 @@ int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr) {
 
 	assert(table);
 
-	arr_size = mptable_scan(table, low, high, val_arr);
+	arr_size = mptable_scan(table, low, lo_len, high, hi_len, val_arr);
 	
 	return arr_size;
 }
