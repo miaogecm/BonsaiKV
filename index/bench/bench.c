@@ -52,10 +52,10 @@ extern void bonsai_deinit();
 
 extern void bonsai_barrier();
 
-extern int bonsai_insert(pkey_t key, pval_t value);
-extern int bonsai_remove(pkey_t key);
-extern int bonsai_lookup(pkey_t key, pval_t* val);
-extern int bonsai_scan(pkey_t low, pkey_t high, pval_t* val_arr);
+extern int bonsai_insert(pkey_t key, uint16_t k_len, pval_t value);
+extern int bonsai_remove(pkey_t key, uint16_t k_len);
+extern int bonsai_lookup(pkey_t key, uint16_t k_len, pval_t* val);
+extern int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr);
 
 extern void bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -112,29 +112,44 @@ static void do_load(long id) {
 	long i;
     int ret;
 
-    if (id == 0) {
-        start_measure();
-        for (i = 0; i < N; i ++) {
-            if (in_bonsai) {
-                ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
-            } else {
-                ret = fn_insert(index_struct, load_arr[i][0], (void *) load_arr[i][1]);
-            }
-            assert(ret == 0);
-        }
-        interval = end_measure();
-        printf("load finished in %.3lf seconds\n", interval);
+    // if (id == 0) {
+    //     start_measure();
+    //     for (i = 0; i < N; i ++) {
+    //         if (in_bonsai) {
+    //             ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
+    //         } else {
+    //             ret = fn_insert(index_struct, load_arr[i][0], (void *) load_arr[i][1]);
+    //         }
+    //         assert(ret == 0);
+    //     }
+    //     interval = end_measure();
+    //     printf("load finished in %.3lf seconds\n", interval);
 
-        if (in_bonsai) {
-            bonsai_barrier();
-        }
+    //     if (in_bonsai) {
+    //         bonsai_barrier();
+    //     }
 
-        interval = end_measure();
-        printf("load total: %.3lf seconds\n", interval);
+    //     interval = end_measure();
+    //     printf("load total: %.3lf seconds\n", interval);
+    // }
+    
+    char c[] = "12345678";
+    for (i = 0; i < 10; i++) {
+        c[7] += i;
+        bonsai_insert(c, 8, i);
+    }
+
+    char cc[] = "12345678";
+    for (i = 0; i < 10; i++) {
+        cc[7] += i;
+        pval_t v;
+        bonsai_lookup(c, 8, &v);
+        printf("%lu\n", v);
     }
 }
 
 static void do_op(long id) {
+#if 0
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
@@ -189,6 +204,7 @@ static void do_op(long id) {
 	free(val_arr);
 
 	printf("user thread[%ld] exit\n", id);
+#endif
 }
 
 static void do_barrier(long id) {
@@ -220,9 +236,9 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
-    do_op(id);
+    // do_op(id);
 
-    pthread_barrier_wait(&barrier);
+    // pthread_barrier_wait(&barrier);
 
     do_barrier(id);
 
@@ -251,6 +267,7 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     use_bonsai = getenv("bonsai");
     in_bonsai = use_bonsai && !strcmp(use_bonsai, "yes");
 
+    in_bonsai = 1;
     if (in_bonsai) {
         printf("Using bonsai.\n");
     }
