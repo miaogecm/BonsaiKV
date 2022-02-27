@@ -22,6 +22,12 @@ static int ff_insert(void* index_struct, pkey_t key, void* value) {
     return 0;
 }
 
+static int ff_update(void* index_struct, pkey_t key, void* value) {
+    auto* ff = static_cast<btree *>(index_struct);
+    ff->btree_update(key, (char*) value);
+    return 0;
+}
+
 static int ff_remove(void* index_struct, pkey_t key) {
     auto* ff = static_cast<btree *>(index_struct);
     ff->btree_delete(key);
@@ -48,5 +54,5 @@ void kv_print() {
 }
 
 int main() {
-    return bench("fastfair_dram", ff_init, ff_destory, ff_insert, ff_remove, ff_lookup, ff_lowerbound, ff_scan);
+    return bench("fastfair_dram", ff_init, ff_destory, ff_insert, ff_update, ff_remove, ff_lookup, ff_lowerbound, ff_scan);
 }

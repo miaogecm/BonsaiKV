@@ -19,7 +19,7 @@
 #include "common.h"
 #include "thread.h"
 #include "pnode.h"
-#include "mptable.h"
+#include "shim.h"
 #include "hash.h"
 #include "epoch.h"
 
@@ -495,10 +495,10 @@ static int worker_oplog_flush(void* arg) {
 
 		switch(log->o_type) {
 		case OP_INSERT:
-			pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);		
+			//pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);
 			break;
 		case OP_REMOVE:
-			pnode_remove(log->o_kv.k);
+			//pnode_remove(log->o_kv.k);
 			break;
 		default:
 			perror("bad operation type\n");
@@ -679,8 +679,11 @@ void oplog_flush() {
 		//fwork->curr_index = fwork->min_index;
 		fwork->small_free_cnt = 0;
 		fwork->big_free_cnt = 0;
-		fwork->small_free_set = malloc(sizeof(pkey_t) * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT);
-		fwork->big_free_set = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+		//fwork->small_free_set = malloc(sizeof(pkey_t) * SEGMENT_SIZE * LOAD_FACTOR_DEFAULT);
+		//fwork->big_free_set = malloc(sizeof(pkey_t) * MAX_NUM_BUCKETS);
+        /* TODO: What are these? */
+        fwork->small_free_set = malloc(1);
+        fwork->big_free_set = malloc(1);
 		fwork->layer = l_layer;
 		INIT_LIST_HEAD(&fwork->flush_list);
 

@@ -14,7 +14,7 @@
 
 #include "pnode.h"
 #include "oplog.h"
-#include "mptable.h"
+#include "shim.h"
 #include "bonsai.h"
 #include "cpu.h"
 #include "arch.h"

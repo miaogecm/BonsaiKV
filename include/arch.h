@@ -36,37 +36,11 @@ extern "C" {
 #define __read_mostly __attribute__((__section__(".data..read_mostly")))
 #endif
 
-static inline void __attribute__((__always_inline__)) wmb(void)
-{
-	__asm__ __volatile__("sfence" ::: "memory");
-}
+#define barrier()       __asm__ __volatile__("": : :"memory")
 
-static inline void __attribute__((__always_inline__)) smp_mb(void)
-{
-	__asm__ __volatile__("mfence" ::: "memory");
-}
-
-static inline void __attribute__((__always_inline__)) smp_rmb(void)
-{
-	__asm__ __volatile__("lfence" ::: "memory");
-}
-
-static inline void __attribute__((__always_inline__)) smp_wmb(void)
-{
-	__asm__ __volatile__("sfence" ::: "memory");
-}
-
-#if 0
-static inline void __attribute__((__always_inline__)) barrier(void)
-{
-	__asm__ __volatile__("" ::: "memory");
-}
-
-static inline void __attribute__((__always_inline__)) smp_wmb_tso(void)
-{
-	barrier();
-}
-#endif
+#define smp_rmb()       barrier()
+#define smp_wmb()       barrier()
+#define smp_mb()        asm volatile("lock; addl $0,-4(%%rsp)" ::: "memory", "cc")
 
 #define cpu_relax() asm volatile("pause\n" : : : "memory")
 
