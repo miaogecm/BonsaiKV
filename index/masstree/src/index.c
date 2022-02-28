@@ -20,33 +20,33 @@ static void mass_destory(void* index_struct) {
 
 static int mass_insert(void* index_struct, pkey_t key, size_t len, void* value) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    masstree_put(tr, &key, len, (void*) value);
+    masstree_put(tr, key, len, (void*) value);
     
     return 0;
 }
 
 static int mass_update(void* index_struct, pkey_t key, size_t len, void* value) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    masstree_put(tr, &key, len, (void*) value);
+    masstree_put(tr, key, len, (void*) value);
     
     return 0;
 }
 
-static int mass_remove(void* index_struct, size_t len, pkey_t key) {
+static int mass_remove(void* index_struct, pkey_t key, size_t len) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    masstree_del(tr, &key, len);
+    masstree_del(tr, key, len);
 
     return 0;
 }
 
-static void* mass_lookup(void* index_struct, size_t len, pkey_t key) {
+static void* mass_lookup(void* index_struct, pkey_t key, size_t len) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    return masstree_get(tr, &key, len);
+    return masstree_get(tr, key, len);
 }
 
-static void* mass_lowerbound(void* index_struct, size_t len, pkey_t key) {
+static void* mass_lowerbound(void* index_struct, pkey_t key, size_t len) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    return masstree_get(tr, &key, len);
+    return masstree_get(tr, key, len);
 }
 
 static int mass_scan(void* index_struct, pkey_t min, pkey_t max) {

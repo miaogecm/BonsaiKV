@@ -21,10 +21,10 @@ extern "C" {
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* index_struct, pkey_t key, void* value);
-typedef int (*update_func_t)(void* index_struct, pkey_t key, void* value);
-typedef int (*remove_func_t)(void* index_struct, pkey_t key);
-typedef void* (*lookup_func_t)(void* index_struct, pkey_t key);
+typedef int (*insert_func_t)(void* index_struct, pkey_t key, size_t len, void* value);
+typedef int (*update_func_t)(void* index_struct, pkey_t key, size_t len, void* value);
+typedef int (*remove_func_t)(void* index_struct, pkey_t key, size_t len);
+typedef void* (*lookup_func_t)(void* index_struct, pkey_t key, size_t len);
 typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 
 #define MPTABLE_ARENA_SIZE          (2 * 1024 * 1024 * 1024ul)  // 2GB
@@ -134,8 +134,8 @@ static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_
 	
 	root->len = k_len;
 	pmemobj_persist(pop, &root->len, sizeof(uint16_t));
-	pmemobj_memcpy_persist(pop, root->key, key, k_len);
-
+	pmemobj_memcpy_persist(pop, &root->key, key, k_len);
+	
 	return toid.oid.off;
 }
 
@@ -150,6 +150,22 @@ static void free_long_key(pkey_t key) {
 	POBJ_FREE(&oid);
 }
 
+static size_t resolve_key(pkey_t* key, uint16_t* len) {
+#ifndef LONG_KEY
+	*len = 8;
+	return key;
+#else
+	size_t addr;
+	struct data_layer* layer = DATA(bonsai);
+    char* start = layer->key_start;
+
+	addr = start + (*key >> KEY_LEN_BITS);
+	*len = (uint16_t) ((*key << KEY_OFF_BITS) >> KEY_OFF_BITS);	
+
+	return addr;
+#endif
+}
+
 static pkey_t make_key(pkey_t key, uint16_t len) {
 	pkey_t __key;
 
@@ -162,7 +178,7 @@ static pkey_t make_key(pkey_t key, uint16_t len) {
 	off = alloc_long_key(d_layer, key, len);
 
 	assert(!(off & OFF_CHECK_MASK));
-	__key = (off << KEY_LEN_BITS) & len;
+	__key = (off << KEY_LEN_BITS) | len;
 #endif
 
 	return __key;
@@ -176,14 +192,15 @@ static int key_cmp(pkey_t a, pkey_t b) {
 #else
     struct data_layer* layer = DATA(bonsai);
     char* start = layer->key_start;
-    char* desta = start + ((a >> KEY_LEN_BITS) << KEY_LEN_BITS);
-    char* destb = start + ((b >> KEY_LEN_BITS) << KEY_LEN_BITS);
-    const uint16_t a_len = (uint16_t) ((a >> KEY_OFF_BITS) << KEY_OFF_BITS);
-    const uint16_t b_len = (uint16_t) ((b >> KEY_OFF_BITS) << KEY_OFF_BITS);
+	uint16_t a_len, b_len;
+
+	char* srca = resolve_key(&a, &a_len);
+	char* srcb = resolve_key(&b, &b_len);
+
     char sa[a_len];
     char sb[b_len];
-    memcpy(sa, desta, a_len);
-    memcpy(sb, destb, b_len);
+    memcpy(sa, srca, a_len);
+    memcpy(sb, srcb, b_len);
 
     return strcmp(sa, sb);
 #endif

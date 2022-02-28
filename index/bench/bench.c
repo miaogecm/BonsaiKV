@@ -31,7 +31,7 @@
 pkey_t a[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	4
+#define NUM_THREAD	1
 #endif
 
 #define NUM_CPU		8
@@ -137,14 +137,14 @@ static void do_load(long id) {
     char c[] = "12345678";
     for (i = 0; i < 10; i++) {
         c[7] += i;
-        bonsai_insert(c, 8, i);
+        bonsai_insert(c, sizeof(c), i);
     }
 
     char cc[] = "12345678";
     for (i = 0; i < 10; i++) {
         cc[7] += i;
         pval_t v;
-        bonsai_lookup(c, 8, &v);
+        bonsai_lookup(cc, sizeof(cc), &v);
         printf("%lu\n", v);
     }
 }

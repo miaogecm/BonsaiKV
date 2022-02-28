@@ -159,9 +159,9 @@ int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_
 	struct index_layer* i_layer = INDEX(bonsai);
 	int arr_size = 0;
 
-	table = (struct mptable*)i_layer->lookup(i_layer->index_struct, low);
+	// table = (struct mptable*)i_layer->lookup(i_layer->index_struct, low);
 
-	assert(table);
+	// assert(table);
 
 	//arr_size = mptable_scan(table, low, high, val_arr);
 	
@@ -230,11 +230,6 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		index_layer_init(index_name, &bonsai->i_layer, init, 
 						insert, update, remove, lookup, scan, destory);
 
-        /* 2. initialize shim layer */
-        error = shim_layer_init(&bonsai->s_layer);
-        if (error)
-            goto out;
-
 		/* 3. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);
 		if (error)
@@ -244,7 +239,12 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
         error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
-
+		
+		/* 2. initialize shim layer */
+        error = shim_layer_init(&bonsai->s_layer);
+        if (error)
+            goto out;
+		
 		/* 5. initialize self */
 		INIT_LIST_HEAD(&bonsai->thread_list);
 		bonsai_self_thread_init();

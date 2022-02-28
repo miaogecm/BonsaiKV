@@ -17,6 +17,7 @@
 #include "shim.h"
 #include "rcu.h"
 #include "cpu.h"
+#include "long_key.h"
 
 extern struct bonsai_info* bonsai;
 
@@ -202,10 +203,18 @@ static inline struct mptable *mptable_off2addr(int node, mptable_off_t off) {
 }
 
 static inline void mt_header_init(struct mptable *mt) {
+    pkey_t __key;
+#ifdef LONG_KEY
+    char max_key[KEY_MAX_LEN];
+    memset(max_key, -1, sizeof(max_key));
+    __key = make_key(max_key, KEY_MAX_LEN);
+#else
+    __key = ULONG_MAX;
+#endif
     slot_set_cnt(mt->slots, 0);
     seqcount_init(&mt->seq);
     seqcount_init(&mt->slots_seq);
-    mt->max = ULONG_MAX;
+    mt->max = __key;
     mt->slave = 0;
     mt->fence = 0;
     mt->next = 0;
@@ -359,8 +368,11 @@ static inline struct mptable *mptable_seek(int node, pkey_t key, seek_opt_t seek
     struct index_layer *i_layer = INDEX(bonsai);
     struct mptable *mt, *st_hint;
     struct buddy_table_off bt;
+    pkey_t __key;
+    uint16_t len;
 
-    *(void **) &bt = i_layer->lookup(i_layer->index_struct[node], key);
+    __key = resolve_key(&key, &len);
+    *(void **) &bt = i_layer->lookup(i_layer->index_struct[node], __key, len);
 
     mt = mptable_off2addr(node, bt.mt);
     st_hint = mptable_off2addr(node, bt.st_hint);
@@ -432,6 +444,8 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
     struct buddy_table_off bt;
     pkey_t fence;
     uint8_t idx;
+    pkey_t __key;
+    uint16_t len;
     int i;
 
     st_init(&bdt[0]);
@@ -462,11 +476,15 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
 
     bt.mt = mptable_addr2off(node, st);
     bt.st_hint = mptable_addr2off(node, &bdt[1]);
-    i_layer->insert(i_layer->index_struct[node], fence, *(void **) &bt);
+
+    __key = resolve_key(&fence, &len);
+    i_layer->insert(i_layer->index_struct[node], __key, len,*(void **) &bt);
 
     bt.mt = mptable_addr2off(node, mt);
     bt.st_hint = mptable_addr2off(node, &bdt[0]);
-    i_layer->update(i_layer->index_struct[node], mt->fence, *(void **) &bt);
+
+    __key = resolve_key(&mt->fence, &len);
+    i_layer->update(i_layer->index_struct[node], __key, len, *(void **) &bt);
 
     if (key >= fence) {
         mptable_unlock(mt);
@@ -481,12 +499,25 @@ int shim_layer_init(struct shim_layer *s_layer) {
     struct mptable *mt;
     struct buddy_table_off bt;
     int node;
+    pkey_t key, __key;
+    int len;
+
     for (node = 0; node < NUM_SOCKET; node++) {
         s_layer->pools[node] = numa_alloc_onnode(sizeof(struct mptable_pool), node);
         mt = mptable_create(node);
         bt.mt = mptable_addr2off(node, mt);
         bt.st_hint = mt->slave;
-        i_layer->insert(i_layer->index_struct[node], 0, *(void **) &bt);
+
+#ifndef LONG_KEY
+    key = 0;
+    __key = &key;
+    len = 4;
+#else
+    char* ch = "0";
+    len = 1;
+    __key = (pkey_t) ch;
+#endif
+        i_layer->insert(i_layer->index_struct[node], __key, len, *(void **) &bt);
     }
     return 0;
 }
