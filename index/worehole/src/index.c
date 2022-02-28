@@ -24,7 +24,7 @@ static void *_wh_init() {
 static void _wh_destory(void* index_struct) {
     struct wormref* ref = (struct wormref*) index_struct;
     
-    wh_unref(ref);
+    // wh_unref(ref);
 
     wh_destroy(wh);
 }

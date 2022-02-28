@@ -1581,7 +1581,7 @@ wormleaf_search_is(const struct wormleaf * const leaf, const u8 ih)
 __wormleaf_search_ss(const struct wormleaf * const leaf, const struct kref * const key)
 {
   u32 lo = 0;
-  u32 hi = leaf->nr_sorted;
+  u32 hi = leaf->nr_sorted - 1;
   while ((lo + 2) < hi) {
     const u32 i = (lo + hi + 1) >> 1;
     const struct kv * const curr = wormleaf_kv_at_is(leaf, i);
@@ -1595,7 +1595,7 @@ __wormleaf_search_ss(const struct wormleaf * const leaf, const struct kref * con
     else 
       hi = i - 1;
   }
-
+  
   while (lo < hi) {
     const int i = (lo + hi + 1) >> 1;
     const struct kv * const curr = wormleaf_kv_at_is(leaf, i);
@@ -1607,7 +1607,7 @@ __wormleaf_search_ss(const struct wormleaf * const leaf, const struct kref * con
       hi = i - 1;
   }
 
-  if (lo == 0 && kref_kv_compare(key, wormleaf_kv_at_is(leaf, lo)) > 0) {
+  if (lo == 0 && kref_kv_compare(key, wormleaf_kv_at_is(leaf, lo)) < 0) {
     if (leaf->prev)
       lo = __wormleaf_search_ss(leaf->prev, key);
     else 
