@@ -134,14 +134,14 @@ static void do_load(long id) {
     //     printf("load total: %.3lf seconds\n", interval);
     // }
     
-    char c[] = "12345678";
-    for (i = 0; i < 10; i++) {
+    char c[] = "1234567a";
+    for (i = 0; i < 20; i++) {
         c[7] += i;
         bonsai_insert(c, sizeof(c), i);
     }
 
-    char cc[] = "12345678";
-    for (i = 0; i < 10; i++) {
+    char cc[] = "1234567a";
+    for (i = 0; i < 20; i++) {
         cc[7] += i;
         pval_t v;
         bonsai_lookup(cc, sizeof(cc), &v);
