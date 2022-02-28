@@ -1609,10 +1609,10 @@ masstree_destroy(masstree_t *tree)
 	ASSERT(tree->gc_nodes == NULL);
 
 	/* Finally, free Masstree. */
-	if (&tree->initleaf != root) {
-		ops->free(root, sizeof(mtree_leaf_t));
-	}
-	ops->free(tree, sizeof(masstree_t));
+	// if (&tree->initleaf != root) {
+	// 	ops->free(root, sizeof(mtree_leaf_t));
+	// }
+	// ops->free(tree, sizeof(masstree_t));
 }
 
 size_t
