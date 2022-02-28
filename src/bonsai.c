@@ -134,18 +134,24 @@ void index_layer_dump() {
 int bonsai_insert(pkey_t key, uint16_t k_len, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
     struct oplog* log;
-    log = oplog_insert(key, value, OP_INSERT, numa_node, cpu, NULL);
-	return shim_upsert(numa_node, key, &log->o_kv.v);
+	pkey_t __key = make_key(key, k_len);
+
+    log = oplog_insert(__key, value, OP_INSERT, numa_node, cpu, NULL);
+	return shim_upsert(numa_node, __key, &log->o_kv.v);
 }
 
 int bonsai_remove(pkey_t key, uint16_t k_len) {
+	pkey_t __key = make_key(key, k_len);
+
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return shim_remove(numa_node, key);
+	return shim_remove(numa_node, __key);
 }
 
 int bonsai_lookup(pkey_t key, uint16_t k_len, pval_t* val) {
+	pkey_t __key = make_key(key, k_len);
+
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return shim_lookup(numa_node, key, val);
+	return shim_lookup(numa_node, __key, val);
 }
 
 int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
@@ -179,7 +185,7 @@ void bonsai_deinit() {
 	
 	bonsai_self_thread_exit();
 
-	bonsai_pflushd_thread_exit();
+	// bonsai_pflushd_thread_exit();
 	
 	index_layer_deinit(&bonsai->i_layer);
     log_layer_deinit(&bonsai->l_layer);

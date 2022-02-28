@@ -5,7 +5,7 @@ sudo ../clean.sh
 cd src
 make clean
 make
-sudo mv libwh.so /lib/
+# sudo mv libwh.so /lib/
 cd ..
 
 pushd ../../src

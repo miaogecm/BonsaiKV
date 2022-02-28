@@ -15,6 +15,8 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 
+#include "long_key.h"
+
 #ifndef LOCAL
 typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
@@ -98,24 +100,6 @@ typedef union pentry {
 #else
 #define bonsai_debug(fmt, args ...) do {} while(0);
 #endif
-
-static inline uint8_t pkey_get_signature(pkey_t key) {
-    return key;
-}
-
-static inline pkey_t pkey_prev(pkey_t key) {
-    return key - 1;
-}
-
-static inline int pkey_compare(pkey_t a, pkey_t b) {
-    if (a < b) {
-        return -1;
-    }
-    if (a > b) {
-        return 1;
-    }
-    return 0;
-}
 
 /* Indirect macros required for expanded argument pasting, eg. __LINE__. */
 #define ___PASTE(a,b) a##b

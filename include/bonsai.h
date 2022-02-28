@@ -7,6 +7,7 @@ extern "C" {
 
 #include <libpmemobj.h>
 #include <thread.h>
+#include <assert.h>
 
 #include "atomic.h"
 #include "region.h"
@@ -113,7 +114,59 @@ struct bonsai_info {
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
 
+POBJ_LAYOUT_BEGIN(BONSAI);
+POBJ_LAYOUT_TOID(BONSAI, struct pnode);
+POBJ_LAYOUT_TOID(BONSAI, struct long_key);
+POBJ_LAYOUT_END(BONSAI);
+
 extern struct bonsai_info* bonsai;
+
+#define OFF_CHECK_MASK	0xffff000000000000
+
+static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_len) {
+	PMEMobjpool* pop = layer->key_pop;
+	TOID(struct long_key) toid;
+	struct long_key* root;
+
+	POBJ_ALLOC(pop, &toid, struct long_key, sizeof(struct long_key), NULL, NULL);
+
+	root = pmemobj_direct(toid.oid);
+	
+	root->len = k_len;
+	pmemobj_persist(pop, &root->len, sizeof(uint16_t));
+	pmemobj_memcpy_persist(pop, root->key, key, k_len);
+
+	return toid.oid.off;
+}
+
+static void free_long_key(pkey_t key) {
+	struct data_layer* layer = &(bonsai->d_layer);
+	PMEMoid oid;
+	char* addr;
+	
+	addr = (key >> KEY_LEN_BITS) + layer->key_start;
+	oid = pmemobj_oid(addr);
+	
+	POBJ_FREE(&oid);
+}
+
+static pkey_t make_key(pkey_t key, uint16_t len) {
+	pkey_t __key;
+
+#ifndef LONG_KEY
+	__key = key;
+#else
+	uint64_t off;
+	struct data_layer* d_layer = DATA(bonsai);
+
+	off = alloc_long_key(d_layer, key, len);
+
+	assert(!(off & OFF_CHECK_MASK));
+	__key = (off << KEY_LEN_BITS) & len;
+#endif
+
+	return __key;
+}
 
 static int key_cmp(pkey_t a, pkey_t b) {
 #ifndef LONG_KEY
@@ -131,17 +184,52 @@ static int key_cmp(pkey_t a, pkey_t b) {
     char sb[b_len];
     memcpy(sa, desta, a_len);
     memcpy(sb, destb, b_len);
+
     return strcmp(sa, sb);
 #endif
 }
 
-POBJ_LAYOUT_BEGIN(BONSAI);
-POBJ_LAYOUT_TOID(BONSAI, struct pnode);
-POBJ_LAYOUT_TOID(BONSAI, struct long_key);
-POBJ_LAYOUT_END(BONSAI);
+static inline uint8_t pkey_get_signature(pkey_t key) {
+#ifndef LONG_KEY
+    return key;
+#else
+	return 1;
+#endif
+}
+
+static inline pkey_t pkey_prev(pkey_t key) {
+#ifndef LONG_KEY
+    return key - 1;
+#else
+	struct data_layer* layer = DATA(bonsai);
+    char* start = layer->key_start;
+	char* dest = start + ((key >> KEY_LEN_BITS) << KEY_LEN_BITS);
+	uint16_t len = (uint16_t) ((key >> KEY_OFF_BITS) << KEY_OFF_BITS);
+	char* prev = (char*) malloc(len);
+	int i;
+	
+	memcpy(prev, dest, len);
+
+	i = len - 1;
+	while(1) {
+		if (prev[i]) {
+			prev[i]--;
+			break;
+		}
+		i--;
+		assert(i >= 0);
+	}
+
+	return prev;
+#endif
+}
+
+static inline int pkey_compare(pkey_t a, pkey_t b) {
+	return key_cmp(a, b);
+}
 
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
-				insert_func_t insert, remove_func_t remove, 
+				insert_func_t insert, update_func_t update, remove_func_t remove, 
 				lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();
 
