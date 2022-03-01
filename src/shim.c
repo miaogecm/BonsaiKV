@@ -67,9 +67,18 @@ struct mptable {
     kvpair_t entries[MPTABLE_MAX_KEYN];
 };
 
+struct mptable_desc {
+    uint64_t    off;
+    uint64_t    prev;
+    uint64_t    next;
+    char        padding[40];
+};
+
 struct mptable_pool_hdr {
     atomic_t used;
-    char padding[60];
+    struct mptable_desc* free;
+    struct mptable_desc* inuse;
+    spinlock_t lock;
 };
 
 struct mptable_pool {
@@ -180,26 +189,74 @@ static inline int slot_is_empty(const uint8_t *slots) {
     return slot_get_cnt(slots) == 0;
 }
 
-static struct mptable *buddy_table_alloc(int node) {
-    struct shim_layer *s_layer = SHIM(bonsai);
-    struct mptable_pool *pool = s_layer->pools[node];
-    int i = atomic_add_return(1, &pool->hdr.used) - 1;
-    size_t obj_size = 2 * sizeof(struct mptable);
-    size_t off = obj_size * i;
-    assert(off + obj_size <= MPTABLE_POOL_SIZE_PER_NODE);
-    return (struct mptable *) (pool->data + off);
+static inline mptable_off_t desc_addr2off(int node, struct mptable_desc *addr) {
+    return (void *) addr - (void *) SHIM(bonsai)->pools[node]->data;
 }
 
-static void buddy_table_dealloc(int node, struct mptable *mt) {
-    /* TODO: Implement it! */
+static inline struct mptable_desc *desc_off2addr(int node, mptable_off_t off) {
+    return (struct mptable_desc *) ((void *) SHIM(bonsai)->pools[node]->data + off);
 }
 
 static inline mptable_off_t mptable_addr2off(int node, struct mptable *addr) {
-    return (void *) addr - (void *) SHIM(bonsai)->pools[node];
+    const unsigned long desc_size = sizeof(struct mptable_desc);
+    return desc_addr2off(node, addr);
 }
 
 static inline struct mptable *mptable_off2addr(int node, mptable_off_t off) {
-    return (struct mptable *) ((void *) SHIM(bonsai)->pools[node] + off);
+    const unsigned long desc_size = sizeof(struct mptable_desc);
+    return (struct mptable*) ((unsigned long) desc_off2addr(node, off));
+}
+
+static struct mptable *buddy_table_alloc(int node) {
+    struct shim_layer *s_layer = SHIM(bonsai);
+    struct mptable_pool *pool = s_layer->pools[node];
+    struct mptable_desc *desc;
+    const unsigned long desc_size = sizeof(struct mptable_desc); 
+
+    spin_lock(&pool->hdr.lock);
+    assert(pool->hdr.free);
+    desc = pool->hdr.free;
+    pool->hdr.free = desc_off2addr(node, desc->next);
+    if (likely(pool->hdr.free)) {
+        pool->hdr.free->prev = 0;
+    }
+
+    if (likely(pool->hdr.inuse)) {
+        desc->next = desc_addr2off(node, pool->hdr.inuse);
+        pool->hdr.inuse->prev = desc_addr2off(node, desc);
+    } else {
+        desc->next = 0;
+    }
+    pool->hdr.inuse = desc;
+    spin_unlock(&pool->hdr.lock);  
+
+    return (struct mptable*) desc + desc_size;
+}
+
+static void buddy_table_dealloc(int node, struct mptable *mt) {
+    struct shim_layer *s_layer = SHIM(bonsai);
+    struct mptable_pool *pool = s_layer->pools[node];
+    const unsigned long desc_size = sizeof(struct mptable_desc); 
+    struct mptable_desc *prev, *victim = (struct mptable*) ((uint64_t)mt - desc_size);
+
+    spin_lock(&pool->hdr.lock);
+
+    prev = victim->prev;
+    if (prev) {
+        prev->next = node, victim->next;
+    } else {
+        pool->hdr.inuse = desc_addr2off(node, victim->next);
+    }
+
+    victim->prev = 0;
+
+    if (likely(pool->hdr.free)) {
+        victim->next = desc_addr2off(node, pool->hdr.free);
+    } else {
+        victim->next = 0;
+    }
+    pool->hdr.free = victim;
+    spin_unlock(&pool->hdr.lock);  
 }
 
 static inline void mt_header_init(struct mptable *mt) {
@@ -494,6 +551,32 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
     }
 }
 
+static void init_shim_pool(struct mptable_pool* pool) {
+    int num_table;
+    size_t start, off;
+    const unsigned long table_size = sizeof(struct mptable) + sizeof(struct mptable_desc);
+    const unsigned long padding = 128;
+    struct mptable_desc* desc;
+    int i;
+
+    /* 2G / 320 B ... 128B */
+    num_table = MPTABLE_POOL_SIZE_PER_NODE / table_size;
+    start = pool->data;
+    off = padding;
+
+    for (i = 0; i < num_table; i++) {
+        desc = (struct mptable_desc*) (start + off);
+        desc->off = off;
+        desc->prev = (i == 0) ? 0 : off - table_size;
+        desc->next = (i == num_table - 1) ? 0 : off + table_size;
+        off += table_size;
+    }
+
+    spin_lock_init(&pool->hdr.lock);
+    pool->hdr.free = (struct mptable_desc*) (start + padding);
+    pool->hdr.inuse = NULL;
+}
+
 int shim_layer_init(struct shim_layer *s_layer) {
     struct index_layer *i_layer = INDEX(bonsai);
     struct mptable *mt;
@@ -504,6 +587,7 @@ int shim_layer_init(struct shim_layer *s_layer) {
 
     for (node = 0; node < NUM_SOCKET; node++) {
         s_layer->pools[node] = numa_alloc_onnode(sizeof(struct mptable_pool), node);
+        init_shim_pool(s_layer->pools[node]);
         mt = mptable_create(node);
         bt.mt = mptable_addr2off(node, mt);
         bt.st_hint = mt->slave;
@@ -511,7 +595,7 @@ int shim_layer_init(struct shim_layer *s_layer) {
 #ifndef LONG_KEY
     key = 0;
     __key = &key;
-    len = 4;
+    len = 8;
 #else
     char* ch = "0";
     len = 1;

@@ -95,8 +95,6 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 	region->free->p_prev = 0;
 	spin_unlock(&region->free_lock);
 
-	page->p_prev = 0;
-
 	spin_lock(&region->inuse_lock);
 	if (likely(region->inuse)) {
 		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
