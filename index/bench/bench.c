@@ -110,47 +110,47 @@ static inline double end_measure() {
 
 static void do_load(long id) {
     double interval;
-	long i;
+	long i, st, ed;
     int ret;
 
-    // if (id == 0) {
-    //     start_measure();
-    //     for (i = 0; i < N; i ++) {
-    //         if (in_bonsai) {
-    //             ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
-    //         } else {
-    //             ret = fn_insert(index_struct, load_arr[i][0], (void *) load_arr[i][1]);
-    //         }
-    //         assert(ret == 0);
-    //     }
-    //     interval = end_measure();
-    //     printf("load finished in %.3lf seconds\n", interval);
-
-    //     if (in_bonsai) {
-    //         bonsai_barrier();
-    //     }
-
-    //     interval = end_measure();
-    //     printf("load total: %.3lf seconds\n", interval);
-    // }
+    start_measure();
     
-    char c[] = "1234567a";
-    for (i = 0; i < 20; i++) {
-        c[7] += i;
-        bonsai_insert(c, sizeof(c), i);
+    st = 1.0 * id / NUM_THREAD * N;
+    ed = 1.0 * (id + 1) / NUM_THREAD * N;
+    for (i = st; i < ed; i ++) {
+        if (in_bonsai) {
+            ret = bonsai_insert(load_arr[i][0], 8, load_arr[i][1]);
+        } else {
+            ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+        }
+        assert(ret == 0);
+    }
+    interval = end_measure();
+    printf("load finished in %.3lf seconds\n", interval);
+
+    if (in_bonsai) {
+        bonsai_barrier();
     }
 
-    char cc[] = "1234567a";
-    for (i = 0; i < 20; i++) {
-        cc[7] += i;
-        pval_t v;
-        bonsai_lookup(cc, sizeof(cc), &v);
-        printf("%lu\n", v);
-    }
+    printf("user thread[%ld] exit\n", id);
+
+    // char c[] = "1234567a";
+    // for (i = 0; i < 10; i++) {
+    //     c[7] += i;
+    //     bonsai_insert(c, sizeof(c), i);
+    // }
+
+    // char cc[] = "1234567a";
+    // for (i = 0; i < 10; i++) {
+    //     cc[7] += i;
+    //     pval_t v;
+    //     bonsai_lookup(cc, sizeof(cc), &v);
+    //     printf("%lu\n", v);
+    // }
 }
 
 static void do_op(long id) {
-#if 0
+#if 1
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
@@ -165,22 +165,22 @@ static void do_op(long id) {
             case 0:
             case 1:
                 if (in_bonsai) {
-                    bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                    bonsai_insert(op_arr[id][i][1], 8, op_arr[id][i][2]);
                 } else {
-                    fn_insert(index_struct, op_arr[id][i][1], (void *) op_arr[id][i][2]);
+                    fn_insert(index_struct, op_arr[id][i][1], 8, (void *) op_arr[id][i][2]);
                 }
                 break;
             case 2:
                 if (in_bonsai) {
-                    bonsai_lookup(op_arr[id][i][1], &v);
+                    bonsai_lookup(op_arr[id][i][1], 8, &v);
                 } else {
-                    v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1]);
+                    v = (pval_t) fn_lookup(index_struct, 8, op_arr[id][i][1]);
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;
             case 3:
                 if (in_bonsai) {
-                    bonsai_scan(op_arr[id][i][1], op_arr[id][i][2], val_arr);
+                    bonsai_scan(op_arr[id][i][1], 8, op_arr[id][i][2], 8, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);
@@ -238,9 +238,11 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
-    // do_op(id);
+    do_barrier(id);
 
-    // pthread_barrier_wait(&barrier);
+    do_op(id);
+
+    pthread_barrier_wait(&barrier);
 
     do_barrier(id);
 

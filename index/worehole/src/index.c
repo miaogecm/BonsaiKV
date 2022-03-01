@@ -11,7 +11,7 @@
 #include "kv.h"
 #include "wh.h"
 
-#define LONG_KEY
+// #define LONG_KEY
 
 struct wormhole* wh;
 

@@ -123,6 +123,7 @@ extern struct bonsai_info* bonsai;
 
 #define OFF_CHECK_MASK	0xffff000000000000
 
+#ifdef LONG_KEY
 static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_len) {
 	PMEMobjpool* pop = layer->key_pop;
 	TOID(struct long_key) toid;
@@ -149,6 +150,7 @@ static void free_long_key(pkey_t key) {
 	
 	POBJ_FREE(&oid);
 }
+#endif
 
 static size_t resolve_key(pkey_t* key, uint16_t* len) {
 #ifndef LONG_KEY
