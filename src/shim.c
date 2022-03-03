@@ -71,8 +71,7 @@ struct mptable_desc {
 };
 
 struct mptable_pool_hdr {
-    struct mptable_desc *free;
-    spinlock_t lock;
+    struct mptable_desc free;
 };
 
 struct mptable_pool {
@@ -186,26 +185,30 @@ static inline struct mptable *mptable_off2addr(mptable_off_t off) {
 static struct mptable *buddy_table_alloc() {
     struct shim_layer *s_layer = SHIM(bonsai);
     struct mptable_pool *pool = s_layer->pool;
-    struct mptable_desc *desc;
+    struct mptable_desc *curr, *succ;
 
-    spin_lock(&pool->hdr.lock);
-    assert(pool->hdr.free);
-    desc = pool->hdr.free;
-    pool->hdr.free = desc->next;
-    spin_unlock(&pool->hdr.lock);
+retry:
+    curr = pool->hdr.free.next;
+    assert(curr);
+    succ = curr->next;
+    if (!cmpxchg2(&pool->hdr.free.next, curr, succ) {
+        goto retry;
+    }
 
-    return (struct mptable*) (desc + 1);
+    return (struct mptable*) (curr + 1);
 }
 
 static void buddy_table_dealloc(struct mptable *mt) {
     struct shim_layer *s_layer = SHIM(bonsai);
     struct mptable_pool *pool = s_layer->pool;
-    struct mptable_desc *victim = ((struct mptable_desc *) mt) - 1;
+    struct mptable_desc *curr = ((struct mptable_desc *) mt) - 1;
+    struct mptable_desc *succ;
 
-    spin_lock(&pool->hdr.lock);
-    victim->next = pool->hdr.free;
-    pool->hdr.free = victim;
-    spin_unlock(&pool->hdr.lock);
+retry:
+    succ = pool->hdr.free.next;
+    if (!cmpxchg2(&pool->hdr.free.next, succ, curr) {
+        goto retry;
+    }
 }
 
 static inline void mt_header_init(struct mptable *mt) {
@@ -575,7 +578,8 @@ static void init_shim_pool(struct mptable_pool* pool) {
     desc = (void *) pool->data + padding;
 
     spin_lock_init(&pool->hdr.lock);
-    pool->hdr.free = desc;
+    pool->hdr.free = (struct mptable_desc*) malloc(sizeof(struct mptable_desc));
+    pool->hdr.free.next = desc;
 
     for (i = 0; i < num_table; i++) {
         next = (void *) desc + table_size;
