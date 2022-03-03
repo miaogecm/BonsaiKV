@@ -106,7 +106,7 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
 	return log;
 }
 
-struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu, struct pnode *pnode) {
+struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu) {
 	struct log_layer* layer = LOG(bonsai);
 	unsigned int epoch;
 	struct log_region *region;

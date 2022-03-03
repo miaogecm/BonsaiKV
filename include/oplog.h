@@ -61,7 +61,7 @@ struct log_layer;
 
 extern struct oplog* alloc_oplog(struct log_region* region, int cpu);
 
-extern struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu, struct pnode *pnode);
+extern struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu);
 
 extern void oplog_flush();
 

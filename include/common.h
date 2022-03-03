@@ -48,29 +48,73 @@ typedef uint8_t		__le8;
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
 
-// #define LONG_KEY
+#define LONG_KEY
 
 #ifdef LONG_KEY
-#define KEY_OFF_BITS    48
-#define KEY_LEN_BITS    16
+
+struct pkey_long_fmt {
+    union {
+        struct {
+            uint64_t nv : 1;
+            uint64_t len : 15;
+            union {
+                uint64_t off : 48;
+                uint64_t addr : 48;
+            };
+        };
+        uint64_t key;
+    };
+};
+
+static inline int pkey_is_nv(pkey_t pkey) {
+    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
+    return fmt->nv != 0u;
+}
+
+static inline size_t pkey_len(pkey_t pkey) {
+    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
+    return fmt->len;
+}
+
+static inline const void *pkey_addr(pkey_t pkey) {
+    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
+    return (const void *) fmt->addr;
+}
+
+static inline size_t pkey_off(pkey_t pkey) {
+    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
+    return fmt->off;
+}
+
+static inline pkey_t pkey_generate_v(const void *ptr, size_t len) {
+    struct pkey_long_fmt fmt;
+    fmt.addr = (uint64_t) ptr;
+    fmt.len = len;
+    fmt.nv = 0;
+    return fmt.key;
+}
+
+static inline pkey_t pkey_generate_nv(size_t off, size_t len) {
+    struct pkey_long_fmt fmt;
+    fmt.off = off;
+    fmt.len = len;
+    fmt.nv = 1;
+    return fmt.key;
+}
+
+#define MIN_KEY         (pkey_generate_v("\x00", 1))
+#define MAX_KEY         (pkey_generate_v("\xff", 1))
+
+#else
+
+#define MIN_KEY         ((pkey_t) 0)
+#define MAX_KEY         ((pkey_t) ULONG_MAX)
+
 #endif
 
-#ifndef LONG_KEY
 typedef struct pentry {
     __le64 k;
     __le64 v;
-} pentry_t;
-#else
-typedef union pentry {
-    struct {
-        __le64 k;
-        __le64 v;
-    };
-    struct {
-        __le64 k_off    :KEY_OFF_BITS;
-        __le64 k_len    :KEY_LEN_BITS;
-        __le64 _v;
-    };
 } pentry_t;
 
 #endif

@@ -118,27 +118,29 @@ void index_layer_dump() {
 	kv_print(i_layer->index_struct);
 }
 
-int bonsai_insert(pkey_t key, uint16_t k_len, pval_t value) {
+#ifdef LONG_KEY
+
+pkey_t bonsai_make_key(const void *key, size_t len) {
+    return pkey_generate_v(key, len);
+}
+
+#endif
+
+int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
     struct oplog* log;
-	pkey_t __key = make_key(key, k_len);
-
-    log = oplog_insert(__key, value, OP_INSERT, numa_node, cpu, NULL);
-	return shim_upsert(numa_node, __key, &log->o_kv.v);
+    log = oplog_insert(key, value, OP_INSERT, numa_node, cpu);
+	return shim_upsert(key, &log->o_kv.v);
 }
 
-int bonsai_remove(pkey_t key, uint16_t k_len) {
-	pkey_t __key = make_key(key, k_len);
-
+int bonsai_remove(pkey_t key) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return shim_remove(numa_node, __key);
+    oplog_insert(key, 0, OP_REMOVE, numa_node, cpu);
+	return shim_remove(key);
 }
 
-int bonsai_lookup(pkey_t key, uint16_t k_len, pval_t* val) {
-	pkey_t __key = make_key(key, k_len);
-
-	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-	return shim_lookup(numa_node, __key, val);
+int bonsai_lookup(pkey_t key, pval_t *val) {
+    return shim_lookup(key, val);
 }
 
 int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {

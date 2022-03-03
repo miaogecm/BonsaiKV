@@ -21,11 +21,11 @@ extern "C" {
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* index_struct, pkey_t key, size_t len, void* value);
-typedef int (*update_func_t)(void* index_struct, pkey_t key, size_t len, void* value);
-typedef int (*remove_func_t)(void* index_struct, pkey_t key, size_t len);
-typedef void* (*lookup_func_t)(void* index_struct, pkey_t key, size_t len);
-typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
+typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
+typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
+typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
+typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
+typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 
 #define MPTABLE_ARENA_SIZE          (2 * 1024 * 1024 * 1024ul)  // 2GB
 
@@ -69,13 +69,7 @@ struct log_layer {
 
 struct data_layer {
 	struct data_region region[NUM_SOCKET];
-
     struct pnode *sentinel;
-
-#ifdef LONG_KEY
-	PMEMobjpool* key_pop;
-	unsigned long key_start;
-#endif
 };
 
 #define REGION_FPATH_LEN	19
@@ -113,6 +107,10 @@ struct bonsai_info {
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
 
+struct long_key {
+    char key[0];
+};
+
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);
 POBJ_LAYOUT_TOID(BONSAI, struct long_key);
@@ -123,66 +121,23 @@ extern struct bonsai_info* bonsai;
 #define OFF_CHECK_MASK	0xffff000000000000
 
 #ifdef LONG_KEY
-static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_len) {
-	PMEMobjpool* pop = layer->key_pop;
-	TOID(struct long_key) toid;
-	struct long_key* root;
 
-	POBJ_ALLOC(pop, &toid, struct long_key, sizeof(struct long_key), NULL, NULL);
+pkey_t alloc_nvkey(pkey_t vkey);
+void free_nvkey(pkey_t nvkey);
 
-	root = pmemobj_direct(toid.oid);
-
-	root->len = k_len;
-	pmemobj_persist(pop, &root->len, sizeof(uint16_t));
-	pmemobj_memcpy_persist(pop, &root->key, key, k_len);
-
-	return toid.oid.off;
-}
-
-static void free_long_key(pkey_t key) {
-	struct data_layer* layer = &(bonsai->d_layer);
-	PMEMoid oid;
-	char* addr;
-
-	addr = (key >> KEY_LEN_BITS) + layer->key_start;
-	oid = pmemobj_oid(addr);
-
-	POBJ_FREE(&oid);
-}
 #endif
 
-static size_t resolve_key(pkey_t* key, uint16_t* len) {
+/* Convert bonsai key to normal string key (used in i_layer). */
+static inline const void *resolve_key(pkey_t key, uint64_t *aux, uint16_t* len) {
 #ifndef LONG_KEY
+    *aux = __builtin_bswap64(key);
 	*len = 8;
-	return key;
+	return aux;
 #else
-	size_t addr;
 	struct data_layer* layer = DATA(bonsai);
-    char* start = layer->key_start;
-
-	addr = start + (*key >> KEY_LEN_BITS);
-	*len = (uint16_t) ((*key << KEY_OFF_BITS) >> KEY_OFF_BITS);
-
-	return addr;
+	*len = pkey_len(key);
+	return (const void *) layer->key_start + PKEY_OFF(key);
 #endif
-}
-
-static pkey_t make_key(pkey_t key, uint16_t len) {
-	pkey_t __key;
-
-#ifndef LONG_KEY
-	__key = key;
-#else
-	uint64_t off;
-	struct data_layer* d_layer = DATA(bonsai);
-
-	off = alloc_long_key(d_layer, key, len);
-
-	assert(!(off & OFF_CHECK_MASK));
-	__key = (off << KEY_LEN_BITS) | len;
-#endif
-
-	return __key;
 }
 
 static int key_cmp(pkey_t a, pkey_t b) {
