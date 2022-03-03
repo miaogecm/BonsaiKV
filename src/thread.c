@@ -31,6 +31,11 @@ static pthread_cond_t work_cond;
 static atomic_t STATUS = ATOMIC_INIT(MASTER_SLEEP);
 static atomic_t tids = ATOMIC_INIT(-1);
 
+static pthread_mutex_t smo_mutex;
+static pthread_cond_t smo_cond;
+
+static atomic_t SMO_STATUS = ATOMIC_INIT(SMO_SLEEP);
+
 extern struct bonsai_info* bonsai;
 
 inline int get_tid() {
@@ -239,8 +244,10 @@ static void master_wait_workers(struct thread_info* master) {
 		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
 			thread = bonsai->pflushd[i];
 			if (thread != master) {
-				if (thread->t_state == S_UNINIT)
+				if (thread->t_state == S_UNINIT) {
 					usleep(10);
+					break;
+				}
 				else
 					num_worker ++;
 
@@ -297,6 +304,65 @@ static void pflush_master(struct thread_info* this) {
 	}
 
 	pflush_thread_exit(this);
+}
+
+void wakeup_smo() {
+	if (atomic_read(&SMO_STATUS) != SMO_SLEEP) {
+		return;
+	}
+
+	pthread_mutex_lock(&smo_mutex);
+	atomic_set(&SMO_STATUS, SMO_WORK);
+	pthread_cond_broadcast(&smo_cond);
+	pthread_mutex_unlock(&smo_mutex);
+}
+
+static void park_smo() {
+	pthread_mutex_lock(&smo_mutex);
+	while(atomic_read(&SMO_STATUS) != SMO_WORK) {
+		pthread_cond_wait(&smo_cond, &smo_mutex);
+	}
+	pthread_mutex_unlock(&smo_mutex);
+}
+
+static void smo_thread_exit(struct thread_info* thread) {
+	struct shim_layer *layer = SHIM(bonsai);
+
+	list_del(&thread->list);
+	thread->t_state = S_EXIT;
+
+	atomic_inc(&layer->exit);
+	
+	bonsai_print("smo thread[%d] exit\n", thread->t_id);
+}
+
+static void smo_worker(struct thread_info* this) {
+	struct shim_layer* layer = SHIM(bonsai);
+
+	this->t_pid = gettid;
+	this->t_state = S_RUNNING;
+
+	bind_to_cpu(this->t_cpu);
+
+	bonsai_print("smo thread[%d] pid[%d] start on cpu[%d]\n", 
+		__this->t_id, __this->t_pid, get_cpu());
+
+	while(!atomic_read(&layer->exit)) {
+		this->t_state = S_SLEEPING;
+		park_smo();
+
+		this->t_state = S_RUNNING;
+		while(!atomic_read(&layer->exit)) {
+			do_smo();
+		}
+
+		if (unlikely(atomic_read(&layer->force_smo))) {
+			do_smo();
+			atomic_set(&layer->force_smo, 0);
+		}
+	}
+
+	smo_thread_exit(this);
 }
 
 void bonsai_self_thread_init() {
@@ -389,7 +455,52 @@ int bonsai_pflushd_thread_init() {
 	return 0;
 }
 
+int bonsai_smo_thread_init() {
+	struct thread_info* thread;
+	int i;
+
+	pthread_mutex_init(&smo_mutex, NULL);
+	pthread_cond_init(&smo_cond, NULL);
+
+	thread = malloc(sizeof(struct thread_info));
+	thread->t_id = atomic_add_return(1, &tids);
+	thread->t_cpu = NUM_USER_THREAD + NUM_PFLUSH_THREAD;
+	thread->t_state = S_UNINIT;
+	init_workqueue(thread, &thread->t_wq);
+	thread->t_data = NULL;
+
+	bonsai->smo = thread;
+
+	if (pthread_create(&bonsai->tids[NUM_PFLUSH_THREAD], NULL,
+		(void*)smo_worker, (void*)bonsai->smo) != 0) {
+			perror("bonsai create thread failed\n");
+		return -ETHREAD;
+	}
+    pthread_setname_np(bonsai->tids[NUM_PFLUSH_THREAD], "smo_worker");
+	
+	return 0;
+}
+
 int bonsai_pflushd_thread_exit() {
+	struct shim_layer* layer = SHIM(bonsai);
+	int i;
+
+	atomic_set(&layer->exit, 1);
+
+	while (atomic_read(&layer->exit) != 2) {
+		wakeup_smo();
+		usleep(10);
+	}
+
+	pthread_join(bonsai->tids[NUM_PFLUSH_THREAD], NULL);
+	free(bonsai->smo);
+
+	bonsai_print("smo thread exit\n");
+	
+	return 0;
+}
+
+int bonsai_smo_thread_exit() {
 	struct log_layer* layer = LOG(bonsai);
 	int i;
 

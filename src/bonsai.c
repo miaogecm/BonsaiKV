@@ -259,6 +259,7 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 
 	bonsai->desc->epoch = 0;
 
+	bonsai_smo_thread_init();
 	/* 6. initialize pflush thread */
 	//bonsai_pflushd_thread_init();
 

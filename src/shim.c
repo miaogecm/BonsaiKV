@@ -494,10 +494,51 @@ static void mptable_check(int node, struct mptable *mt) {
     }
 }
 
+static struct smo_list* alloc_smo_list() {
+    struct smo_list* smo_l = (struct smo_list*) malloc(sizeof(struct smo_list));
+
+    spin_lock_init(&smo_l->lock);
+    smo_l->num_used = 0;
+    smo_l->next = NULL;
+
+    return smo_l;
+}
+
+static void smo_append(int node, pkey_t k, pval_t v, int len) {
+    struct shim_layer *s_layer = SHIM(bonsai);
+    struct smo_list* smo_l;
+    struct smo_log* log = (struct smo_log*) malloc(sizeof(struct smo_log));
+
+    log->k = k;
+    log->v = v;
+    log->node = node;
+    log->len = len;
+
+retry:
+    smo_l = s_layer->curr_smo_log;
+
+    spin_lock(&smo_l->lock);
+    if (unlikely(smo_l->num_used == SMO_CHKPT)) {
+        spin_unlock(&smo_l->lock);
+        goto retry;
+    }
+    smo_l->smo[smo_l->num_used++] = *log;
+
+    if (unlikely(smo_l->num_used == SMO_CHKPT)) {
+        wakeup_smo();
+        
+        smo_l->next = alloc_smo_list();
+        s_layer->curr_smo_log = smo_l->next;
+        
+    }
+    spin_unlock(&smo_l->lock);
+}
+
 static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
     struct mptable *bdt = buddy_table_alloc(node), *mt = *mt_ptr;
     struct mptable *st = mptable_off2addr(node, mt->slave);
     struct index_layer *i_layer = INDEX(bonsai);
+    struct shim_layer *s_layer = SHIM(bonsai);
     struct buddy_table_off bt;
     pkey_t fence;
     uint8_t idx;
@@ -535,19 +576,46 @@ static void mptable_split(int node, struct mptable **mt_ptr, uint8_t *slots, pke
     bt.st_hint = mptable_addr2off(node, &bdt[1]);
 
     __key = resolve_key(&fence, &len);
-    i_layer->insert(i_layer->index_struct[node], __key, len,*(void **) &bt);
+    smo_append(node, __key, len, *(void **) &bt);
+    // i_layer->insert(i_layer->index_struct[node], __key, len,*(void **) &bt);
 
     bt.mt = mptable_addr2off(node, mt);
     bt.st_hint = mptable_addr2off(node, &bdt[0]);
 
     __key = resolve_key(&mt->fence, &len);
-    i_layer->update(i_layer->index_struct[node], __key, len, *(void **) &bt);
+    smo_append(node, __key, len, *(void **) &bt);
+    // i_layer->update(i_layer->index_struct[node], __key, len, *(void **) &bt);
 
     if (key >= fence) {
         mptable_unlock(mt);
         *mt_ptr = st;
     } else {
         mptable_unlock(st);
+    }
+}
+
+void do_smo() {
+    struct index_layer* i_layer = INDEX(bonsai);
+    struct shim_layer* s_layer = SHIM(bonsai);
+    struct smo_list *smo_l = s_layer->st_smo_log, *prev;
+    struct smo_log log;
+    int i;
+    
+    while(smo_l) {
+        spin_lock(&smo_l->lock);
+        if (!smo_l->next) {
+            s_layer->st_smo_log = smo_l;
+            spin_unlock(&smo_l->lock); 
+            break;
+        }
+        for (i = 0; i < smo_l->num_used; i++) {
+            log = smo_l->smo[i];
+            i_layer->insert(i_layer->index_struct[log.node], log.k, log.len, log.v);
+        }
+        spin_unlock(&smo_l->lock);
+        prev = smo_l;
+        smo_l = smo_l->next;
+        // free(smo_l);
     }
 }
 
@@ -603,6 +671,13 @@ int shim_layer_init(struct shim_layer *s_layer) {
 #endif
         i_layer->insert(i_layer->index_struct[node], __key, len, *(void **) &bt);
     }
+
+    atomic_set(&s_layer->exit, 0);
+	atomic_set(&s_layer->force_smo, 0);
+
+    s_layer->curr_smo_log = alloc_smo_list();
+    s_layer->st_smo_log = s_layer->curr_smo_log;
+
     return 0;
 }
 

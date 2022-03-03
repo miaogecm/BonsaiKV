@@ -32,6 +32,8 @@ enum {
 	ALL_WAKEUP = NUM_PFLUSH_THREAD,
 	MASTER_SLEEP = 100,
 	MASTER_WORK,
+	SMO_SLEEP = 200,
+	SMO_WORK,
 };
 
 enum {
@@ -112,6 +114,11 @@ extern void wakeup_master();
 extern void park_master();
 extern void park_workers();
 extern void wakeup_workers();
+
+extern void wakeup_smo();
+
+extern int bonsai_smo_thread_init();
+extern int bonsai_smo_thread_exit();
 
 extern int get_tid();
 
