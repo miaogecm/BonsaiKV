@@ -200,6 +200,7 @@ struct mtree_leaf {
 #define	MTREE_VALUE		0x00
 #define	MTREE_LAYER		0x40
 #define	MTREE_UNSTABLE		0x80
+#define MTREE_GOPREV        0xfe
 #define	MTREE_NOTFOUND		0xff
 
 struct masstree {
@@ -503,7 +504,7 @@ leaf_find_lv(const mtree_leaf_t *leaf, uint64_t key,
 
 static unsigned
 __leaf_find_lv(const mtree_leaf_t *leaf, uint64_t key,
-    unsigned kinfo, unsigned *type)
+    unsigned kinfo, unsigned *type, int *eq)
 {
 	const uint64_t perm = leaf->permutation;
 	unsigned i, nkeys = PERM_NKEYS(perm);
@@ -516,20 +517,27 @@ __leaf_find_lv(const mtree_leaf_t *leaf, uint64_t key,
 		const unsigned sinfo = leaf->keyinfo[idx];
 
 		if (key == slice && kinfo == KEY_LLEN(sinfo)) {
+            *eq = 1;
+
 			*type = KEY_TYPE(sinfo);
 			return idx;
 		}
 		if (key < slice) {
-			if (idx != 0) {
-				*type = KEY_TYPE(sinfo);
-				return idx - 1;
-			} else {
-				return __leaf_find_lv(leaf->prev, key, kinfo, type);
-			}
+            break;
 		}
 	}
-	*type = KEY_TYPE(leaf->keyinfo[nkeys - 1]);
-	return nkeys - 1;
+
+    *eq = 0;
+
+    if (__predict_true(i > 0)) {
+        const unsigned idx = PERM_KEYIDX(perm, i - 1);
+
+        *type = KEY_TYPE(leaf->keyinfo[idx]);
+        return idx;
+    }
+
+    *type = MTREE_GOPREV;
+    return -1;
 }
 
 static bool
@@ -1299,15 +1307,16 @@ masstree_get(masstree_t *tree, const void *key, size_t len)
 	mtree_node_t *root = tree->root;
 	unsigned l = 0, slen, idx, type;
 	mtree_leaf_t *leaf;
-	uint64_t skey;
+	uint64_t skey, pkey;
 	uint32_t v;
+    int eq = 1, this_eq;
 	void *lv;
 advance:
 	/*
 	 * Fetch a slice (64-bit word), iterating layers.  Note: sets
 	 * the MTREE_LAYER flag on slice-length if looking for a later.
 	 */
-	skey = fetch_word64(key, len, &l, &slen);
+	skey = eq ? fetch_word64(key, len, &l, &slen) : ULONG_MAX;
 retry:
 	/* Find the leaf given the slice-key. */
 	leaf = find_leaf(root, skey, &v);
@@ -1318,16 +1327,25 @@ forward:
 	}
 
 	/* Fetch the value (or pointer to the next layer). */
-	idx = __leaf_find_lv(leaf, skey, slen, &type);
+	idx = __leaf_find_lv(leaf, skey, slen, &type, &this_eq);
 
-	lv = leaf->lv[idx];
-	atomic_thread_fence(memory_order_seq_cst);
+    if (__predict_true(idx != -1)) {
+        lv = leaf->lv[idx];
+        /* TODO: Why we need the mfence here? */
+        atomic_thread_fence(memory_order_seq_cst);
+    } else {
+        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
+    }
 
 	/* Check that the version has not changed. */
 	if (__predict_false((leaf->version ^ v) > NODE_LOCKED)) {
 		leaf = walk_leaves(leaf, skey, slen, &v);
 		goto forward;
 	}
+
+    if (__predict_false(!this_eq)) {
+        eq = 0;
+    }
 
 	if (__predict_true(type == MTREE_VALUE)) {
 		ASSERT((slen & MTREE_LAYER) == 0);
@@ -1339,6 +1357,11 @@ forward:
 		root = lv;
 		goto advance;
 	}
+    if (__predict_true(type == MTREE_GOPREV)) {
+        ASSERT(!eq);
+        skey = pkey;
+        goto retry;
+    }
 	if (__predict_true(type == MTREE_NOTFOUND)) {
 		assert(0);
 	}

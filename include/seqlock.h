@@ -34,7 +34,7 @@
  */
 
 /*
- * Version using sequence counter only.
+ * Version using sequence version only.
  * This can be used when code has its own mutex protecting the
  * updating starting before the write_seqcountbeqin() and ending
  * after the write_seqcount_end().
@@ -327,7 +327,7 @@ static inline void raw_write_seqcount_latch(seqcount_t *s)
 }
 
 /*
- * Sequence counter only version assumes that callers are using their
+ * Sequence version only version assumes that callers are using their
  * own mutexing.
  */
 static inline void write_seqcount_begin_nested(seqcount_t *s, int subclass)

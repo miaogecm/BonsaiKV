@@ -20,7 +20,7 @@ extern "C" {
  * 8 bytes
  */
 typedef struct {
-    atomic_t 	cnts; // counter for readers
+    atomic_t 	cnts; // version for readers
     spinlock_t	slock;
 } rwlock_t;
 

@@ -32,11 +32,8 @@ extern void kv_print(void* index_struct);
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, update_func_t update, remove_func_t remove,
 				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
-	int node;
-
-    for (node = 0; node < NUM_SOCKET; node++) {
-        layer->index_struct[node] = init();
-    }
+    layer->index_struct = init();
+    layer->pnode_index_struct = init();
 
 	layer->insert = insert;
     layer->update = update;
@@ -102,8 +99,7 @@ static int data_layer_init(struct data_layer* layer) {
 	if (ret)
 		goto out;
 
-	rwlock_init(&layer->lock);
-	INIT_LIST_HEAD(&layer->pnode_list);
+    layer->sentinel = NULL;
 
 	bonsai_print("data_layer_init\n");
 
@@ -112,15 +108,6 @@ out:
 }
 
 static void data_layer_deinit(struct data_layer* layer) {
-	struct pnode* pnode, *tmp;
-	int i;
-
-	write_lock(&layer->lock);
-	list_for_each_entry_safe(pnode, tmp, &layer->pnode_list, list) {
-		list_del(&pnode->list);
-	}
-	write_unlock(&layer->lock);
-	
 	data_region_deinit(layer);
 
 	bonsai_print("data_layer_deinit\n");
@@ -228,7 +215,7 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
     if (!bonsai->desc->init) {
 		/* 1. initialize index layer */
 		index_layer_init(index_name, &bonsai->i_layer, init, 
-						insert, update, remove, lookup, scan, destory);
+						 insert, update, remove, lookup, scan, destory);
 
 		/* 3. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);
@@ -239,18 +226,18 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
         error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
-		
+
 		/* 2. initialize shim layer */
         error = shim_layer_init(&bonsai->s_layer);
         if (error)
             goto out;
-		
+
 		/* 5. initialize self */
 		INIT_LIST_HEAD(&bonsai->thread_list);
 		bonsai_self_thread_init();
 		
 		/* 6. initialize sentinel node */
-		//sentinel_node_init();
+		sentinel_node_init();
 
 		bonsai->desc->init = 1;
     } else {
@@ -260,7 +247,7 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 	bonsai->desc->epoch = 0;
 
 	/* 6. initialize pflush thread */
-	//bonsai_pflushd_thread_init();
+	bonsai_pflushd_thread_init();
 
 	bonsai_print("bonsai is initialized successfully!\n");
 

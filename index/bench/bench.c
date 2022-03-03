@@ -114,7 +114,7 @@ static void do_load(long id) {
     int ret;
 
     start_measure();
-    
+
     st = 1.0 * id / NUM_THREAD * N;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
     for (i = st; i < ed; i ++) {
@@ -155,6 +155,7 @@ static void do_op(long id) {
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
 	long i, repeat = 10;
+    int ret;
 
     start_measure();
 
@@ -214,7 +215,7 @@ static void do_barrier(long id) {
 
     if (id == 0) {
         if (in_bonsai) {
-            //bonsai_barrier();
+            bonsai_barrier();
         }
 
         interval = end_measure();

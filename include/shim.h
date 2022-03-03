@@ -11,19 +11,20 @@ extern "C" {
 #include "rwlock.h"
 #include "seqlock.h"
 
-#define MPTABLE_POOL_SIZE_PER_NODE      (2 * 1024 * 1024 * 1024ul)      // 2GB
+#define MPTABLE_POOL_SIZE      (2 * 1024 * 1024 * 1024ul)      // 2GB
 
 struct mptable_pool;
 
 struct shim_layer {
-    struct mptable_pool *pools[NUM_SOCKET];
+    struct mptable_pool *pool;
 };
 
 int shim_layer_init(struct shim_layer *s_layer);
-int shim_upsert(int node, pkey_t key, pval_t *val);
-int shim_remove(int node, pkey_t key);
-int shim_lookup(int node, pkey_t key, pval_t *val);
-void shim_dump(int node);
+int shim_upsert(pkey_t key, pval_t *val);
+int shim_remove(pkey_t key);
+int shim_lookup(pkey_t key, pval_t *val);
+int shim_update(pkey_t key, const pval_t *old_val, pval_t *new_val);
+void shim_dump();
 
 #ifdef __cplusplus
 }

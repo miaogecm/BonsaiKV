@@ -211,7 +211,7 @@ static int list_sort_cmp(void *priv, struct list_head *a, struct list_head *b) {
 	merge_ent* x = list_entry(a, merge_ent, list);
 	merge_ent* y = list_entry(b, merge_ent, list);
 
-	return key_cmp(x->log->o_kv.k, y->log->o_kv.k);
+	return pkey_compare(x->log->o_kv.k, y->log->o_kv.k);
 }
 
 static void __list_sort(struct list_head* head) {
@@ -379,7 +379,7 @@ static int worker_oplog_merge_and_sort(void *arg) {
 				spin_lock(&bucket->lock);
 
                 hlist_for_each_entry(e, hnode, &bucket->head, node) {
-					if (!key_cmp(e->log->o_kv.k, key)) {
+					if (!pkey_compare(e->log->o_kv.k, key)) {
                         target = e;
                         break;
 					}
@@ -495,7 +495,7 @@ static int worker_oplog_flush(void* arg) {
 
 		switch(log->o_type) {
 		case OP_INSERT:
-			//pnode_insert(log->o_kv.k, log->o_kv.v, log->o_stamp, log->o_numa_node);
+            pnode_insert(log->o_kv.k, &log->o_kv.v);
 			break;
 		case OP_REMOVE:
 			//pnode_remove(log->o_kv.k);
@@ -712,10 +712,10 @@ void oplog_flush() {
 		goto out;
 
 	/* 5. traverse the pnode list */
-	write_lock(&d_layer->lock);
-	list_for_each_entry(pnode, &d_layer->pnode_list, list)
-		pnode->stale = PNODE_DATA_CLEAN;
-	write_unlock(&d_layer->lock);
+	//write_lock(&d_layer->lock);
+	//list_for_each_entry(pnode, &d_layer->pnode_list, list)
+	//	pnode->stale = PNODE_DATA_CLEAN;
+	//write_unlock(&d_layer->lock);
 
 	/* 6. free all pages */
 	for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
@@ -744,7 +744,7 @@ static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t k
 		while (1) {
 			for (i = 0; i < block->cnt; i ++) {
 				log = &block->logs[i];
-				if (!key_cmp(log->o_kv.k, key)) {
+				if (!pkey_compare(log->o_kv.k, key)) {
 					return log;
 				}
 			}

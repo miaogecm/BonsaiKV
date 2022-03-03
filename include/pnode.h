@@ -11,73 +11,7 @@ extern "C" {
 #include "common.h"
 #include "numa_config.h"
 #include "atomic128_2.h"
-
-#define PNODE_FP
-
-#ifndef PNODE_FP
-#define NUM_ENT_PER_PNODE      		32
-#define NUM_BUCKET      			8
-#define NUM_ENT_PER_BUCKET     		4
-#define PNODE_BITMAP_FULL			(~(0UL))
-
-enum {
-	PNODE_DATA_CLEAN = 0,
-	PNODE_DATA_STALE,
-};
-
-/*
- * persistent node definition in data layer
- */
-struct pnode {
-	/* 1st cache line */
-	__le8				stale; /* indicate wether this pnode data is stale */
-	char				padding1[7];
-    __le64 				bitmap;
-    rwlock_t* 			slot_lock;
-	pkey_t				anchor_key;
-	struct list_head 	list;
-
-	/* 2rd - 10th cache line */
-    pentry_t 			e[NUM_ENT_PER_PNODE];
-
-	/* 11th cache line */
-    __le8 				slot[NUM_ENT_PER_PNODE + 1]; /* slot[0]: how many entries */
-	char				padding2[23];
-	struct mptable* 	table;
-
-	/* 12th cache line */
-	rwlock_t* 			bucket_lock[NUM_BUCKET];
-
-	/* 13th cache line */	
-	__le64 				forward[NUM_SOCKET][NUM_BUCKET];	
-}__packed;
-
-#define PNODE_ANCHOR_KEY(pnode) 	pnode->anchor_key
-#define PNODE_MAX_KEY(pnode) 		pnode->e[pnode->slot[pnode->slot[0]]].k
-#define PNODE_MIN_KEY(pnode)		pnode->e[pnode->slot[1]].k
-
-#define PNODE_SORTED_KEY(pnode, n) 	pnode->e[pnode->slot[n]].k
-#define PNODE_SORTED_VAL(pnode, n) 	pnode->e[pnode->slot[n]].v
-
-#define PNODE_BITMAP(node) 			((node)->bitmap)
-
-extern void sentinel_node_init();
-
-extern int pnode_insert(pkey_t key, pval_t value, unsigned long time_stamp, int numa_node);
-extern int pnode_remove(pkey_t key);
-extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
-
-extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node);
-
-extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr);
-
-extern void check_pnode(pkey_t key, struct pnode* pnode);
-extern void print_pnode(struct pnode* pnode);
-extern void print_pnode_summary(struct pnode* pnode);
-extern void dump_pnode_list();
-extern void dump_pnode_list_summary();
-extern struct pnode* data_layer_search_key(pkey_t key);
-#else
+#include "nab.h"
 
 enum {
 	PNODE_DATA_CLEAN = 0,
@@ -85,35 +19,42 @@ enum {
 };
 
 #define NUM_ENTRY_PER_PNODE		48
-#define NUM_BUCKET				13
-#define NUM_ENT_PER_BUCKET		4
 
 #define PNODE_BITMAP_FULL		0xffffffffffff
 
-/*64 bytes*/
+struct oplog;
+
+/*128 bytes*/
 struct pnode_meta {
+    /*cacheline 0*/
 	__le64		bitmap;
-	rwlock_t 	lock;
 	__le8		fgprt[NUM_ENTRY_PER_PNODE];
+    char        padding[8];
+
+    /*cacheline 1 (read only)*/
+    rwlock_t    *lock;
+    char        padding0[CACHELINE_SIZE - 8];
 };
 
 struct pnode {
-	/*cacheline 0*/
+    char                cls[0][CACHELINE_SIZE];
+
+	/*cacheline 0 ~ 1*/
 	struct pnode_meta 	meta;
 	
-	/*cacheline 1 ~ 12*/
+	/*cacheline 2 ~ 13*/
 	pentry_t 			e[NUM_ENTRY_PER_PNODE];
 	
-	/*cacheline 13*/
+	/*cacheline 14*/
 	__le8				slot[NUM_ENTRY_PER_PNODE + 1];
 	__le8				stale;
-	__le8				padding[CACHELINE_SIZE - NUM_ENTRY_PER_PNODE - 2];
+	__le8				padding1[CACHELINE_SIZE - NUM_ENTRY_PER_PNODE - 2];
 
-	/*cacheline 14+*/
+    char                nab_last[0];
+
+	/*cacheline 15 (always in node 0)*/
 	pkey_t 				anchor_key;
-	struct list_head 	list;
-	struct mptable*		table;
-	__le64 				forward[NUM_SOCKET][NUM_BUCKET];
+    struct pnode __node(0) *next;
 };
 
 #define PNODE_LOCK(node)						((node)->meta.lock)
@@ -129,10 +70,8 @@ struct pnode {
 
 extern void sentinel_node_init();
 
-extern int pnode_insert(pkey_t key, pval_t val, unsigned long time_stamp, int numa_node);
+extern int pnode_insert(pkey_t key, pval_t *val);
 extern int pnode_remove(pkey_t key);
-extern pval_t* pnode_lookup(struct pnode* pnode, pkey_t key);
-
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr);
 
@@ -141,11 +80,8 @@ extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, p
 extern void check_pnode(pkey_t key, struct pnode* pnode);
 extern void print_pnode(struct pnode* pnode);
 extern void print_pnode_summary(struct pnode* pnode);
-extern void dump_pnode_list();
-extern void dump_pnode_list_summary();
+extern void dump_pnode_list(void (*printer)(struct pnode __node(my) *pnode));
 extern struct pnode* data_layer_search_key(pkey_t key);
-
-#endif
 
 #ifdef __cplusplus
 }

@@ -9,6 +9,8 @@
 #include "bench.h"
 #include "masstree.h"
 
+#define swab64      __builtin_bswap64
+
 static void *mass_init() {
     return (void*) masstree_create(NULL);
 }
@@ -21,7 +23,7 @@ static void mass_destory(void* index_struct) {
 static int mass_insert(void* index_struct, pkey_t key, size_t len, void* value) {
     masstree_t* tr = (masstree_t*) (index_struct);
     masstree_put(tr, key, len, (void*) value);
-    
+
     return 0;
 }
 

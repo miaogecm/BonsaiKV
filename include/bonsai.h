@@ -32,7 +32,7 @@ typedef int (*scan_func_t)(void* index_struct, pkey_t low, pkey_t high);
 #define NUM_MERGE_HASH_BUCKET		131072
 
 struct index_layer {
-	void *index_struct[NUM_SOCKET];
+	void *index_struct, *pnode_index_struct;
 
 	insert_func_t insert;
     update_func_t update;
@@ -70,8 +70,7 @@ struct log_layer {
 struct data_layer {
 	struct data_region region[NUM_SOCKET];
 
-	rwlock_t lock;
-	struct list_head pnode_list;
+    struct pnode *sentinel;
 
 #ifdef LONG_KEY
 	PMEMobjpool* key_pop;
@@ -132,11 +131,11 @@ static uint64_t alloc_long_key(struct data_layer* layer, pkey_t key, uint16_t k_
 	POBJ_ALLOC(pop, &toid, struct long_key, sizeof(struct long_key), NULL, NULL);
 
 	root = pmemobj_direct(toid.oid);
-	
+
 	root->len = k_len;
 	pmemobj_persist(pop, &root->len, sizeof(uint16_t));
 	pmemobj_memcpy_persist(pop, &root->key, key, k_len);
-	
+
 	return toid.oid.off;
 }
 
@@ -144,10 +143,10 @@ static void free_long_key(pkey_t key) {
 	struct data_layer* layer = &(bonsai->d_layer);
 	PMEMoid oid;
 	char* addr;
-	
+
 	addr = (key >> KEY_LEN_BITS) + layer->key_start;
 	oid = pmemobj_oid(addr);
-	
+
 	POBJ_FREE(&oid);
 }
 #endif
@@ -162,7 +161,7 @@ static size_t resolve_key(pkey_t* key, uint16_t* len) {
     char* start = layer->key_start;
 
 	addr = start + (*key >> KEY_LEN_BITS);
-	*len = (uint16_t) ((*key << KEY_OFF_BITS) >> KEY_OFF_BITS);	
+	*len = (uint16_t) ((*key << KEY_OFF_BITS) >> KEY_OFF_BITS);
 
 	return addr;
 #endif
@@ -226,7 +225,7 @@ static inline pkey_t pkey_prev(pkey_t key) {
 	uint16_t len = (uint16_t) ((key >> KEY_OFF_BITS) << KEY_OFF_BITS);
 	char* prev = (char*) malloc(len);
 	int i;
-	
+
 	memcpy(prev, dest, len);
 
 	i = len - 1;
@@ -248,7 +247,7 @@ static inline int pkey_compare(pkey_t a, pkey_t b) {
 }
 
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
-				insert_func_t insert, update_func_t update, remove_func_t remove, 
+				insert_func_t insert, update_func_t update, remove_func_t remove,
 				lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();
 

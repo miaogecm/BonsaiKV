@@ -43,8 +43,11 @@ struct log_region {
 	struct log_page_desc* inuse;
 };
 
+struct nab_blk_table;
+
 struct data_region {
 	PMEMobjpool* pop;
+    struct nab_blk_table *nab;
 	unsigned long start; /* memory-mapped address */
 };
 
