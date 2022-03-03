@@ -140,6 +140,7 @@ static void do_op(long id) {
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
 	long i, repeat = 10;
+    int ret;
 
     start_measure();
 
@@ -157,7 +158,12 @@ static void do_op(long id) {
                 break;
             case 2:
                 if (in_bonsai) {
-                    bonsai_lookup(op_arr[id][i][1], &v);
+                    ret = bonsai_lookup(op_arr[id][i][1], &v);
+                    if (ret) {
+                        shim_dump(0);
+                        printf("die %lu\n", op_arr[id][i][1]);
+                        exit(1);
+                    }
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1]);
                 }
@@ -198,7 +204,7 @@ static void do_barrier(long id) {
 
     if (id == 0) {
         if (in_bonsai) {
-            //bonsai_barrier();
+            bonsai_barrier();
         }
 
         interval = end_measure();

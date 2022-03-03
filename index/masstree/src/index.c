@@ -9,6 +9,8 @@
 #include "bench.h"
 #include "masstree.h"
 
+#define swab64      __builtin_bswap64
+
 static void *mass_init() {
     return (void*) masstree_create(NULL);
 }
@@ -20,6 +22,7 @@ static void mass_destory(void* index_struct) {
 
 static int mass_insert(void* index_struct, pkey_t key, void* value) {
     masstree_t* tr = (masstree_t*) (index_struct);
+    key = swab64(key);
     masstree_put(tr, &key, sizeof(key), (void*) value);
     
     return 0;
@@ -27,6 +30,7 @@ static int mass_insert(void* index_struct, pkey_t key, void* value) {
 
 static int mass_remove(void* index_struct, pkey_t key) {
     masstree_t* tr = (masstree_t*) (index_struct);
+    key = swab64(key);
     masstree_del(tr, &key, sizeof(key));
 
     return 0;
@@ -34,11 +38,13 @@ static int mass_remove(void* index_struct, pkey_t key) {
 
 static void* mass_lookup(void* index_struct, pkey_t key) {
     masstree_t* tr = (masstree_t*) (index_struct);
+    key = swab64(key);
     return masstree_get(tr, &key, sizeof(key));
 }
 
 static void* mass_lowerbound(void* index_struct, pkey_t key) {
     masstree_t* tr = (masstree_t*) (index_struct);
+    key = swab64(key);
     return masstree_get(tr, &key, sizeof(key));
 }
 
@@ -50,5 +56,5 @@ void kv_print() {
 }
 
 int main() {
-    return bench("masstree", mass_init, mass_destory, mass_insert, mass_remove, mass_lookup, mass_lowerbound, mass_scan);
+    return bench("masstree", mass_init, mass_destory, mass_insert, mass_insert, mass_remove, mass_lookup, mass_lowerbound, mass_scan);
 }

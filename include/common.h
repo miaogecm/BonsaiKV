@@ -66,15 +66,15 @@ typedef struct pentry {
 #endif
 
 #if 0
-#define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args);
+#define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args)
 #else 
-#define bonsai_print(fmt, args ...) do {} while(0);
+#define bonsai_print(fmt, args ...) do {} while(0)
 #endif
 
 #ifdef BONSAI_DEBUG
-#define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0);
+#define bonsai_debug(fmt, args ...)	 do {fprintf(stdout, fmt, ##args);} while (0)
 #else
-#define bonsai_debug(fmt, args ...) do {} while(0);
+#define bonsai_debug(fmt, args ...) do {} while(0)
 #endif
 
 static inline uint8_t pkey_get_signature(pkey_t key) {
@@ -99,7 +99,7 @@ static inline int pkey_compare(pkey_t a, pkey_t b) {
 #define ___PASTE(a,b) a##b
 #define __PASTE(a,b) ___PASTE(a,b)
 
-#define __UNIQUE_ID(prefix) __PASTE(__PASTE(__UNIQUE_ID_, prefix), __LINE__)
+#define __UNIQUE_ID(prefix) __PASTE(__PASTE(__UNIQUE_ID_, prefix), __COUNTER__)
 
 /*
  * min()/max()/clamp() macros that also do
@@ -237,6 +237,16 @@ static inline int pkey_compare(pkey_t a, pkey_t b) {
  */
 #define swap(a, b) \
 	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+
+#define __ALIGN_KERNEL(x, a)            __ALIGN_KERNEL_MASK(x, (typeof(x))(a) - 1)
+#define __ALIGN_KERNEL_MASK(x, mask)    (((x) + (mask)) & ~(mask))
+
+#define ALIGN(x, a)             __ALIGN_KERNEL((x), (a))
+#define ALIGN_DOWN(x, a)        __ALIGN_KERNEL((x) - ((a) - 1), (a))
+#define __ALIGN_MASK(x, mask)   __ALIGN_KERNEL_MASK((x), (mask))
+#define PTR_ALIGN(p, a)         ((typeof(p))ALIGN((unsigned long)(p), (a)))
+#define PTR_ALIGN_DOWN(p, a)    ((typeof(p))ALIGN_DOWN((unsigned long)(p), (a)))
+#define IS_ALIGNED(x, a)        (((x) & ((typeof(x))(a) - 1)) == 0)
 
 #ifdef __cplusplus
 }

@@ -41,7 +41,7 @@ void try_run_epoch() {
     }
     __this->t_epoch = new_epoch;
 
-    /* If I'm the last one, update the global counter, and allow next epoch. */
+    /* If I'm the last one, update the global version, and allow next epoch. */
     if (atomic_add_return(-1, &layer->epoch_passed) == 1) {
         bonsai->desc->epoch = new_epoch;
         bonsai_flush(&bonsai->desc->epoch, sizeof(__le64), 0);
