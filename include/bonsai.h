@@ -98,8 +98,9 @@ struct bonsai_info {
 	struct thread_info* self;
 	struct list_head	thread_list;
 	
-	pthread_t 			tids[NUM_PFLUSH_THREAD];
+	pthread_t 			tids[NUM_PFLUSH_THREAD + 1];
 	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
+	struct thread_info* smo;
 }____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))

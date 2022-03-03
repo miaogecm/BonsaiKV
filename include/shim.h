@@ -15,8 +15,28 @@ extern "C" {
 
 struct mptable_pool;
 
+#define SMO_CHKPT				        100
+
+struct smo_log {
+    int node;
+    int len;
+    pkey_t k;
+    pval_t v;
+};
+
+struct smo_list {
+    spinlock_t lock;
+	struct smo_log smo[SMO_CHKPT];
+	int num_used;
+    struct smo_list* next;
+};
+
 struct shim_layer {
-    struct mptable_pool *pool;
+    atomic_t exit;
+	atomic_t force_smo;
+	struct smo_list *st_smo_log, *curr_smo_log;
+
+    struct mptable_pool *pools;
 };
 
 int shim_layer_init(struct shim_layer *s_layer);
