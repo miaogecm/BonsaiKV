@@ -3,7 +3,7 @@
  *
  * Hohai University
  *
- * Numa-Aware Block Layer with PSO memory consistency model
+ * Numa-Aware Block Layer
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
