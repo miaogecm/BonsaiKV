@@ -11,9 +11,8 @@
 #include "bonsai.h"
 #include "nab.h"
 
-#ifdef LONG_KEY
-
 pkey_t alloc_nvkey(pkey_t vkey) {
+#ifdef LONG_KEY
 	struct data_layer* layer = &(bonsai->d_layer);
 	PMEMobjpool* pop = layer->region[0].pop;
 	struct long_key __node(my) *root;
@@ -30,9 +29,13 @@ pkey_t alloc_nvkey(pkey_t vkey) {
     nab_init_region(root->key, k_len, 1);
 
     return pkey_generate_nv(toid.oid.off, k_len);
+#else
+    return vkey;
+#endif
 }
 
 void free_nvkey(pkey_t nvkey) {
+#ifdef LONG_KEY
 	struct data_layer* layer = &(bonsai->d_layer);
 	PMEMoid oid;
 	void *addr;
@@ -43,8 +46,10 @@ void free_nvkey(pkey_t nvkey) {
 	oid = pmemobj_oid(addr);
 
 	POBJ_FREE(&oid);
+#endif
 }
 
+#ifdef LONG_KEY
 static inline size_t fetch_chunk(char *chunk, const void *key, size_t len, int nv, int pulled) {
     if (!nv || pulled) {
         if (len < NAB_BLK_SIZE) {
@@ -58,6 +63,7 @@ static inline size_t fetch_chunk(char *chunk, const void *key, size_t len, int n
     }
     return min(len, (size_t) NAB_BLK_SIZE);
 }
+#endif
 
 int key_cmp(pkey_t a, pkey_t b, int pulled) {
 #ifndef LONG_KEY
@@ -132,5 +138,3 @@ pkey_t pkey_prev(pkey_t key) {
 	return pkey_generate_v(prev, len);
 #endif
 }
-
-#endif

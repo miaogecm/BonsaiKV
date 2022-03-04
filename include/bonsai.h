@@ -120,14 +120,8 @@ POBJ_LAYOUT_END(BONSAI);
 
 extern struct bonsai_info* bonsai;
 
-#define OFF_CHECK_MASK	0xffff000000000000
-
-#ifdef LONG_KEY
-
 pkey_t alloc_nvkey(pkey_t vkey);
 void free_nvkey(pkey_t nvkey);
-
-#endif
 
 static inline const void *resolve_key(pkey_t key, uint64_t *aux, size_t *len) {
 #ifndef LONG_KEY
