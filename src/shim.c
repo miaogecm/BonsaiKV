@@ -214,7 +214,7 @@ static inline void mt_header_init(struct mptable *mt) {
     seqcount_init(&mt->slots_seq);
     mt->max = MAX_KEY;
     mt->slave = 0;
-    mt->fence = 0;
+    mt->fence = MIN_KEY;
     mt->next = 0;
     spin_lock_init(&mt->lock);
 }
@@ -258,7 +258,7 @@ static inline void mptable_free(struct mptable *mt) {
 static inline int mptable_lock_correct(struct mptable **mt, pkey_t key) {
     struct mptable *target;
     mptable_lock(*mt);
-    if (unlikely((*mt)->fence == ULONG_MAX)) {
+    if (unlikely((*mt)->fence == MAX_KEY)) {
         /* It's deleted. */
         mptable_unlock(*mt);
         return -EAGAIN;
@@ -370,7 +370,7 @@ static inline struct mptable *mptable_seek(pkey_t key, seek_opt_t seek_opt) {
     struct buddy_table_off bt;
     const void *i_key;
     uint64_t aux;
-    uint16_t len;
+    size_t len;
 
     i_key = resolve_key(key, &aux, &len);
     *(void **) &bt = i_layer->lookup(i_layer->index_struct, i_key, len);
@@ -438,56 +438,30 @@ static void mptable_check(struct mptable *mt) {
     }
 }
 
-static struct smo_list* alloc_smo_list() {
-    struct smo_list* smo_l = (struct smo_list*) malloc(sizeof(struct smo_list));
-
-    spin_lock_init(&smo_l->lock);
-    smo_l->num_used = 0;
-    smo_l->next = NULL;
-
-    return smo_l;
-}
-
-static void smo_append(int node, pkey_t k, pval_t v, int len) {
+/*
+ * Note that the @k should be either non-volatile,or volatile statically (e.g. MAX_KEY).
+ */
+static void smo_append(pkey_t k, pval_t v) {
     struct shim_layer *s_layer = SHIM(bonsai);
-    struct smo_list* smo_l;
-    struct smo_log* log = (struct smo_log*) malloc(sizeof(struct smo_log));
+    unsigned long ts;
+    int ret;
 
-    log->k = k;
-    log->v = v;
-    log->node = node;
-    log->len = len;
+    ts = ordo_new_clock(0);
 
 retry:
-    smo_l = s_layer->curr_smo_log;
-
-    spin_lock(&smo_l->lock);
-    if (unlikely(smo_l->num_used == SMO_CHKPT)) {
-        spin_unlock(&smo_l->lock);
+    ret = kfifo_put(&s_layer->fifo[__this->t_cpu], ((struct smo_log) { ts, k, v }));
+    if (unlikely(!ret)) {
         goto retry;
     }
-    smo_l->smo[smo_l->num_used++] = *log;
 
-    if (unlikely(smo_l->num_used == SMO_CHKPT)) {
-        wakeup_smo();
-
-        smo_l->next = alloc_smo_list();
-        s_layer->curr_smo_log = smo_l->next;
-
-    }
-    spin_unlock(&smo_l->lock);
+    wakeup_smo();
 }
 
 static void mptable_split(struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
     struct mptable *bdt = buddy_table_alloc(), *mt = *mt_ptr;
     struct mptable *st = mptable_off2addr(0);
-    struct index_layer *i_layer = INDEX(bonsai);
-    struct shim_layer *s_layer = SHIM(bonsai);
     struct buddy_table_off bt;
-    const void *i_key;
     pkey_t fence;
-    uint64_t aux;
-    uint16_t len;
     uint8_t idx;
     int i;
 
@@ -519,17 +493,11 @@ static void mptable_split(struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
 
     bt.mt = mptable_addr2off(st);
     bt.st_hint = mptable_addr2off(&bdt[1]);
-
-    i_key = resolve_key(fence, &aux, &len);
-    smo_append(i_key, len, *(void **) &bt);
-    //i_layer->insert(i_layer->index_struct, i_key, len, *(void **) &bt);
+    smo_append(fence, *(pval_t *) &bt);
 
     bt.mt = mptable_addr2off(mt);
     bt.st_hint = mptable_addr2off(&bdt[0]);
-
-    i_key = resolve_key(mt->fence, &aux, &len);
-    smo_append(i_key, len, *(void **) &bt);
-    //i_layer->update(i_layer->index_struct, i_key, len, *(void **) &bt);
+    smo_append(mt->fence, *(pval_t *) &bt);
 
     if (key >= fence) {
         mptable_unlock(mt);
@@ -540,27 +508,39 @@ static void mptable_split(struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
 }
 
 void do_smo() {
-    struct index_layer* i_layer = INDEX(bonsai);
+    struct index_layer *i_layer = INDEX(bonsai);
     struct shim_layer* s_layer = SHIM(bonsai);
-    struct smo_list *smo_l = s_layer->st_smo_log, *prev;
+    unsigned long min_ts;
     struct smo_log log;
-    int i;
+    int cpu, min_cpu;
+    const void *key;
+    uint64_t aux;
+    size_t len;
 
-    while(smo_l) {
-        spin_lock(&smo_l->lock);
-        if (!smo_l->next) {
-            s_layer->st_smo_log = smo_l;
-            spin_unlock(&smo_l->lock);
+    while (1) {
+        min_ts = ULONG_MAX;
+        min_cpu = -1;
+        for (cpu = 0; cpu < NUM_CPU; cpu++) {
+            if (kfifo_peek(&s_layer->fifo[cpu], &log)) {
+                if (log.ts <= min_ts) {
+                    min_ts = log.ts;
+                    min_cpu = cpu;
+                }
+            }
+        }
+
+        if (unlikely(min_cpu == -1)) {
             break;
         }
-        for (i = 0; i < smo_l->num_used; i++) {
-            log = smo_l->smo[i];
-            i_layer->insert(i_layer->index_struct[log.node], log.k, log.len, log.v);
+
+        kfifo_get(&s_layer->fifo[min_cpu], &log);
+
+        key = resolve_key(log.k, &aux, &len);
+        if (likely(pkey_is_nv(log.k))) {
+            key = nab_owner_ptr((void *) key);
         }
-        spin_unlock(&smo_l->lock);
-        prev = smo_l;
-        smo_l = smo_l->next;
-        // free(smo_l);
+
+        i_layer->insert(i_layer->index_struct, key, len, (const void *) log.v);
     }
 }
 
@@ -588,8 +568,11 @@ int shim_layer_init(struct shim_layer *s_layer) {
     struct index_layer *i_layer = INDEX(bonsai);
     struct buddy_table_off bt;
     struct mptable *mt;
+    const char *i_key;
+    uint64_t aux;
     pkey_t key;
-    int len;
+    size_t len;
+    int cpu;
 
     s_layer->pool = malloc(sizeof(struct mptable_pool));
     init_shim_pool(s_layer->pool);
@@ -598,21 +581,15 @@ int shim_layer_init(struct shim_layer *s_layer) {
     bt.mt = mptable_addr2off(mt);
     bt.st_hint = mt->slave;
 
-#ifndef LONG_KEY
-    key = (pkey_t) &zero;
-    len = 8;
-#else
-    key = (pkey_t) "";
-    len = 1;
-#endif
-
-    i_layer->insert(i_layer->index_struct, key, len, *(void **) &bt);
+    key = MIN_KEY;
+    i_key = resolve_key(key, &aux, &len);
+    i_layer->insert(i_layer->index_struct, i_key, len, *(void **) &bt);
 
     atomic_set(&s_layer->exit, 0);
-	atomic_set(&s_layer->force_smo, 0);
 
-    s_layer->curr_smo_log = alloc_smo_list();
-    s_layer->st_smo_log = s_layer->curr_smo_log;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        INIT_KFIFO(s_layer->fifo[cpu]);
+    }
 
     return 0;
 }
@@ -730,7 +707,7 @@ relookup:
     mptable_unlock(prev);
 
     /* Avoid insertion to this table. */
-    mt->fence = ULONG_MAX;
+    mt->fence = MAX_KEY;
     spin_unlock(&mt->lock);
 
     /* Now @mt has been isolated. Defer free it. */

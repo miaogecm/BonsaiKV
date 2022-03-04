@@ -10,33 +10,27 @@ extern "C" {
 #include "list.h"
 #include "rwlock.h"
 #include "seqlock.h"
+#include "kfifo.h"
+#include "ordo.h"
 
 #define MPTABLE_POOL_SIZE      (2 * 1024 * 1024 * 1024ul)      // 2GB
 
 struct mptable_pool;
 
-#define SMO_CHKPT				        100
+#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
 struct smo_log {
-    int node;
-    int len;
+    unsigned long ts;
     pkey_t k;
     pval_t v;
 };
 
-struct smo_list {
-    spinlock_t lock;
-	struct smo_log smo[SMO_CHKPT];
-	int num_used;
-    struct smo_list* next;
-};
-
 struct shim_layer {
     atomic_t exit;
-	atomic_t force_smo;
-	struct smo_list *st_smo_log, *curr_smo_log;
 
-    struct mptable_pool *pools;
+    DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
+
+    struct mptable_pool *pool;
 };
 
 int shim_layer_init(struct shim_layer *s_layer);

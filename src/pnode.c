@@ -20,7 +20,6 @@
 #include "arch.h"
 #include "bitmap.h"
 #include "ordo.h"
-#include "atomic128.h"
 #include "nab.h"
 
 static uint8_t hash8(pkey_t key) {
@@ -33,8 +32,14 @@ static uint8_t hash8(pkey_t key) {
 static struct pnode __node(my) *pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
     struct pnode __node(0) *pnode;
+    const void *i_key;
+    uint64_t aux;
+    size_t len;
 
-	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct, key);
+    /* Note that @key should be in local NUMA node. */
+    i_key = resolve_key(key, &aux, &len);
+
+	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct, i_key, len);
 
     return nab_my_ptr(pnode);
 }
@@ -135,6 +140,9 @@ int pnode_insert(pkey_t key, pval_t *val) {
     uint64_t new_removed;
 	struct pnode __node(my) *pnode, *next_pnode, *new_pnode;
     struct pnode __node(0) *pnode_node0, *new_pnode_node0;
+    const void *i_key;
+    uint64_t aux;
+    size_t len;
 
 	pnode = pnode_find_lowbound(key);
 	
@@ -225,7 +233,8 @@ retry:
                     &PNODE_SORTED_VAL(pnode_node0, i), &PNODE_SORTED_VAL(new_pnode_node0, i));
     }
 
-    i_layer->insert(i_layer->pnode_index_struct, new_pnode_node0->anchor_key, new_pnode_node0);
+    i_key = resolve_key(new_pnode_node0->anchor_key, &aux, &len);
+    i_layer->insert(i_layer->pnode_index_struct, i_key, len, new_pnode_node0);
 
 	write_unlock(PNODE_LOCK(pnode));
 
@@ -307,12 +316,15 @@ int pnode_remove(pkey_t key) {
 void sentinel_node_init() {
 	struct index_layer *i_layer = INDEX(bonsai);
     struct data_layer *d_layer = DATA(bonsai);
-	pkey_t key = 0;
+	pkey_t key = MIN_KEY;
 	pval_t val = ULONG_MAX;
 	struct pnode __node(my) *pnode;
     struct pnode __node(0) *pnode_node0;
-	int pos;
 	pentry_t e = {key, val};
+    const void *i_key;
+    uint64_t aux;
+    size_t len;
+	int pos;
 
 	/* DATA Layer: allocate a persistent node */
 	pnode = alloc_pnode();
@@ -339,7 +351,8 @@ void sentinel_node_init() {
 	
 	write_unlock(PNODE_LOCK(pnode));
 
-    i_layer->insert(i_layer->pnode_index_struct, key, pnode_node0);
+    i_key = resolve_key(key, &aux, &len);
+    i_layer->insert(i_layer->pnode_index_struct, i_key, len, pnode_node0);
 
 	bonsai_debug("sentinel_node_init\n");
 }

@@ -124,7 +124,7 @@ static inline void __nab_load(void *dst, void __node(0) *src, size_t size) {
             break;
 
         case NAB_BLK_SIZE:
-            memcpy(dst, src, NAB_BLK_SIZE);
+            memcpy(dst, load_ptr, NAB_BLK_SIZE);
             break;
 
         default:

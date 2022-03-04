@@ -18,6 +18,7 @@ extern "C" {
 #include "arch.h"
 #include "rwlock.h"
 #include "shim.h"
+#include "cpu.h"
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -128,78 +129,34 @@ void free_nvkey(pkey_t nvkey);
 
 #endif
 
-/* Convert bonsai key to normal string key (used in i_layer). */
-static inline const void *resolve_key(pkey_t key, uint64_t *aux, uint16_t* len) {
+static inline const void *resolve_key(pkey_t key, uint64_t *aux, size_t *len) {
 #ifndef LONG_KEY
     *aux = __builtin_bswap64(key);
 	*len = 8;
 	return aux;
 #else
-	struct data_layer* layer = DATA(bonsai);
-	*len = pkey_len(key);
-	return (const void *) layer->key_start + PKEY_OFF(key);
+	struct data_layer *layer = DATA(bonsai);
+    int node = get_numa_node(__this->t_cpu);
+    *len = pkey_len(key);
+    if (pkey_is_nv(key)) {
+        return (const void *) layer->region[node].start + pkey_off(key);
+    } else {
+        return pkey_addr(key);
+    }
 #endif
 }
 
-static int key_cmp(pkey_t a, pkey_t b) {
-#ifndef LONG_KEY
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
-#else
-    struct data_layer* layer = DATA(bonsai);
-    char* start = layer->key_start;
-	uint16_t a_len, b_len;
+int key_cmp(pkey_t a, pkey_t b, int pulled);
 
-	char* srca = resolve_key(&a, &a_len);
-	char* srcb = resolve_key(&b, &b_len);
-
-    char sa[a_len];
-    char sb[b_len];
-    memcpy(sa, srca, a_len);
-    memcpy(sb, srcb, b_len);
-
-    return strcmp(sa, sb);
-#endif
-}
-
-static inline uint8_t pkey_get_signature(pkey_t key) {
-#ifndef LONG_KEY
-    return key;
-#else
-	return 1;
-#endif
-}
-
-static inline pkey_t pkey_prev(pkey_t key) {
-#ifndef LONG_KEY
-    return key - 1;
-#else
-	struct data_layer* layer = DATA(bonsai);
-    char* start = layer->key_start;
-	char* dest = start + ((key >> KEY_LEN_BITS) << KEY_LEN_BITS);
-	uint16_t len = (uint16_t) ((key >> KEY_OFF_BITS) << KEY_OFF_BITS);
-	char* prev = (char*) malloc(len);
-	int i;
-
-	memcpy(prev, dest, len);
-
-	i = len - 1;
-	while(1) {
-		if (prev[i]) {
-			prev[i]--;
-			break;
-		}
-		i--;
-		assert(i >= 0);
-	}
-
-	return prev;
-#endif
-}
+uint8_t pkey_get_signature(pkey_t key);
+pkey_t pkey_prev(pkey_t key);
 
 static inline int pkey_compare(pkey_t a, pkey_t b) {
-	return key_cmp(a, b);
+	return key_cmp(a, b, 0);
+}
+
+static inline int pkey_compare_pulled(pkey_t a, pkey_t b) {
+	return key_cmp(a, b, 1);
 }
 
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,

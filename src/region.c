@@ -45,12 +45,6 @@ static char* data_region_fpath[NUM_SOCKET] = {
 	"/mnt/ext4/node0/objpool0"
 };
 
-#ifdef LONG_KEY
-static char* long_key_region_fpath = {
-	"/mnt/ext4/node0/longkey"
-};
-#endif
-
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
 	struct log_page_desc* prev_page = NULL, *next_page = NULL;
 
@@ -241,21 +235,6 @@ int data_region_init(struct data_layer *layer) {
 			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 
-#ifdef LONG_KEY
-	if (!file_exists(long_key_region_fpath)) {
-		perror("create a existed new pmdk pool");
-		return -EPMEMOBJ;
-	}
-	
-	if ((pop = pmemobj_create(long_key_region_fpath, 
-							POBJ_LAYOUT_NAME(BONSAI),
-							KEY_REGION_SIZE, 0666)) == NULL) {
-		perror("fail to create object pool");
-		return -EPMEMOBJ;
-	}
-	layer->key_pop = pop;
-	layer->key_start = (unsigned long)pop;
-#endif
 	return 0;
 }
 
@@ -267,7 +246,4 @@ void data_region_deinit(struct data_layer *layer) {
 		region = &layer->region[node];
 		pmemobj_close(region->pop);
 	}
-#ifdef LONG_KEY
-	pmemobj_close(layer->key_pop);
-#endif
 }

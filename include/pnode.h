@@ -10,7 +10,6 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "numa_config.h"
-#include "atomic128_2.h"
 #include "nab.h"
 
 enum {
