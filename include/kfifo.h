@@ -50,6 +50,9 @@
  * to lock the reader.
  */
 
+#include <stdint.h>
+#include <stddef.h>
+
 #include "arch.h"
 #include "spinlock.h"
 #include "atomic.h"

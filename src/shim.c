@@ -539,9 +539,11 @@ void do_smo() {
         kfifo_get(&s_layer->fifo[min_cpu], &log);
 
         key = resolve_key(log.k, &aux, &len);
+#ifdef LONG_KEY
         if (likely(pkey_is_nv(log.k))) {
             key = nab_owner_ptr((void *) key);
         }
+#endif
 
         i_layer->insert(i_layer->index_struct, key, len, (const void *) log.v);
     }

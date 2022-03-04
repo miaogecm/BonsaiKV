@@ -15,8 +15,6 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 
-#include "long_key.h"
-
 #ifndef LOCAL
 typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
@@ -48,7 +46,7 @@ typedef uint8_t		__le8;
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
 
-#define LONG_KEY
+//#define LONG_KEY
 
 #ifdef LONG_KEY
 
@@ -117,7 +115,6 @@ typedef struct pentry {
     __le64 v;
 } pentry_t;
 
-#endif
 #define EOPEN		104 /* open file error */
 #define EPMEMOBJ	105 /* create pmemobj error */
 #define EMMAP		106 /* memory-map error */
