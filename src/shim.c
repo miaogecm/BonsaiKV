@@ -191,7 +191,7 @@ retry:
     curr = pool->hdr.free.next;
     assert(curr);
     succ = curr->next;
-    if (!cmpxchg2(&pool->hdr.free.next, curr, succ) {
+    if (!cmpxchg2(&pool->hdr.free.next, curr, succ)) {
         goto retry;
     }
 
@@ -206,7 +206,7 @@ static void buddy_table_dealloc(struct mptable *mt) {
 
 retry:
     succ = pool->hdr.free.next;
-    if (!cmpxchg2(&pool->hdr.free.next, succ, curr) {
+    if (!cmpxchg2(&pool->hdr.free.next, succ, curr)) {
         goto retry;
     }
 }
@@ -557,8 +557,6 @@ static void init_shim_pool(struct mptable_pool* pool) {
     num_table = MPTABLE_POOL_SIZE / table_size;
     desc = (void *) pool->data + padding;
 
-    spin_lock_init(&pool->hdr.lock);
-    pool->hdr.free = (struct mptable_desc*) malloc(sizeof(struct mptable_desc));
     pool->hdr.free.next = desc;
 
     for (i = 0; i < num_table; i++) {
