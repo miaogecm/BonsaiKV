@@ -31,7 +31,7 @@
 pkey_t a[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	1
+#define NUM_THREAD	4
 #endif
 
 #define NUM_CPU		8
@@ -53,9 +53,9 @@ extern void bonsai_deinit();
 
 extern void bonsai_barrier();
 
-extern int bonsai_insert(pkey_t key, uint16_t k_len, pval_t value);
-extern int bonsai_remove(pkey_t key, uint16_t k_len);
-extern int bonsai_lookup(pkey_t key, uint16_t k_len, pval_t* val);
+extern int bonsai_insert(pkey_t key, pval_t value);
+extern int bonsai_remove(pkey_t key);
+extern int bonsai_lookup(pkey_t key, pval_t *val);
 extern int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr);
 
 extern void bonsai_user_thread_init();
@@ -115,11 +115,11 @@ static void do_load(long id) {
 
     start_measure();
 
-    st = 1.0 * id / NUM_THREAD * N;
-    ed = 1.0 * (id + 1) / NUM_THREAD * N;
+    st = N / NUM_THREAD * id;
+    ed = N / NUM_THREAD * (id + 1);
     for (i = st; i < ed; i ++) {
         if (in_bonsai) {
-            ret = bonsai_insert(load_arr[i][0], 8, load_arr[i][1]);
+            ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
         } else {
             ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
         }
@@ -166,16 +166,16 @@ static void do_op(long id) {
             case 0:
             case 1:
                 if (in_bonsai) {
-                    bonsai_insert(op_arr[id][i][1], 8, op_arr[id][i][2]);
+                    bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
                 } else {
                     fn_insert(index_struct, op_arr[id][i][1], 8, (void *) op_arr[id][i][2]);
                 }
                 break;
             case 2:
                 if (in_bonsai) {
-                    bonsai_lookup(op_arr[id][i][1], 8, &v);
+                    bonsai_lookup(op_arr[id][i][1], &v);
                 } else {
-                    v = (pval_t) fn_lookup(index_struct, 8, op_arr[id][i][1]);
+                    v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1], 8);
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;

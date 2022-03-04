@@ -341,13 +341,15 @@ static void smo_thread_exit(struct thread_info* thread) {
 static void smo_worker(struct thread_info* this) {
 	struct shim_layer* layer = SHIM(bonsai);
 
+    __this = this;
+
 	this->t_pid = gettid();
 	this->t_state = S_RUNNING;
 
 	bind_to_cpu(this->t_cpu);
 
-	bonsai_print("smo thread[%d] pid[%d] start on cpu[%d]\n", 
-		__this->t_id, __this->t_pid, get_cpu());
+	bonsai_print("smo thread[%d] pid[%d] start on cpu[%d]\n",
+                 this->t_id, this->t_pid, get_cpu());
 
 	while(!atomic_read(&layer->exit)) {
 		this->t_state = S_SLEEPING;
@@ -465,6 +467,9 @@ int bonsai_smo_thread_init() {
 	thread->t_state = S_UNINIT;
 	init_workqueue(thread, &thread->t_wq);
 	thread->t_data = NULL;
+
+    INIT_LIST_HEAD(&thread->list);
+	list_add(&thread->list, &bonsai->thread_list);
 
 	bonsai->smo = thread;
 
