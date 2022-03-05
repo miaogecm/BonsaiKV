@@ -24,7 +24,7 @@
 #include "cpu.h"
 
 struct bonsai_info* bonsai;
-static char* bonsai_fpath = "/mnt/ext4/bonsai";
+static char* bonsai_fpath = "/mnt/ext4/node0/bonsai";
 
 int cpu_used[NUM_CPU] = { 0 };
 
