@@ -50,18 +50,18 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 		next_page->p_prev = page->p_prev;
 	} else if (!prev_page && next_page) {
 		/* I am the first */
-		next_page->p_prev = 0;
+		next_page->p_prev = -PAGE_SIZE;
 		region->inuse = next_page;
 	} else if (prev_page && !next_page) {
 		/* I am the last */
-		prev_page->p_next = 0;
+		prev_page->p_next = -PAGE_SIZE;
 	} else {
 		/* I am the only one */
 		region->inuse = NULL;
 	}
 	spin_unlock(&region->inuse_lock);
 
-	page->p_prev = 0;
+	page->p_prev = -PAGE_SIZE;
 
 	spin_lock(&region->free_lock);
 	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
@@ -77,8 +77,9 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 
 	spin_lock(&region->free_lock);
 	page = region->free;
+    assert(page->p_next != -PAGE_SIZE);
 	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-	region->free->p_prev = 0;
+	region->free->p_prev = -PAGE_SIZE;
 	spin_unlock(&region->free_lock);
 
 	spin_lock(&region->inuse_lock);
@@ -86,7 +87,7 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
 		region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	} else
-		page->p_next = 0;
+		page->p_next = -PAGE_SIZE;
 		
 	region->inuse = page;
 	spin_unlock(&region->inuse_lock);
