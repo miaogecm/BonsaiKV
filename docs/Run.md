@@ -4,6 +4,7 @@
 
 + 每个numa节点的DATA region和LOG region：region.h。**需要保证LOG region大小是NUM_CPU_PER_SOCKET的倍数。**
 + mptable内存池大小：shim.h。
++ benchmark线程数量：bench.c。
 
 ### 挂载
 

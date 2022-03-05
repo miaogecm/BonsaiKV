@@ -144,7 +144,7 @@ void log_region_deinit(struct log_layer* layer) {
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region_desc *desc;
 	struct log_region *region;
-	int node, cpu_idx, fd, error = 0;
+	int node, cpu_idx, fd, cpu, error = 0;
 	size_t size_per_cpu = LOG_REGION_SIZE / NUM_CPU_PER_SOCKET;
 	char *vaddr, *start;
 
@@ -176,9 +176,10 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 		layer->pmem_addr[node] = vaddr;
 		
 		for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx ++, vaddr += size_per_cpu) {
-			region = &layer->region[cpu_idx];
-			
-			desc = &bonsai->log_region[node_to_cpu(node, cpu_idx)];
+            cpu = node_to_cpu(node, cpu_idx);
+
+			region = &layer->region[cpu];
+			desc = &bonsai->log_region[cpu];
 		
 			init_per_cpu_log_region(region, desc, (unsigned long)start, (unsigned long)vaddr, 
 				vaddr - layer->pmem_addr[node], size_per_cpu);
