@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo rm -f ./core*
+rm -f ./core*
 
-sudo rm -rf /mnt/ext4/node0/*
-sudo rm -rf /mnt/ext4/node1/*
+rm -rf /mnt/ext4/node0/*
+rm -rf /mnt/ext4/node1/*
