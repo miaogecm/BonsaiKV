@@ -45,7 +45,7 @@ struct nab_blk_table {
     struct nab_blk_descriptor blk_descriptors[NAB_ARENA_SIZE / NAB_BLK_SIZE];
 };
 
-static struct nab_blk_table global_table;
+static struct nab_blk_table *global_table = NULL;
 
 static inline void *__nab_node_ptr(void *ptr, int to, int from) {
     struct data_layer *d_layer = DATA(bonsai);
@@ -69,7 +69,7 @@ static inline struct nab_blk_descriptor *__nab_get_blk_local_desc(void __node(my
 }
 
 static inline struct nab_blk_descriptor *__nab_get_blk_global_desc(void __node(0) *ptr) {
-    return &global_table.blk_descriptors[__nab_blk_nr(ptr)];
+    return &global_table->blk_descriptors[__nab_blk_nr(ptr)];
 }
 
 static inline void __nab_load(void *dst, void __node(0) *src, size_t size) {

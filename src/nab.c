@@ -19,8 +19,12 @@ void nab_init_region(void __node(my) *start, size_t size, int initialized) {
     int my_node = get_numa_node(__this->t_cpu), node;
     struct nab_blk_descriptor *desc;
 
+    if (unlikely(!global_table)) {
+        global_table = malloc(sizeof(*global_table));
+    }
+
     for (i = blk_nr; i < blk_nr + n; i++) {
-        desc = &global_table.blk_descriptors[i];
+        desc = &global_table->blk_descriptors[i];
         desc->owner = my_node;
         desc->version = initialized ? 1 : 0;
 
@@ -61,7 +65,7 @@ void nab_commit_region(void __node(my) *start, size_t size) {
     struct nab_blk_descriptor *desc, d;
 
     for (i = blk_nr; i < blk_nr + n; i++) {
-        desc = &global_table.blk_descriptors[i];
+        desc = &global_table->blk_descriptors[i];
 
         d = *desc;
         d.owner = my_node;
