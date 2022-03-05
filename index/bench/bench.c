@@ -129,12 +129,6 @@ static void do_load(long id) {
     interval = end_measure();
     printf("load finished in %.3lf seconds\n", interval);
 
-    if (in_bonsai) {
-        bonsai_barrier();
-    }
-
-    printf("user thread[%ld] exit\n", id);
-
     // char c[] = "1234567a";
     // for (i = 0; i < 10; i++) {
     //     c[7] += i;
@@ -245,11 +239,15 @@ void* thread_fun(void* arg) {
 
     do_barrier(id);
 
+    pthread_barrier_wait(&barrier);
+
     do_op(id);
 
     pthread_barrier_wait(&barrier);
 
     do_barrier(id);
+
+    pthread_barrier_wait(&barrier);
 
 	return NULL;
 }
