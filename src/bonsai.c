@@ -26,6 +26,8 @@
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/bonsai";
 
+int cpu_used[NUM_CPU] = { 0 };
+
 extern void* index_struct(void* index_struct);
 extern void kv_print(void* index_struct);
 
@@ -125,6 +127,10 @@ pkey_t bonsai_make_key(const void *key, size_t len) {
 }
 
 #endif
+
+void bonsai_mark_cpu(int cpu) {
+    mark_cpu(cpu);
+}
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);

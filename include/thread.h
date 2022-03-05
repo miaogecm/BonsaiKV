@@ -15,7 +15,7 @@ extern "C" {
 
 #define NUM_USER_THREAD		1
 
-#define NUM_PFLUSH_THREAD	5
+#define NUM_PFLUSH_THREAD	3
 #define NUM_PFLUSH_WORKER	(NUM_PFLUSH_THREAD - 1)
 
 #define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
@@ -121,8 +121,6 @@ extern int bonsai_smo_thread_init();
 extern int bonsai_smo_thread_exit();
 
 extern int get_tid();
-
-extern void stop_the_world();
 
 #ifdef __cplusplus
 }

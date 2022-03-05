@@ -8,14 +8,15 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 
+#define _GNU_SOURCE
 #include "nab.h"
 
 void nab_init_region(void __node(my) *start, size_t size, int initialized) {
     struct data_layer *d_layer = DATA(bonsai);
 
     unsigned int n = ALIGN(size, NAB_BLK_SIZE) / NAB_BLK_SIZE, i;
+    size_t blk_nr = __nab_blk_nr(nab_node0_ptr(start));
     int my_node = get_numa_node(__this->t_cpu), node;
-    size_t blk_nr = __nab_blk_nr(start);
     struct nab_blk_descriptor *desc;
 
     for (i = blk_nr; i < blk_nr + n; i++) {
@@ -40,9 +41,9 @@ void nab_pull_region(void __node(my) *start, size_t size) {
 
     dst = PTR_ALIGN_DOWN(start, NAB_BLK_SIZE);
     while (n--) {
-        desc = __nab_get_blk_global_desc(start);
+        desc = __nab_get_blk_global_desc(nab_node0_ptr(start));
         if (desc->owner != my_node) {
-            src = __nab_node_ptr(start, desc->owner, 0);
+            src = __nab_node_ptr(start, desc->owner, my_node);
             /* Wait concurrent memcpy to be done. */
             while (ACCESS_ONCE(__nab_get_blk_local_desc(dst)->nr_miss) == NAB_NR_MISS_MAX) {
                 cpu_relax();
@@ -55,8 +56,8 @@ void nab_pull_region(void __node(my) *start, size_t size) {
 
 void nab_commit_region(void __node(my) *start, size_t size) {
     unsigned int n = ALIGN(size, NAB_BLK_SIZE) / NAB_BLK_SIZE, i;
+    size_t blk_nr = __nab_blk_nr(nab_node0_ptr(start));
     int my_node = get_numa_node(__this->t_cpu);
-    size_t blk_nr = __nab_blk_nr(start);
     struct nab_blk_descriptor *desc, d;
 
     for (i = blk_nr; i < blk_nr + n; i++) {

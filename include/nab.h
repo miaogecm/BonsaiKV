@@ -64,7 +64,7 @@ static inline size_t __nab_blk_nr(void __node(0) *ptr) {
 static inline struct nab_blk_descriptor *__nab_get_blk_local_desc(void __node(my) *ptr) {
     struct data_layer *d_layer = DATA(bonsai);
     int my_node = get_numa_node(__this->t_cpu);
-    size_t blk_nr = __nab_blk_nr(ptr);
+    size_t blk_nr = __nab_blk_nr(__nab_node_ptr(ptr, 0, my_node));
     return &d_layer->region[my_node].nab->blk_descriptors[blk_nr];
 }
 
