@@ -116,8 +116,8 @@ static void do_load(long id) {
 
     start_measure();
 
-    st = N / NUM_THREAD * id;
-    ed = N / NUM_THREAD * (id + 1);
+    st = 1.0 * id / NUM_THREAD * N;
+    ed = 1.0 * (id + 1) / NUM_THREAD * N;
     for (i = st; i < ed; i ++) {
         if (in_bonsai) {
             ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
