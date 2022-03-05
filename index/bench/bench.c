@@ -155,7 +155,7 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i, repeat = 10;
+	long i, repeat = 1;
     int ret;
 
     start_measure();
