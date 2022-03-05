@@ -11,6 +11,8 @@
 #define _GNU_SOURCE
 #include "nab.h"
 
+struct nab_blk_table *global_table = NULL;
+
 void nab_init_region(void __node(my) *start, size_t size, int initialized) {
     struct data_layer *d_layer = DATA(bonsai);
 

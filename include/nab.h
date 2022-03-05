@@ -45,7 +45,7 @@ struct nab_blk_table {
     struct nab_blk_descriptor blk_descriptors[NAB_ARENA_SIZE / NAB_BLK_SIZE];
 };
 
-static struct nab_blk_table *global_table = NULL;
+extern struct nab_blk_table *global_table;
 
 static inline void *__nab_node_ptr(void *ptr, int to, int from) {
     struct data_layer *d_layer = DATA(bonsai);
