@@ -171,7 +171,7 @@ void bonsai_barrier() {
         wakeup_master();
         usleep(30000);
     } while (atomic_read(&bonsai->l_layer.force_flush));
-    bonsai_print("=== Everything is persistent. ===\n");
+    printf("=== Everything is persistent. ===\n");
 }
 
 void bonsai_deinit() {

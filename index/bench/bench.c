@@ -113,18 +113,22 @@ static void do_load(long id) {
     double interval;
 	long i, st, ed;
     int ret;
+    int repeat = 50;
 
     start_measure();
 
     st = 1.0 * id / NUM_THREAD * N;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
-    for (i = st; i < ed; i ++) {
-        if (in_bonsai) {
-            ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
-        } else {
-            ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+
+    while(repeat--) {
+        for (i = st; i < ed; i ++) {
+            if (in_bonsai) {
+                ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
+            } else {
+                ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+            }
+            // assert(ret == 0);
         }
-        assert(ret == 0);
     }
     interval = end_measure();
     printf("load finished in %.3lf seconds\n", interval);
@@ -149,37 +153,40 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i, repeat = 1;
-    int ret;
+	long i, repeat = 50;
+    int ret, st, ed;
+
+    st = 1.0 * id / NUM_THREAD * N;
+    ed = 1.0 * (id + 1) / NUM_THREAD * N;
 
     start_measure();
 
     while(repeat--) {
-        for (i = 0; i < N; i ++) {
+        for (i = st; i < ed; i ++) {
 
-            switch (op_arr[id][i][0]) {
+            switch (op_arr[i][0]) {
             case 0:
             case 1:
                 if (in_bonsai) {
-                    bonsai_insert(op_arr[id][i][1], op_arr[id][i][2]);
+                    bonsai_insert(op_arr[i][1], op_arr[i][2]);
                 } else {
-                    fn_insert(index_struct, op_arr[id][i][1], 8, (void *) op_arr[id][i][2]);
+                    fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
                 break;
             case 2:
                 if (in_bonsai) {
-                    ret = bonsai_lookup(op_arr[id][i][1], &v);
+                    ret = bonsai_lookup(op_arr[i][1], &v);
                     if (ret) {
                         abort();
                     }
                 } else {
-                    v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1], 8);
+                    v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8);
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;
             case 3:
                 if (in_bonsai) {
-                    bonsai_scan(op_arr[id][i][1], 8, op_arr[id][i][2], 8, val_arr);
+                    bonsai_scan(op_arr[i][1], 8, op_arr[i][2], 8, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);
