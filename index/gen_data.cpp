@@ -16,7 +16,7 @@ using namespace std;
  */
 
 int main(int argc, char* argv[]) {
-    char *input_file_name, *output_file_name, *type, *count, *thread_id, *thread_num;
+    char *input_file_name, *output_file_name, *type, *count;
     int size, id, num;
 
     string op;
@@ -43,21 +43,9 @@ int main(int argc, char* argv[]) {
         fclose(stdin);
         fclose(stdout);
     } else {
-        thread_id = argv[5];
-        thread_num = argv[6];
-
-        id = stoi(thread_id);
-        num = stoi(thread_num);
-
-        if (id == 1) {
-            freopen(output_file_name, "w", stdout);
-            printf("#include <stdint.h>\n\n");
-            printf("uint64_t op_arr[%d][%d][3] = {\n", num, size);
-        } else {
-            freopen(output_file_name, "a", stdout);
-        }
-
-        printf("{\n");
+        freopen(output_file_name, "w", stdout);
+        printf("#include <stdint.h>\n\n");
+        printf("uint64_t op_arr[%d][3] = {\n", size);
 
         while(cin >> op >> __arg1) {
             if (op == "INSERT") {
@@ -80,11 +68,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        printf("}, \n");
-
-        if (id == num) {
-            printf("};\n");
-        }
+        printf("}; \n");
 
         fclose(stdin);
         fclose(stdout);
