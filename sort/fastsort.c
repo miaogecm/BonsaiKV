@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <assert.h>
-#include "sort.h"
 
 #define MAX     10000000
 #define MIN	    0
@@ -31,11 +30,8 @@ static void bind_to_cpu(int cpu) {
     }
 }
 
-static inline int cmp(const int *a, const int *b) {
-    if (*a > *b) return 1;
-    if (*a < *b) return -1;
-    return 0;
-}
+#define sort_cmp(x, y, arg)    ((*(int *) (x)) == (*(int *) (y)) ? 0 : ((*(int *) (x)) < (*(int *) (y)) ? -1 : 1))
+#include "sort.h"
 
 static inline int __random() {
 	return rand() % MAX + MIN;
@@ -55,7 +51,7 @@ static void load_data() {
 }
 
 static void quick_sort(int *arr) {
-    _quicksort(arr, PER_THREAD, sizeof(int), cmp, NULL);
+    __qsort(arr, PER_THREAD, sizeof(int), NULL);
 }
 
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
