@@ -21,7 +21,6 @@
 #include <sys/time.h>
 
 #include "bench.h"
-#include "bonsai.h"
 
 #include "../data/kvdata.h"
 
@@ -55,6 +54,8 @@ extern void bonsai_deinit();
 extern void bonsai_mark_cpu(int cpu);
 extern void bonsai_barrier();
 
+extern pkey_t bonsai_make_key(const void *key, size_t len);
+
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
@@ -63,12 +64,10 @@ extern int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len
 extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
 
-struct toy_kv *toy;
 pthread_t tids[NUM_THREAD];
 
 int in_bonsai;
 
-#if 0
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
@@ -92,7 +91,6 @@ static inline void bind_to_cpu(int cpu) {
         perror("bind cpu failed\n");
     }
 }
-#endif
 
 static inline void die() {
 	assert(0);
@@ -116,7 +114,7 @@ static void do_load(long id) {
     double interval;
 	long i, st, ed;
     int ret;
-    int repeat = 50;
+    int repeat = 1;
     pkey_t __key;
 
     start_measure();

@@ -3,9 +3,9 @@
 # export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
 export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
 
-long_key="-DLONG_KEY"
+#long_key="-DLONG_KEY"
 
-count=100
+count=1000000
 
 cd ${index_microbench_dir}
 rm -rf ./workloads
@@ -34,7 +34,7 @@ gcc -shared -o data/libkvdata.so kvdata.c -std=c99
 sudo ln -sf $(pwd)/data/libkvdata.so /usr/lib/libkvdata.so
 
 echo "// BEGIN kvdata header" > data/kvdata.h
-if [ $long_key == "-DLONG_KEY" ]
+if [ "$long_key" == "-DLONG_KEY" ]
 then
     echo "extern char load_arr[${count}][2][100];" >> data/kvdata.h
     echo "extern char op_arr[${count}][3][100];" >> data/kvdata.h
@@ -44,5 +44,5 @@ else
 fi
 echo "// END kvdata header" >> data/kvdata.h\
 
-rm ./data/load.h 
+rm ./data/load.h
 rm ./data/op.h

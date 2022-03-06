@@ -131,7 +131,7 @@ static void wait_pflush_thread() {
 
 	while (1) {
 		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
-			if (bonsai->pflushd[i]->t_state != S_SLEEPING)
+			if (bonsai->pflush_threads[i]->t_state != S_SLEEPING)
 				usleep(20);
 			else
 				states[i] = 1;
@@ -211,19 +211,18 @@ static void master_wait_workers(struct thread_info* master) {
 	int i, num_worker = 0;
 
 	while (1) {
-		for (i = 0; i < NUM_PFLUSH_THREAD; i ++) {
-			thread = bonsai->pflushd[i];
-			if (thread != master) {
-				if (thread->t_state == S_UNINIT) {
-					usleep(10);
-					break;
-				}
-				else
-					num_worker ++;
+		for (i = 1; i < NUM_PFLUSH_THREAD; i ++) {
+			thread = bonsai->pflush_threads[i];
 
-				if (num_worker == NUM_PFLUSH_THREAD - 1)
-					return;
-			}
+            if (thread->t_state == S_UNINIT) {
+                usleep(10);
+                break;
+            }
+            else
+                num_worker ++;
+
+            if (num_worker == NUM_PFLUSH_WORKER)
+                return;
 		}
 	}
 }
@@ -391,33 +390,56 @@ void bonsai_user_thread_exit() {
 
 int bonsai_pflushd_thread_init() {
 	struct thread_info* thread;
-	int i;
+	int node, i, tid = 0;
 
 	pthread_mutex_init(&work_mutex, NULL);
 	pthread_cond_init(&work_cond, NULL);
 
-	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
-		thread = malloc(sizeof(struct thread_info));
-		thread->t_id = atomic_add_return(1, &tids);
-		thread->t_cpu = alloc_cpu_onnode(1);
-		thread->t_state = S_UNINIT;
-		init_workqueue(thread, &thread->t_wq);
-		thread->t_data = NULL;
+    /* init master on node 0 */
+    thread = malloc(sizeof(struct thread_info));
+    thread->t_id = atomic_add_return(1, &tids);
+    thread->t_cpu = alloc_cpu_onnode(0);
+    thread->t_state = S_UNINIT;
+    init_workqueue(thread, &thread->t_wq);
+    thread->t_data = NULL;
+    list_add(&thread->list, &bonsai->thread_list);
+    bonsai->pflush_master = thread;
 
-		list_add(&thread->list, &bonsai->thread_list);
-
-		bonsai->pflushd[i] = thread;
-	}
-
-	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
-        if (pthread_create(&bonsai->tids[i], NULL,
-			(i == 0) ? (void*)pflush_master : (void*)pflush_worker, (void*)bonsai->pflushd[i]) != 0) {
-        		perror("bonsai create thread failed\n");
-			return -ETHREAD;
-    	}
-        pthread_setname_np(bonsai->tids[i], (i == 0) ? "pflush_master" : "pflush_worker");
+    /* init workers */
+    for (node = 0; node < NUM_SOCKET; node++) {
+        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+            thread = malloc(sizeof(struct thread_info));
+            thread->t_id = atomic_add_return(1, &tids);
+            thread->t_cpu = alloc_cpu_onnode(node);
+            thread->t_state = S_UNINIT;
+            init_workqueue(thread, &thread->t_wq);
+            thread->t_data = NULL;
+            list_add(&thread->list, &bonsai->thread_list);
+            bonsai->pflush_workers[node][i] = thread;
+        }
     }
 
+    /* create master thread */
+    if (pthread_create(&bonsai->tids[tid], NULL, (void *) pflush_master, bonsai->pflush_master) != 0) {
+        perror("bonsai create master thread failed");
+        return -ETHREAD;
+    }
+    pthread_setname_np(bonsai->tids[tid], "pflush_master");
+    tid++;
+
+    /* create worker threads */
+    for (node = 0; node < NUM_SOCKET; node++) {
+        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+            if (pthread_create(&bonsai->tids[tid], NULL, (void *) pflush_worker, bonsai->pflush_workers[node][i]) != 0) {
+                perror("bonsai create worker thread failed");
+                return -ETHREAD;
+            }
+            pthread_setname_np(bonsai->tids[tid], "pflush_worker");
+            tid++;
+        }
+    }
+
+    /* wait for master and workers to sleep */
 	wait_pflush_thread();
 	
 	return 0;
@@ -482,7 +504,7 @@ int bonsai_pflushd_thread_exit() {
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		pthread_join(bonsai->tids[i], NULL);
-		free(bonsai->pflushd[i]);
+		free(bonsai->pflush_workers[i]);
 	}
 
 	bonsai_print("pflush thread exit\n");

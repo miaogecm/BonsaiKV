@@ -12,7 +12,7 @@ CC = gcc
 CXX = g++
 MAKE = make
 
-CFLAGS += -DLONG_KEY
+# CFLAGS += -DLONG_KEY
 
 # -jN
 ifeq ($(strip $(NJOB)), )

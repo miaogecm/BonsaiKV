@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #define NUM_CPU                 12
-#define NUM_SOCKET              1
+#define NUM_SOCKET              2
 #define NUM_CPU_PER_SOCKET      (NUM_CPU / NUM_SOCKET)
 
 static inline int node_to_cpu(int node, int cpu_idx) {

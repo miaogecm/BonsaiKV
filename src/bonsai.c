@@ -68,14 +68,9 @@ static int log_layer_init(struct log_layer* layer) {
 	if (err)
 		goto out;
 
-	pthread_barrier_init(&layer->barrier, NULL, NUM_PFLUSH_WORKER);
-	for (i = 0; i < NUM_PFLUSH_WORKER; i ++)
-		INIT_LIST_HEAD(&layer->sort_list[i]);
-
-	for (i = 0; i < NUM_MERGE_HASH_BUCKET; i ++) {
-		INIT_HLIST_HEAD(&layer->buckets[i].head);
-		spin_lock_init(&layer->buckets[i].lock);
-	}
+    for (i = 0; i < NUM_SOCKET; i++) {
+        pthread_barrier_init(&layer->barrier[i], NULL, NUM_PFLUSH_WORKER_PER_NODE);
+    }
 
 	bonsai_print("log_layer_init\n");
 
@@ -84,11 +79,6 @@ out:
 }
 
 static void log_layer_deinit(struct log_layer* layer) {
-	struct mptable *m, *table, *tmp;
-	int node;
-
-	clean_pflush_buckets(layer);
-
 	log_region_deinit(layer);
 
 	bonsai_print("log_layer_deinit\n");

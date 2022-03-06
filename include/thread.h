@@ -15,8 +15,9 @@ extern "C" {
 
 #define NUM_USER_THREAD		1
 
-#define NUM_PFLUSH_THREAD	3
-#define NUM_PFLUSH_WORKER	(NUM_PFLUSH_THREAD - 1)
+#define NUM_PFLUSH_WORKER_PER_NODE	2
+#define NUM_PFLUSH_WORKER           (NUM_PFLUSH_WORKER_PER_NODE * NUM_SOCKET)
+#define NUM_PFLUSH_THREAD           (NUM_PFLUSH_WORKER + 1)
 
 #define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
 
@@ -42,26 +43,6 @@ enum {
 	S_INTERRUPTED,
 	S_UNINIT,
 	S_EXIT
-};
-
-struct merge_work {
-	int count;
-	struct list_head page_list;
-	struct log_layer* layer;
-	volatile struct oplog_blk* first_blks[NUM_CPU/NUM_PFLUSH_WORKER];
-	volatile struct oplog_blk* last_blks[NUM_CPU/NUM_PFLUSH_WORKER];
-};
-
-struct flush_work {
-	//unsigned int min_index;
-	//unsigned int max_index;
-	//unsigned int curr_index;
-	int small_free_cnt;
-	int big_free_cnt;
-	pkey_t* small_free_set;
-	pkey_t* big_free_set;
-	struct list_head flush_list;
-	struct log_layer* layer;
 };
 
 typedef int (*work_func_t)(void*);

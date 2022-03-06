@@ -62,10 +62,12 @@ struct log_layer {
 
 	struct log_region region[NUM_CPU]; /* per-cpu log region */
 
-	pthread_barrier_t barrier; /* sorting barrier */
-	struct list_head sort_list[NUM_PFLUSH_WORKER]; 
+	pthread_barrier_t barrier[NUM_SOCKET];
 
-	struct hbucket buckets[NUM_MERGE_HASH_BUCKET]; /* hash table used in log flush */
+    struct {
+        struct log_ent *ents;
+        int n;
+    } log_ents[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
 };
 
 struct data_layer {
@@ -100,8 +102,13 @@ struct bonsai_info {
 	struct list_head	thread_list;
 	
 	pthread_t 			tids[NUM_PFLUSH_THREAD + 1];
-	struct thread_info* pflushd[NUM_PFLUSH_THREAD];
-	struct thread_info* smo;
+
+	/* pflushd */
+	struct thread_info *pflush_threads[0];
+	struct thread_info *pflush_master;
+	struct thread_info *pflush_workers[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
+
+	struct thread_info *smo;
 }____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))
