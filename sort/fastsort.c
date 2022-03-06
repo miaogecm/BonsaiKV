@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <assert.h>
+#include "sort.h"
 
 #define MAX     10000000
 #define MIN	    0
@@ -54,7 +55,7 @@ static void load_data() {
 }
 
 static void quick_sort(int *arr) {
-    qsort(arr, PER_THREAD, sizeof(int), cmp);
+    _quicksort(arr, PER_THREAD, sizeof(int), cmp, NULL);
 }
 
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
@@ -77,7 +78,8 @@ static void pflush_worker_fast(void *arg) {
 
         /* Am I the left half in this phase? */
         left = id % 2 == phase % 2;
-        oid = id + (left ? 1 : -1);
+        delta = left ? 1 : -1;
+        oid = id + delta;
         if (oid < 0 || oid >= NUM_THREAD) {
             pthread_barrier_wait(&barrier);
             continue;
@@ -88,8 +90,6 @@ static void pflush_worker_fast(void *arg) {
 
         new_my = malloc(sizeof(int) * PER_THREAD);
         new_ptr = left ? new_my : (new_my + PER_THREAD - 1);
-
-        delta = left ? 1 : -1;
 
         for (i = 0; i < PER_THREAD; i++) {
             if (unlikely(my - data[id] == PER_THREAD || my < data[id])) {
