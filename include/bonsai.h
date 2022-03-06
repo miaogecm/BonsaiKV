@@ -162,6 +162,12 @@ extern void bonsai_recover();
 
 extern void index_layer_dump();
 
+extern pkey_t bonsai_make_key(const void *key, size_t len);
+
+#ifdef LONG_KEY
+#define MK_K(k, l) (bonsai_make_key(k, l))
+#endif
+
 #ifdef __cplusplus
 }
 #endif

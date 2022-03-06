@@ -15,6 +15,8 @@ using namespace std;
  * scan     3
  */
 
+#define KEY_MAX_LEN     100
+
 int main(int argc, char* argv[]) {
     char *input_file_name, *output_file_name, *type, *count;
     int size, id, num;
@@ -34,9 +36,17 @@ int main(int argc, char* argv[]) {
     if (type[0] == '0') {
         freopen(output_file_name, "w", stdout);
         printf("#include <stdint.h>\n\n");
+#ifdef LONG_KEY
+        printf("char load_arr[%d][2][%d] = {\n", size, KEY_MAX_LEN);
+#else
         printf("uint64_t load_arr[%d][2] = {\n", size);
+#endif
         while(cin >> op >> __arg1 >> __arg2) {
-            printf("{%luUL, %luUL}, \n", __arg1, __arg2);
+#ifdef LONG_KEY
+        printf("{\"%lu\", \"%lu\"}, \n", __arg1, __arg2);
+#else
+        printf("{%luUL, %luUL}, \n", __arg1, __arg2);
+#endif
         }
         printf("};\n");
         
@@ -45,23 +55,42 @@ int main(int argc, char* argv[]) {
     } else {
         freopen(output_file_name, "w", stdout);
         printf("#include <stdint.h>\n\n");
+#ifdef LONG_KEY
+        printf("char op_arr[%d][3][%d] = {\n", size, KEY_MAX_LEN);
+#else
         printf("uint64_t op_arr[%d][3] = {\n", size);
-
+#endif
         while(cin >> op >> __arg1) {
             if (op == "INSERT") {
                 cin >> __arg2;
+#ifdef LONG_KEY
+                printf("{\"%d\", \"%lu\", \"%lu\"}, \n", 0, __arg1, __arg2);
+#else
                 printf("{%d, %luUL, %luUL}, \n", 0, __arg1, __arg2);
+#endif
             } 
             else if (op == "UPDATE") {
                 cin >> __arg2;
+#ifdef LONG_KEY
+                printf("{\"%d\", \"%lu\", \"%lu\"}, \n", 0, __arg1, __arg2);
+#else
                 printf("{%d, %luUL, %luUL}, \n", 0, __arg1, __arg2);
+#endif
             }
             else if (op == "READ") {
+#ifdef LONG_KEY
+                printf("{\"%d\", \"%lu\"}, \n", 2, __arg1);
+#else
                 printf("{%d, %luUL}, \n", 2, __arg1);
+#endif
             }
             else if (op == "SCAN") {
                 cin >> __arg2;
+#ifdef LONG_KEY
+                printf("{\"%d\", \"%lu\", \"%lu\"}, \n", 3, __arg1, __arg1 + __arg2 - 1);
+#else
                 printf("{%d, %luUL, %luUL}, \n", 3, __arg1, __arg1 + __arg2 - 1);
+#endif
             }
             else {
                 perror("error: unkown op type!\n");
