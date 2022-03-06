@@ -121,11 +121,9 @@ void index_layer_dump() {
 }
 
 #ifdef LONG_KEY
-
 pkey_t bonsai_make_key(const void *key, size_t len) {
     return pkey_generate_v(key, len);
 }
-
 #endif
 
 void bonsai_mark_cpu(int cpu) {

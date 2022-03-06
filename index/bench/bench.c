@@ -21,6 +21,7 @@
 #include <sys/time.h>
 
 #include "bench.h"
+#include "bonsai.h"
 
 #include "../data/kvdata.h"
 
@@ -59,7 +60,7 @@ extern int bonsai_remove(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
 extern int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr);
 
-extern void bonsai_user_thread_init();
+extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
 
 struct toy_kv *toy;
@@ -67,6 +68,7 @@ pthread_t tids[NUM_THREAD];
 
 int in_bonsai;
 
+#if 0
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
@@ -90,6 +92,7 @@ static inline void bind_to_cpu(int cpu) {
         perror("bind cpu failed\n");
     }
 }
+#endif
 
 static inline void die() {
 	assert(0);
@@ -114,6 +117,7 @@ static void do_load(long id) {
 	long i, st, ed;
     int ret;
     int repeat = 50;
+    pkey_t __key;
 
     start_measure();
 
@@ -123,7 +127,12 @@ static void do_load(long id) {
     while(repeat--) {
         for (i = st; i < ed; i ++) {
             if (in_bonsai) {
-                ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
+#ifdef LONG_KEY
+                __key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
+#else
+                __key = load_arr[i][0];
+#endif
+                ret = bonsai_insert(__key, load_arr[i][1]);
             } else {
                 ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
@@ -154,7 +163,8 @@ static void do_op(long id) {
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
 	long i, repeat = 50;
-    int ret, st, ed;
+    int ret, st, ed, opcode;
+    pkey_t __key, __key2;
 
     st = 1.0 * id / NUM_THREAD * N;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
@@ -163,11 +173,20 @@ static void do_op(long id) {
 
     while(repeat--) {
         for (i = st; i < ed; i ++) {
-
-            switch (op_arr[i][0]) {
+#ifdef LONG_KEY
+            opcode = op_arr[i][0][0] - '0';
+#else
+            opcode = op_arr[i][0];
+#endif
+            switch (opcode) {
             case 0:
             case 1:
                 if (in_bonsai) {
+#ifdef LONG_KEY
+                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+#else
+                    __key = op_arr[i][1];
+#endif
                     bonsai_insert(op_arr[i][1], op_arr[i][2]);
                 } else {
                     fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
@@ -175,7 +194,12 @@ static void do_op(long id) {
                 break;
             case 2:
                 if (in_bonsai) {
-                    ret = bonsai_lookup(op_arr[i][1], &v);
+#ifdef LONG_KEY
+                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+#else
+                    __key = op_arr[i][1];
+#endif
+                    ret = bonsai_lookup(__key, &v);
                     if (ret) {
                         abort();
                     }
@@ -186,7 +210,14 @@ static void do_op(long id) {
                 break;
             case 3:
                 if (in_bonsai) {
-                    bonsai_scan(op_arr[i][1], 8, op_arr[i][2], 8, val_arr);
+#ifdef LONG_KEY
+                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+                    __key2 = MK_K(op_arr[i][2], strlen(op_arr[i][2]));
+#else
+                    __key = op_arr[i][1];
+                    __key2 = op_arr[i][2];
+#endif
+                    bonsai_scan(__key, 8, __key2, 8, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);
@@ -285,6 +316,9 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     if (in_bonsai) {
         printf("Using bonsai.\n");
     }
+#ifdef LONG_KEY
+    printf("Using long key.\n");
+#endif
 
     fn_init = init;
     fn_destroy = destory;
