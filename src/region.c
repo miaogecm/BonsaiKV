@@ -26,7 +26,6 @@
 #include "pnode.h"
 #include "numa_config.h"
 
-/*
 static char *log_region_fpath[NUM_SOCKET] = {
 	"/mnt/ext4/node0/region0",
 	"/mnt/ext4/node1/region1"
@@ -35,14 +34,6 @@ static char *log_region_fpath[NUM_SOCKET] = {
 static char* data_region_fpath[NUM_SOCKET] = {
 	"/mnt/ext4/node0/objpool0",
 	"/mnt/ext4/node1/objpool1"
-};
-*/
-static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/region0"
-};
-
-static char* data_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/objpool0"
 };
 
 void free_log_page(struct log_region *region, struct log_page_desc* page) {
@@ -59,18 +50,18 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 		next_page->p_prev = page->p_prev;
 	} else if (!prev_page && next_page) {
 		/* I am the first */
-		next_page->p_prev = 0;
+		next_page->p_prev = -PAGE_SIZE;
 		region->inuse = next_page;
 	} else if (prev_page && !next_page) {
 		/* I am the last */
-		prev_page->p_next = 0;
+		prev_page->p_next = -PAGE_SIZE;
 	} else {
 		/* I am the only one */
 		region->inuse = NULL;
 	}
 	spin_unlock(&region->inuse_lock);
 
-	page->p_prev = 0;
+	page->p_prev = -PAGE_SIZE;
 
 	spin_lock(&region->free_lock);
 	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
@@ -86,8 +77,9 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 
 	spin_lock(&region->free_lock);
 	page = region->free;
+    assert(page->p_next != -PAGE_SIZE);
 	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-	region->free->p_prev = 0;
+	region->free->p_prev = -PAGE_SIZE;
 	spin_unlock(&region->free_lock);
 
 	spin_lock(&region->inuse_lock);
@@ -95,7 +87,7 @@ struct log_page_desc* alloc_log_page(struct log_region *region) {
 		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
 		region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
 	} else
-		page->p_next = 0;
+		page->p_next = -PAGE_SIZE;
 		
 	region->inuse = page;
 	spin_unlock(&region->inuse_lock);
@@ -114,7 +106,7 @@ static inline void init_log_page(struct log_page_desc* page, off_t page_off, int
 
 static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, unsigned long start,
 			unsigned long vaddr, off_t offset, size_t size) {
-	int i, num_page = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET / PAGE_SIZE;
+	int i, num_page = LOG_REGION_SIZE / NUM_CPU_PER_SOCKET / PAGE_SIZE;
 
 	desc->r_off = offset;
 	desc->r_size = size;
@@ -153,8 +145,8 @@ void log_region_deinit(struct log_layer* layer) {
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region_desc *desc;
 	struct log_region *region;
-	int node, cpu, fd, error = 0;
-	size_t size_per_cpu = LOG_REGION_SIZE / NUM_PHYSICAL_CPU_PER_SOCKET;
+	int node, cpu_idx, fd, cpu, error = 0;
+	size_t size_per_cpu = LOG_REGION_SIZE / NUM_CPU_PER_SOCKET;
 	char *vaddr, *start;
 
 	for (node = 0; node < NUM_SOCKET; node ++) {
@@ -184,16 +176,17 @@ int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 		layer->pmem_fd[node] = fd;
 		layer->pmem_addr[node] = vaddr;
 		
-		for (cpu = 0; cpu < NUM_PHYSICAL_CPU_PER_SOCKET; cpu ++, vaddr += size_per_cpu) {
+		for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx ++, vaddr += size_per_cpu) {
+            cpu = node_to_cpu(node, cpu_idx);
+
 			region = &layer->region[cpu];
-			
-			desc = &bonsai->log_region[OS_CPU_ID[node][cpu][0]];
+			desc = &bonsai->log_region[cpu];
 		
 			init_per_cpu_log_region(region, desc, (unsigned long)start, (unsigned long)vaddr, 
 				vaddr - layer->pmem_addr[node], size_per_cpu);
 
-			bonsai_print("init cpu[%d] log region: [%016lx %016lx], size %lu\n", 
-				cpu, (unsigned long)vaddr, (unsigned long)vaddr + size_per_cpu, size_per_cpu);
+			bonsai_print("init cpu_idx[%d] log region: [%016lx %016lx], size %lu\n",
+                         cpu_idx, (unsigned long)vaddr, (unsigned long)vaddr + size_per_cpu, size_per_cpu);
 
 			region->desc = desc;
 		}

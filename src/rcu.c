@@ -8,6 +8,7 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include "rcu.h"
 #include "arch.h"

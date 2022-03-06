@@ -6,6 +6,8 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  */
 
+#define _GNU_SOURCE
+
 #include <string.h>
 
 #include "bonsai.h"
@@ -21,8 +23,8 @@ pkey_t alloc_nvkey(pkey_t vkey) {
 
     assert(!pkey_is_nv(vkey));
 
-	POBJ_ALLOC(pop, &toid, struct long_key, k_len, NULL, NULL);
-	root = nab_my_ptr(pmemobj_direct(toid.oid));
+	POBJ_ALLOC(pop, &toid, struct long_key, k_len + CACHELINE_SIZE, NULL, NULL);
+	root = PTR_ALIGN(nab_my_ptr(pmemobj_direct(toid.oid)), CACHELINE_SIZE);
 
 	pmemobj_memcpy_persist(pop, root->key, pkey_addr(vkey), k_len);
 

@@ -63,8 +63,8 @@ static struct pnode __node(my) *alloc_pnode() {
 	PMEMobjpool* pop;
 
 	pop = layer->region[0].pop;
-    POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode), NULL, NULL);
-    pnode = pmemobj_direct(toid.oid);
+    POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode) + CACHELINE_SIZE, NULL, NULL);
+    pnode = PTR_ALIGN(pmemobj_direct(toid.oid), CACHELINE_SIZE);
 
     pnode->next = NULL;
 	pnode->anchor_key = 0;
@@ -79,7 +79,7 @@ static struct pnode __node(my) *alloc_pnode() {
 
     pmemobj_persist(pop, my, sizeof(struct pnode));
 
-    return pnode;
+    return my;
 }
 
 static int lower_bound(struct pnode __node(my) *pnode, pkey_t key) {

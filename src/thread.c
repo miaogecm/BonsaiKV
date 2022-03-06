@@ -125,38 +125,6 @@ static int thread_register_stop_signal() {
 	return err;
 }
 
-void stop_the_world() {
-	int states[NUM_THREAD] = {0};
-	struct thread_info* thread;
-	int num_interrupted = 0;
-	
-	states[__this->t_id] = S_INTERRUPTED;
-
-	while (1) {
-		list_for_each_entry(thread, &bonsai->thread_list, list) {
-			if (unlikely(thread == __this))
-				continue;
-			
-			if (kill(thread->t_pid, SIGUSR1)) {
-				bonsai_print("thread[%d] stop the world fails %s\n", thread->t_pid, strerror(errno));
-				exit(0);
-			}
-
-			usleep(50);
-
-			if (states[thread->t_id] != S_INTERRUPTED && thread->t_state == S_INTERRUPTED) {
-				states[thread->t_id] = S_INTERRUPTED;
-				num_interrupted ++;
-			}
-
-			if (num_interrupted == NUM_THREAD - 1) {
-				bonsai_print("world has been stopped\n");
-				return;
-			}
-		}
-	}
-}
-
 static void wait_pflush_thread() {
 	int states[NUM_PFLUSH_THREAD] = {0};
 	int i, num_sleep = 0;
@@ -431,7 +399,7 @@ int bonsai_pflushd_thread_init() {
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		thread = malloc(sizeof(struct thread_info));
 		thread->t_id = atomic_add_return(1, &tids);
-		thread->t_cpu = (i + NUM_USER_THREAD);
+		thread->t_cpu = alloc_cpu_onnode(1);
 		thread->t_state = S_UNINIT;
 		init_workqueue(thread, &thread->t_wq);
 		thread->t_data = NULL;
@@ -463,7 +431,7 @@ int bonsai_smo_thread_init() {
 
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
-	thread->t_cpu = NUM_USER_THREAD + NUM_PFLUSH_THREAD;
+	thread->t_cpu = alloc_cpu_onnode(0);
 	thread->t_state = S_UNINIT;
 	init_workqueue(thread, &thread->t_wq);
 	thread->t_data = NULL;

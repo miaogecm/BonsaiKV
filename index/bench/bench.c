@@ -51,6 +51,7 @@ bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_f
             remove_func_t remove, lookup_func_t lookup, scan_func_t scan);
 extern void bonsai_deinit();
 
+extern void bonsai_mark_cpu(int cpu);
 extern void bonsai_barrier();
 
 extern int bonsai_insert(pkey_t key, pval_t value);
@@ -132,12 +133,6 @@ static void do_load(long id) {
     interval = end_measure();
     printf("load finished in %.3lf seconds\n", interval);
 
-    if (in_bonsai) {
-        bonsai_barrier();
-    }
-
-    printf("user thread[%ld] exit\n", id);
-
     // char c[] = "1234567a";
     // for (i = 0; i < 10; i++) {
     //     c[7] += i;
@@ -177,7 +172,10 @@ static void do_op(long id) {
                 break;
             case 2:
                 if (in_bonsai) {
-                    bonsai_lookup(op_arr[id][i][1], &v);
+                    ret = bonsai_lookup(op_arr[id][i][1], &v);
+                    if (ret) {
+                        abort();
+                    }
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[id][i][1], 8);
                 }
@@ -245,11 +243,15 @@ void* thread_fun(void* arg) {
 
     do_barrier(id);
 
+    pthread_barrier_wait(&barrier);
+
     do_op(id);
 
     pthread_barrier_wait(&barrier);
 
     do_barrier(id);
+
+    pthread_barrier_wait(&barrier);
 
 	return NULL;
 }
@@ -271,6 +273,7 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
           lookup_func_t lookup, lookup_func_t lowerbound, scan_func_t scan) {
     pthread_t user_thread_parent;
     char *use_bonsai;
+    int cpu;
 
     use_bonsai = getenv("bonsai");
     in_bonsai = use_bonsai && !strcmp(use_bonsai, "yes");
@@ -294,6 +297,10 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     pthread_barrier_init(&barrier, NULL, NUM_THREAD);
 
     if (in_bonsai) {
+        for (cpu = 0; cpu < NUM_THREAD; cpu++) {
+            bonsai_mark_cpu(cpu);
+        }
+
         if (bonsai_init(index_name, init, destory, insert, update, remove, lowerbound, scan) < 0)
             goto out;
     } else {

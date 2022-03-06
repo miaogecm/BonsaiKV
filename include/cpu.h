@@ -7,11 +7,14 @@ extern "C" {
 
 #include <sched.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "numa_config.h"
 
-#define NOCPU	-1
+#define NOCPU	(-1)
 #define MAXCPU	48
+
+extern int cpu_used[NUM_CPU];
 
 static inline int get_cpu() {
 	cpu_set_t mask;
@@ -38,8 +41,23 @@ static inline void bind_to_cpu(int cpu) {
 }
 
 static inline int get_numa_node(int cpu) {
-	// return ((cpu != NOCPU) ? cpu : get_cpu()) % (NUM_SOCKET + 1);
-	return 0;
+	return cpu_to_node((cpu != NOCPU) ? cpu : get_cpu());
+}
+
+static inline int mark_cpu(int cpu) {
+	cpu_used[cpu] = 1;
+}
+
+static inline int alloc_cpu_onnode(int node) {
+	int cpu_idx, cpu;
+	for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx++) {
+		cpu = node_to_cpu(node, cpu_idx);
+		if (!cpu_used[cpu]) {
+			mark_cpu(cpu);
+			return cpu;
+		}
+	}
+	assert(0);
 }
 
 #ifdef __cplusplus
