@@ -112,18 +112,22 @@ static void do_load(long id) {
     double interval;
 	long i, st, ed;
     int ret;
+    int repeat = 50;
 
     start_measure();
 
     st = 1.0 * id / NUM_THREAD * N;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
-    for (i = st; i < ed; i ++) {
-        if (in_bonsai) {
-            ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
-        } else {
-            ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+
+    while(repeat--) {
+        for (i = st; i < ed; i ++) {
+            if (in_bonsai) {
+                ret = bonsai_insert(load_arr[i][0], load_arr[i][1]);
+            } else {
+                ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+            }
+            // assert(ret == 0);
         }
-        assert(ret == 0);
     }
     interval = end_measure();
     printf("load finished in %.3lf seconds\n", interval);
@@ -154,7 +158,7 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i, repeat = 10;
+	long i, repeat = 50;
     int ret;
 
     start_measure();
