@@ -249,29 +249,46 @@ static void free_pnode(struct pnode* pnode) {
 #endif
 }
 
-#if 0
 int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
-	struct data_layer* d_layer = DATA(bonsai);
-	struct mptable* m;
-	struct pnode *pnode, *near;
+	struct data_layer *d_layer = DATA(bonsai);
+	struct pnode __node(my) *pnode, *next_pnode;
+    struct pnode __node(0) *pnode_node0;
 	int h, pos, i, node;
-	
-	pnode = pnode_find_lowbound(key);
-	assert(pnode);
+	struct mptable* m;
+    const void *i_key;
+    uint64_t aux;
+    size_t len;
 
-	for_each_obj(&LOG(bonsai)->mptable_arena, node, m, pnode->table) {
-		hs_remove(&m->hs, get_tid(), key);
+	pnode = pnode_find_lowbound(key);
+
+	assert(pnode);
+ 	assert(pkey_compare(key, PNODE_ANCHOR_KEY(pnode)) >= 0);
+
+retry:
+    /* It's safe to pull the read-only cacheline without locking. */
+    nab_pull_region(&pnode->meta.lock, sizeof(pnode->meta.lock));
+
+	write_lock(PNODE_LOCK(pnode));
+
+    pnode_node0 = nab_node0_ptr(pnode);
+    if (pnode_node0->next && pkey_compare(pnode_node0->next->anchor_key, key) <= 0) {
+        /* pnode split between find_lowerbound and write_lock */
+        next_pnode = nab_my_ptr(pnode_node0->next);
+        write_unlock(PNODE_LOCK(pnode));
+        pnode = next_pnode;
+        goto retry;
     }
 
-	write_lock(&PNODE_LOCK(pnode));
+    nab_pull_region(pnode->cls[0], CACHELINE_SIZE);     // bitmap, fgprt
+    nab_pull_region(pnode->cls[14], CACHELINE_SIZE);    // slotarray
 
 	h = hash8(key);
 	pos = -1;
 
 	for (i = 0; i < NUM_ENTRY_PER_PNODE; i++) {
 		if (PNODE_FGPRT(pnode, i) == h) {
-			if (key_cmp(PNODE_KEY(pnode, i), key) == 0) {
+			if (pkey_compare(PNODE_KEY(pnode, i), key) == 0) {
 				pos = i;
 				break;
 			}
@@ -280,38 +297,27 @@ int pnode_remove(pkey_t key) {
 
 	if (unlikely(pos == -1)) {
 		assert(0);
-		write_unlock(&PNODE_LOCK(pnode));
+		write_unlock(PNODE_LOCK(pnode));
 		return -ENOENT;
 	}
 
 	pnode_sort_slot(pnode, pos, key, OP_REMOVE);
 	clear_bit((1ULL << pos), &PNODE_BITMAP(pnode));
 
-	if (unlikely(!pnode->slot[0])) {
-		i_layer->remove(i_layer->index_struct, PNODE_ANCHOR_KEY(pnode));
-		remove_pnode_list(pnode);
-        mptable_free(LOG(bonsai), pnode->table);
-		free_pnode(pnode);
-	} else if (pnode->slot[0] > NUM_ENTRY_PER_PNODE / 2) {
-		bonsai_flush((void*)&pnode->slot, sizeof(NUM_ENTRY_PER_PNODE + 1), 0);	
-		bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
-		write_unlock(&PNODE_LOCK(pnode));
-	} else {
-		// merge
-		near = list_next_entry(pnode, list);
-		if (near != list_entry(&d_layer->pnode_list, struct pnode, list)) {
-			write_lock(&PNODE_LOCK(near));
-			if (near->slot[0] + pnode->slot[0] <= NUM_ENTRY_PER_PNODE) {
-				pnode_merge(pnode, near);
-			}
-			write_unlock(&PNODE_LOCK(near));
-		}
-		write_unlock(&PNODE_LOCK(pnode));
-	}
+    nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
+    nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
 
+#if 0
+	if (unlikely(!pnode->slot[0])) {
+        i_key = resolve_key(PNODE_ANCHOR_KEY(pnode_node0), &aux, &len);
+		i_layer->remove(i_layer->pnode_index_struct, i_key, len);
+		free_pnode(pnode);
+	}
+#endif
+
+    write_unlock(PNODE_LOCK(pnode));
 	return 0;
 }
-#endif
 
 void sentinel_node_init() {
 	struct index_layer *i_layer = INDEX(bonsai);

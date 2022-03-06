@@ -348,7 +348,7 @@ static int worker_oplog_flush(void* arg) {
             pnode_insert(log->o_kv.k, &log->o_kv.v);
 			break;
 		case OP_REMOVE:
-			//pnode_remove(log->o_kv.k);
+			pnode_remove(log->o_kv.k);
 			break;
 		default:
 			perror("bad operation type\n");

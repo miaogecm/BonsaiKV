@@ -901,3 +901,54 @@ out:
     mptable_unlock(mt);
     return ret;
 }
+
+int shim_scan(pkey_t lo, pkey_t hi, pkey_t *arr) {
+    struct mptable *mt, *st, *next;
+    uint8_t slots[SLOTS_SIZE];
+    pkey_t key, *w = NULL;
+    int i, cnt, ret;
+    kvpair_t *ent;
+
+relookup:
+    mt = mptable_seek(lo, SEEK_MT_W | SEEK_ST_W);
+
+    ret = mptable_lock_correct(&mt, lo);
+    if (unlikely(ret == -EAGAIN)) {
+        /* The mptable has been deleted. */
+        goto relookup;
+    }
+
+    ret = 0;
+
+    while (1) {
+        memcpy(slots, mt->slots, SLOTS_SIZE);
+
+        st = mptable_off2addr(mt->slave);
+
+        cnt = slot_get_cnt(slots);
+        for (i = 0; i < cnt; i++) {
+            ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
+            key = ent->k;
+
+            if (key >= lo) {
+                w = arr;
+            } else if (key > hi) {
+                goto out;
+            }
+
+            if (w) {
+                *w++ = key;
+                ret++;
+            }
+        }
+
+        next = mptable_off2addr(mt->next);
+        mptable_lock(next);
+        mptable_unlock(mt);
+        mt = next;
+    }
+
+out:
+    mptable_unlock(mt);
+    return ret;
+}

@@ -38,6 +38,7 @@ int shim_upsert(pkey_t key, pval_t *val);
 int shim_remove(pkey_t key);
 int shim_lookup(pkey_t key, pval_t *val);
 int shim_update(pkey_t key, const pval_t *old_val, pval_t *new_val);
+int shim_scan(pkey_t lo, pkey_t hi, pkey_t *arr);
 void shim_dump();
 
 #ifdef __cplusplus
