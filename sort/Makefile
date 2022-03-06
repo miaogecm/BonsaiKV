@@ -8,7 +8,7 @@ all: $(TARGETS)
 
 CC = gcc
 
-CFLAGS = -g -O3
+CFLAGS = -g -O3 -std=gnu99
 
 LIBS = -pthread
 
