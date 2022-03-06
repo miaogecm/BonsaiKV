@@ -1,6 +1,6 @@
 SRC_DIR = $(PWD)
 
-SRCS = $(SRC_DIR)/list_sort.c $(SRC_DIR)/sort.c
+SRCS = $(SRC_DIR)/list_sort.c $(SRC_DIR)/fastsort.c
 
 TARGETS = sort
 
