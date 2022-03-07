@@ -99,7 +99,7 @@ static void worker_sleep() {
 			&& atomic_read(&STATUS) != ALL_WAKEUP) {
 		pthread_cond_wait(&work_cond, &work_mutex);
 	}
-	atomic_add(&RECEIVED, 1);
+	atomic_inc(&RECEIVED);
 	pthread_mutex_unlock(&work_mutex);
 }
 
