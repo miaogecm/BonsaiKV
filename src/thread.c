@@ -60,7 +60,9 @@ void wakeup_workers() {
 }
 
 static void try_wakeup_master() {
-	while(atomic_read(&RECEIVED) != WORKER_RUNNING);
+	while (atomic_read(&RECEIVED) != WORKER_RUNNING) {
+        cpu_relax();
+    }
 	if (atomic_sub_return(1, &STATUS) == WORKER_SLEEP) {
 		pthread_mutex_lock(&work_mutex);
 		pthread_cond_broadcast(&work_cond);
