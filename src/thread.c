@@ -29,6 +29,8 @@ static pthread_mutex_t work_mutex;
 static pthread_cond_t work_cond;
 
 static atomic_t STATUS = ATOMIC_INIT(MASTER_SLEEP);
+static atomic_t RECEIVED = ATOMIC_INIT(0);
+
 static atomic_t tids = ATOMIC_INIT(-1);
 
 static pthread_mutex_t smo_mutex;
@@ -52,11 +54,13 @@ static void init_workqueue(struct thread_info* thread, struct workqueue_struct* 
 void wakeup_workers() {
 	pthread_mutex_lock(&work_mutex);
 	atomic_set(&STATUS, WORKER_RUNNING);
+	atomic_set(&RECEIVED, 0);
 	pthread_cond_broadcast(&work_cond);
 	pthread_mutex_unlock(&work_mutex);
 }
 
 static void try_wakeup_master() {
+	while(atomic_read(&RECEIVED) != WORKER_RUNNING);
 	if (atomic_sub_return(1, &STATUS) == WORKER_SLEEP) {
 		pthread_mutex_lock(&work_mutex);
 		pthread_cond_broadcast(&work_cond);
@@ -92,14 +96,17 @@ void park_master() {
 static void worker_sleep() {
 	pthread_mutex_lock(&work_mutex);
 	while (atomic_read(&STATUS) != WORKER_RUNNING 
-			&& atomic_read(&STATUS) != ALL_WAKEUP)
+			&& atomic_read(&STATUS) != ALL_WAKEUP) {
 		pthread_cond_wait(&work_cond, &work_mutex);
+	}
+	atomic_add(&RECEIVED, 1);
 	pthread_mutex_unlock(&work_mutex);
 }
 
 static void wakeup_all() {
 	pthread_mutex_lock(&work_mutex);
 	atomic_set(&STATUS, ALL_WAKEUP);
+	atomic_set(&RECEIVED, 0);
 	pthread_cond_broadcast(&work_cond);
 	pthread_mutex_unlock(&work_mutex);
 }
