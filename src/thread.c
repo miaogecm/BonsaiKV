@@ -504,7 +504,7 @@ int bonsai_pflushd_thread_exit() {
 
 	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		pthread_join(bonsai->tids[i], NULL);
-		free(bonsai->pflush_workers[i]);
+		free(bonsai->pflush_threads[i]);
 	}
 
 	bonsai_print("pflush thread exit\n");
