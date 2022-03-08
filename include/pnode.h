@@ -69,7 +69,7 @@ struct pnode {
 
 extern void sentinel_node_init();
 
-extern int pnode_insert(pkey_t key, pval_t *val);
+extern int pnode_insert(pkey_t key, pval_t val, pval_t *old);
 extern int pnode_remove(pkey_t key);
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr);

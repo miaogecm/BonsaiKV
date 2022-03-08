@@ -31,7 +31,9 @@ typedef struct {
 
 typedef struct log_ent {
     pkey_t key;
-    unsigned long ts;
+    pval_t val;
+    unsigned long op : 2;
+    unsigned long ts : 62;
     struct oplog *log;
 } log_ent;
 
@@ -289,7 +291,9 @@ static int worker_oplog_collect_and_sort(void *arg) {
 
                 atomic_dec(&layer->nlogs[block->cpu].cnt);
 
+                e->op = log->o_type;
                 e->key = log->o_kv.k;
+                e->val = log->o_kv.v;
                 e->ts = log->o_stamp;
                 e->log = log;
                 e++;
@@ -319,7 +323,6 @@ out:
 static int worker_oplog_flush(void* arg) {
 	struct oplog_work* owork = arg;
 	struct log_layer* layer = owork->layer;
-	struct oplog* log;
 	int count = 0, ret = 0, n, delta;
     log_ent *start, *end, *e;
 
@@ -338,17 +341,15 @@ static int worker_oplog_flush(void* arg) {
     }
 
 	for (; n; n--, e += delta) {
-		log = e->log;
-		
 		bonsai_debug("pflush thread[%d] flush <%lu %lu> [%s]\n", 
 			__this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert");
 
-		switch(log->o_type) {
+		switch(e->op) {
 		case OP_INSERT:
-            pnode_insert(log->o_kv.k, &log->o_kv.v);
+            pnode_insert(e->key, e->val, &e->log->o_kv.v);
 			break;
 		case OP_REMOVE:
-			pnode_remove(log->o_kv.k);
+			pnode_remove(e->key);
 			break;
 		default:
 			perror("bad operation type\n");

@@ -134,7 +134,7 @@ static void pnode_sort_slot(struct pnode __node(my)* pnode, int pos_e, pkey_t ke
     }
 }
 
-int pnode_insert(pkey_t key, pval_t *val) {
+int pnode_insert(pkey_t key, pval_t val, pval_t *old) {
     int pos, i, n, d;
     struct index_layer *i_layer = INDEX(bonsai);
     uint64_t new_removed;
@@ -172,10 +172,10 @@ retry:
 	if (pos != -1) {
         nab_pull_region(&PNODE_KEY(pnode, pos), sizeof(pentry_t));
         PNODE_KEY(pnode, pos) = key;
-        PNODE_VAL(pnode, pos) = *val;
+        PNODE_VAL(pnode, pos) = val;
 		bonsai_flush(&(PNODE_KEY(pnode, pos)), sizeof(pentry_t), 1);
 
-        shim_update(key, val, &PNODE_VAL(pnode_node0, pos));
+        shim_update(key, old, &PNODE_VAL(pnode_node0, pos));
 		
 		pnode_sort_slot(pnode, pos, key, OP_INSERT);
 		bonsai_flush(&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
