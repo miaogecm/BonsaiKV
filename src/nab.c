@@ -41,21 +41,33 @@ void nab_init_region(void __node(my) *start, size_t size, int initialized) {
 void nab_pull_region(void __node(my) *start, size_t size) {
     size_t n = ALIGN(size, NAB_BLK_SIZE) / NAB_BLK_SIZE;
     int my_node = get_numa_node(__this->t_cpu);
-    struct nab_blk_descriptor *desc;
+    struct nab_blk_descriptor *global_desc, desc;
+    struct nab_blk_descriptor *local_desc;
     void __node(owner) *src;
     void __node(my) *dst;
 
     dst = PTR_ALIGN_DOWN(start, NAB_BLK_SIZE);
+
     while (n--) {
-        desc = __nab_get_blk_global_desc(nab_node0_ptr(start));
-        if (desc->owner != my_node) {
-            src = __nab_node_ptr(start, desc->owner, my_node);
+        global_desc = __nab_get_blk_global_desc(nab_node0_ptr(dst));
+        local_desc = __nab_get_blk_local_desc(dst);
+
+        if (global_desc->owner != my_node && global_desc->version != local_desc->version) {
+            src = __nab_node_ptr(dst, global_desc->owner, my_node);
+
             /* Wait concurrent memcpy to be done. */
-            while (ACCESS_ONCE(__nab_get_blk_local_desc(dst)->nr_miss) == NAB_NR_MISS_MAX) {
+            while (ACCESS_ONCE(local_desc->nr_miss) == NAB_NR_MISS_MAX) {
                 cpu_relax();
             }
+
             memcpy(dst, src, NAB_BLK_SIZE);
+
+            desc = *local_desc;
+            desc.version = global_desc->version;
+            desc.nr_miss = 0;
+            local_desc->descriptor = desc.descriptor;
         }
+
         dst += NAB_BLK_SIZE;
     }
 }

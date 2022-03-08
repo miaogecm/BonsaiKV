@@ -193,8 +193,10 @@ retry:
 		return 0;
 	}
 
+    nab_pull_region(pnode->e, sizeof(pnode->e));
+
 	new_pnode = alloc_pnode();
-	memcpy(new_pnode->e, nab_owner_ptr(pnode->e), sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
+	memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
 	memcpy(&PNODE_FGPRT(new_pnode, 0), &PNODE_FGPRT(pnode, 0), NUM_ENTRY_PER_PNODE);
 
 	n = pnode->slot[0];
@@ -212,6 +214,8 @@ retry:
     new_pnode_node0->anchor_key = PNODE_MIN_KEY(new_pnode);
     new_pnode_node0->next = pnode_node0->next;
     pnode_node0->next = new_pnode_node0;
+
+    assert(new_pnode_node0->anchor_key > pnode_node0->anchor_key);
 
 	pnode->slot[0] = n - d;
     PNODE_BITMAP(pnode) &= ~new_removed;
