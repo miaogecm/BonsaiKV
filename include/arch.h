@@ -120,7 +120,7 @@ static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
         _mm_clflush(buf + i);
 
 	if (fence)
-		smp_mb();
+		memory_mfence();
 #endif
 }
 
