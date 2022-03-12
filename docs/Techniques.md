@@ -28,9 +28,25 @@ Reader持具有超时时间的Cacheline，超时则算作不命中。Writer等�
 
 主要原因：当update生效时，pnode的value此时将不再会被访问到。当$t_{GP}$时间过了，所有本地缓存都已经invalid了。因此，这个时候之后再改pnode的value是安全的。改完value之后，把value指针指向pnode，所有NUMA节点访问到的都是最新的数据。
 
+#### Write-optimized Epoch-based Self-invalidation
+
+问题背景：
+
++ rdtscp指令本身开销较大，Skylake上21 uops，30 cycles（https://www.agner.org/optimize/instruction_tables.pdf）。
++ rdtscp指令对pipeline影响较大，因为他是serializing的。
++ 需要在pnode的每个entry，再加一个8B存储timestamp，不cache-friendly。
+
+方法：
+
++ 每隔$t_e$时间（可以选为1s），全局epoch自增。
++ 每个entry里面用2B存经过的epoch数目。由于value是一个指针，有效地址占据48bit，因此取其前2B来存epoch数目，无额外的空间开销。
++ 每次检查cache是否合法时，首先读取全局epoch $e_g$，以及entry里面存储的entry对应的epoch $e_e$。如果$e_g-e_e\ge2$，则说明cache不合法。这样，每个entry的存活时间在$[t_e,2t_e)$内。
++ 每次刷log的时间间隔设置为$2t_e$即可。
++ **回环问题**
+
 ## Parallel Cache-Friendly Lazy-Persist PNode
 
-考虑只有一个NUMA节点的情况。在日志阶段已经对所有操作进行过排序。按下列步骤处理：
+插入多个数据之后，再做一次Persistent操作。具体来说，当处理完一个PNode，进入下一个PNode之前，对前一个PNode按照先Entry，后Bitmap的顺考虑只有一个NUMA节点的情况。在日志阶段已经对所有操作进行过排序。按下列步骤处理：
 
 + Log List Partition。（少量查找即可，find_leaf的开销被减少很多。集中起来进行顺序的Search对search layer cache 友好。）
 
