@@ -30,6 +30,7 @@ static uint8_t hash8(pkey_t key) {
  */
 static struct pnode *pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
+    int node = get_numa_node(__this->t_cpu);
     struct pnode *pnode;
     const void *i_key;
     uint64_t aux;
@@ -38,7 +39,7 @@ static struct pnode *pnode_find_lowbound(pkey_t key) {
     /* Note that @key should be in local NUMA node. */
     i_key = resolve_key(key, &aux, &len);
 
-	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct, i_key, len);
+	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct[node], i_key, len);
 
     return pnode;
 }
@@ -54,9 +55,8 @@ static int find_unused_entry(uint64_t bitmap) {
     return pos;
 }
 
-static struct pnode *alloc_pnode() {
+static struct pnode *alloc_pnode(int node) {
 	struct data_layer *layer = DATA(bonsai);
-    int node = get_numa_node(__this->t_cpu);
     struct pnode *pnode, *my;
     TOID(struct pnode) toid;
 
@@ -127,6 +127,7 @@ static void pnode_sort_slot(struct pnode *pnode, int pos_e, pkey_t key, optype_t
 int pnode_insert(pkey_t key, pval_t val, pval_t *old) {
     struct index_layer *i_layer = INDEX(bonsai);
 	struct pnode *pnode, *next_pnode, *new_pnode;
+    int node = get_numa_node(__this->t_cpu);
     uint64_t new_removed;
     const void *i_key;
     int pos, i, n, d;
@@ -170,7 +171,7 @@ retry:
 		return 0;
 	}
 
-	new_pnode = alloc_pnode();
+	new_pnode = alloc_pnode(node);
 	memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
 	memcpy(&PNODE_FGPRT(new_pnode, 0), &PNODE_FGPRT(pnode, 0), NUM_ENTRY_PER_PNODE);
 
@@ -206,7 +207,7 @@ retry:
     }
 
     i_key = resolve_key(PNODE_ANCHOR_KEY(new_pnode), &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct, i_key, len, new_pnode);
+    i_layer->insert(i_layer->pnode_index_struct[node], i_key, len, new_pnode);
 
 	write_unlock(PNODE_LOCK(pnode));
 
@@ -280,7 +281,7 @@ retry:
 	return 0;
 }
 
-void sentinel_node_init() {
+void sentinel_node_init(int node) {
 	struct index_layer *i_layer = INDEX(bonsai);
     struct data_layer *d_layer = DATA(bonsai);
 	pkey_t key = MIN_KEY;
@@ -293,7 +294,7 @@ void sentinel_node_init() {
 	int pos;
 
 	/* DATA Layer: allocate a persistent node */
-	pnode = alloc_pnode();
+	pnode = alloc_pnode(node);
 
 	pnode->anchor_key = key;
     d_layer->sentinel = pnode;
@@ -313,9 +314,9 @@ void sentinel_node_init() {
 	write_unlock(PNODE_LOCK(pnode));
 
     i_key = resolve_key(key, &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct, i_key, len, pnode);
+    i_layer->insert(i_layer->pnode_index_struct[node], i_key, len, pnode);
 
-	bonsai_debug("sentinel_node_init\n");
+	bonsai_print("sentinel_node_init: node %d\n", node);
 }
 
 int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr) {

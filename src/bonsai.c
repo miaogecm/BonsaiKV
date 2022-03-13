@@ -34,8 +34,13 @@ extern void kv_print(void* index_struct);
 static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
 				insert_func_t insert, update_func_t update, remove_func_t remove,
 				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
+    int node;
+
     layer->index_struct = init();
-    layer->pnode_index_struct = init();
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        layer->pnode_index_struct[node] = init();
+    }
 
 	layer->insert = insert;
     layer->update = update;
@@ -185,7 +190,7 @@ void bonsai_deinit() {
 
 int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
                 remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
-	int error = 0, fd;
+	int error = 0, fd, node;
 	char *addr;
 
 	if ((fd = open(bonsai_fpath, O_CREAT|O_RDWR, 0666)) < 0) {
@@ -235,8 +240,10 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		INIT_LIST_HEAD(&bonsai->thread_list);
 		bonsai_self_thread_init();
 		
-		/* 6. initialize sentinel node */
-		sentinel_node_init();
+		/* 6. initialize sentinel nodes */
+        for (node = 0; node < NUM_SOCKET; node++) {
+            sentinel_node_init(node);
+        }
 
 		bonsai->desc->init = 1;
     } else {

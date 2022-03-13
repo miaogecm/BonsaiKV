@@ -33,7 +33,8 @@ typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high
 #define NUM_MERGE_HASH_BUCKET		131072
 
 struct index_layer {
-	void *index_struct, *pnode_index_struct;
+	void *index_struct;
+    void *pnode_index_struct[NUM_SOCKET];
 
 	insert_func_t insert;
     update_func_t update;

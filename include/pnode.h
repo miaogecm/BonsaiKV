@@ -66,7 +66,7 @@ struct pnode {
 #define PNODE_MAX_KEY(node)						(PNODE_SORTED_KEY(node, (node)->slot[0]))
 #define PNODE_MIN_KEY(node)						(PNODE_SORTED_KEY(node, 1))
 
-extern void sentinel_node_init();
+extern void sentinel_node_init(int node);
 
 extern int pnode_insert(pkey_t key, pval_t val, pval_t *old);
 extern int pnode_remove(pkey_t key);
