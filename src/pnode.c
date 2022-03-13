@@ -20,7 +20,6 @@
 #include "arch.h"
 #include "bitmap.h"
 #include "ordo.h"
-#include "nab.h"
 
 static uint8_t hash8(pkey_t key) {
 	return key % 256;
@@ -29,9 +28,9 @@ static uint8_t hash8(pkey_t key) {
 /*
  * pnode_find_lowbound: find last pnode whose minimum key is equal or less than @key
  */
-static struct pnode __node(my) *pnode_find_lowbound(pkey_t key) {
+static struct pnode *pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
-    struct pnode __node(0) *pnode;
+    struct pnode *pnode;
     const void *i_key;
     uint64_t aux;
     size_t len;
@@ -41,7 +40,7 @@ static struct pnode __node(my) *pnode_find_lowbound(pkey_t key) {
 
 	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct, i_key, len);
 
-    return nab_my_ptr(pnode);
+    return pnode;
 }
 
 static int find_unused_entry(uint64_t bitmap) {
@@ -55,37 +54,31 @@ static int find_unused_entry(uint64_t bitmap) {
     return pos;
 }
 
-static struct pnode __node(my) *alloc_pnode() {
+static struct pnode *alloc_pnode() {
 	struct data_layer *layer = DATA(bonsai);
-    struct pnode __node(0) *pnode;
-    struct pnode __node(my) *my;
+    int node = get_numa_node(__this->t_cpu);
+    struct pnode *pnode, *my;
     TOID(struct pnode) toid;
-	PMEMobjpool* pop;
 
-	pop = layer->region[0].pop;
-    POBJ_ALLOC(pop, &toid, struct pnode, sizeof(struct pnode) + CACHELINE_SIZE, NULL, NULL);
+    POBJ_ALLOC(layer->region[0].pop, &toid, struct pnode, sizeof(struct pnode) + CACHELINE_SIZE, NULL, NULL);
     pnode = PTR_ALIGN(pmemobj_direct(toid.oid), CACHELINE_SIZE);
 
-    pnode->next = NULL;
-	pnode->anchor_key = 0;
-
-    my = nab_my_ptr(pnode);
+    my = node_ptr(pnode, node, 0);
+    PNODE_ANCHOR_KEY(my) = 0;
 	PNODE_BITMAP(my) = cpu_to_le64(0);
     PNODE_LOCK(my) = malloc(sizeof(rwlock_t));
     rwlock_init(PNODE_LOCK(my));
+    my->next = NULL;
 	memset(my->slot, 0, NUM_ENTRY_PER_PNODE + 1);
 
-    nab_init_region(my, offsetof(struct pnode, nab_last), 1);
-
-    pmemobj_persist(pop, my, sizeof(struct pnode));
+    pmemobj_persist(layer->region[node].pop, my, sizeof(struct pnode));
 
     return my;
 }
 
-static int lower_bound(struct pnode __node(my) *pnode, pkey_t key) {
+static int lower_bound(struct pnode *pnode, pkey_t key) {
     uint8_t* slot;
     int l, r, res;
-    __le64 __node(my) *k;
 
     if (pnode == NULL) 
         return 0;
@@ -100,10 +93,7 @@ static int lower_bound(struct pnode __node(my) *pnode, pkey_t key) {
 
         mid = l + (r - l) / 2;
 
-        k = &PNODE_SORTED_KEY(pnode, mid);
-        nab_pull_region(k, sizeof(*k));
-
-        if (pkey_compare(*k, key) >= 0) {
+        if (pkey_compare(PNODE_SORTED_KEY(pnode, mid), key) >= 0) {
             r = mid;
 			res = mid;
 		}
@@ -114,7 +104,7 @@ static int lower_bound(struct pnode __node(my) *pnode, pkey_t key) {
     return res;
 }
 
-static void pnode_sort_slot(struct pnode __node(my)* pnode, int pos_e, pkey_t key, optype_t op) {
+static void pnode_sort_slot(struct pnode *pnode, int pos_e, pkey_t key, optype_t op) {
     uint8_t* slot;
     int pos, i;
 
@@ -135,12 +125,11 @@ static void pnode_sort_slot(struct pnode __node(my)* pnode, int pos_e, pkey_t ke
 }
 
 int pnode_insert(pkey_t key, pval_t val, pval_t *old) {
-    int pos, i, n, d;
     struct index_layer *i_layer = INDEX(bonsai);
+	struct pnode *pnode, *next_pnode, *new_pnode;
     uint64_t new_removed;
-	struct pnode __node(my) *pnode, *next_pnode, *new_pnode;
-    struct pnode __node(0) *pnode_node0, *new_pnode_node0;
     const void *i_key;
+    int pos, i, n, d;
     uint64_t aux;
     size_t len;
 
@@ -150,32 +139,24 @@ int pnode_insert(pkey_t key, pval_t val, pval_t *old) {
  	assert(pkey_compare(key, PNODE_ANCHOR_KEY(pnode)) >= 0);
 
 retry:
-    /* It's safe to pull the read-only cacheline without locking. */
-    nab_pull_region(&pnode->meta.lock, sizeof(pnode->meta.lock));
-
 	write_lock(PNODE_LOCK(pnode));
 
-    pnode_node0 = nab_node0_ptr(pnode);
-    if (pnode_node0->next && pkey_compare(pnode_node0->next->anchor_key, key) <= 0) {
+    if (pnode->next && pkey_compare(pnode->next->anchor_key, key) <= 0) {
         /* pnode split between find_lowerbound and write_lock */
-        next_pnode = nab_my_ptr(pnode_node0->next);
+        next_pnode = pnode->next;
         write_unlock(PNODE_LOCK(pnode));
         pnode = next_pnode;
         goto retry;
     }
 
-    nab_pull_region(pnode->cls[0], CACHELINE_SIZE);     // bitmap, fgprt
-    nab_pull_region(pnode->cls[14], CACHELINE_SIZE);    // slotarray
-
 	pos = find_unused_entry(PNODE_BITMAP(pnode));
 
 	if (pos != -1) {
-        nab_pull_region(&PNODE_KEY(pnode, pos), sizeof(pentry_t));
         PNODE_KEY(pnode, pos) = key;
         PNODE_VAL(pnode, pos) = val;
 		bonsai_flush(&(PNODE_KEY(pnode, pos)), sizeof(pentry_t), 1);
 
-        shim_update(key, old, &PNODE_VAL(pnode_node0, pos));
+        shim_update(key, old, &PNODE_VAL(pnode, pos));
 		
 		pnode_sort_slot(pnode, pos, key, OP_INSERT);
 		bonsai_flush(&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
@@ -184,16 +165,10 @@ retry:
 		__set_bit(pos, &PNODE_BITMAP(pnode));
 		bonsai_flush(&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 
-        nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
-        nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
-        nab_commit_region(&PNODE_KEY(pnode, pos), sizeof(pentry_t));
-
 		write_unlock(PNODE_LOCK(pnode));
 
 		return 0;
 	}
-
-    nab_pull_region(pnode->e, sizeof(pnode->e));
 
 	new_pnode = alloc_pnode();
 	memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
@@ -210,12 +185,11 @@ retry:
 	new_pnode->slot[0] = d;
     PNODE_BITMAP(new_pnode) = new_removed;
 
-    new_pnode_node0 = nab_node0_ptr(new_pnode);
-    new_pnode_node0->anchor_key = PNODE_MIN_KEY(new_pnode);
-    new_pnode_node0->next = pnode_node0->next;
-    pnode_node0->next = new_pnode_node0;
+    new_pnode->anchor_key = PNODE_MIN_KEY(new_pnode);
+    new_pnode->next = pnode->next;
+    pnode->next = new_pnode;
 
-    assert(new_pnode_node0->anchor_key > pnode_node0->anchor_key);
+    assert(new_pnode->anchor_key > pnode->anchor_key);
 
 	pnode->slot[0] = n - d;
     PNODE_BITMAP(pnode) &= ~new_removed;
@@ -226,19 +200,13 @@ retry:
 	bonsai_flush((void*)&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
 	bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 
-    nab_commit_region(new_pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
-    nab_commit_region(new_pnode->cls[0], CACHELINE_SIZE);
-    nab_commit_region(new_pnode->cls[14], CACHELINE_SIZE);
-    nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
-    nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
-
     for (i = 1; i <= d; i++) {
         shim_update(PNODE_SORTED_KEY(new_pnode, i),
-                    &PNODE_SORTED_VAL(pnode_node0, i), &PNODE_SORTED_VAL(new_pnode_node0, i));
+                    &PNODE_SORTED_VAL(pnode, i), &PNODE_SORTED_VAL(new_pnode, i));
     }
 
-    i_key = resolve_key(new_pnode_node0->anchor_key, &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct, i_key, len, new_pnode_node0);
+    i_key = resolve_key(PNODE_ANCHOR_KEY(new_pnode), &aux, &len);
+    i_layer->insert(i_layer->pnode_index_struct, i_key, len, new_pnode);
 
 	write_unlock(PNODE_LOCK(pnode));
 
@@ -256,8 +224,7 @@ static void free_pnode(struct pnode* pnode) {
 int pnode_remove(pkey_t key) {
 	struct index_layer *i_layer = INDEX(bonsai);
 	struct data_layer *d_layer = DATA(bonsai);
-	struct pnode __node(my) *pnode, *next_pnode;
-    struct pnode __node(0) *pnode_node0;
+	struct pnode *pnode, *next_pnode;
 	int h, pos, i, node;
 	struct mptable* m;
     const void *i_key;
@@ -270,22 +237,15 @@ int pnode_remove(pkey_t key) {
  	assert(pkey_compare(key, PNODE_ANCHOR_KEY(pnode)) >= 0);
 
 retry:
-    /* It's safe to pull the read-only cacheline without locking. */
-    nab_pull_region(&pnode->meta.lock, sizeof(pnode->meta.lock));
-
 	write_lock(PNODE_LOCK(pnode));
 
-    pnode_node0 = nab_node0_ptr(pnode);
-    if (pnode_node0->next && pkey_compare(pnode_node0->next->anchor_key, key) <= 0) {
+    if (pnode->next && pkey_compare(pnode->next->anchor_key, key) <= 0) {
         /* pnode split between find_lowerbound and write_lock */
-        next_pnode = nab_my_ptr(pnode_node0->next);
+        next_pnode = pnode->next;
         write_unlock(PNODE_LOCK(pnode));
         pnode = next_pnode;
         goto retry;
     }
-
-    nab_pull_region(pnode->cls[0], CACHELINE_SIZE);     // bitmap, fgprt
-    nab_pull_region(pnode->cls[14], CACHELINE_SIZE);    // slotarray
 
 	h = hash8(key);
 	pos = -1;
@@ -308,9 +268,6 @@ retry:
 	pnode_sort_slot(pnode, pos, key, OP_REMOVE);
 	__clear_bit((1ULL << pos), &PNODE_BITMAP(pnode));
 
-    nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
-    nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
-
 #if 0
 	if (unlikely(!pnode->slot[0])) {
         i_key = resolve_key(PNODE_ANCHOR_KEY(pnode_node0), &aux, &len);
@@ -328,9 +285,8 @@ void sentinel_node_init() {
     struct data_layer *d_layer = DATA(bonsai);
 	pkey_t key = MIN_KEY;
 	pval_t val = ULONG_MAX;
-	struct pnode __node(my) *pnode;
-    struct pnode __node(0) *pnode_node0;
 	pentry_t e = {key, val};
+	struct pnode *pnode;
     const void *i_key;
     uint64_t aux;
     size_t len;
@@ -339,9 +295,8 @@ void sentinel_node_init() {
 	/* DATA Layer: allocate a persistent node */
 	pnode = alloc_pnode();
 
-    pnode_node0 = nab_node0_ptr(pnode);
-	pnode_node0->anchor_key = key;
-    d_layer->sentinel = pnode_node0;
+	pnode->anchor_key = key;
+    d_layer->sentinel = pnode;
 
 	write_lock(PNODE_LOCK(pnode));
 
@@ -354,15 +309,11 @@ void sentinel_node_init() {
 	bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 1);
 	bonsai_flush((void*)&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
 	bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
-
-    nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
-    nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
-    nab_commit_region(&PNODE_KEY(pnode, pos), sizeof(pentry_t));
 	
 	write_unlock(PNODE_LOCK(pnode));
 
     i_key = resolve_key(key, &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct, i_key, len, pnode_node0);
+    i_layer->insert(i_layer->pnode_index_struct, i_key, len, pnode);
 
 	bonsai_debug("sentinel_node_init\n");
 }
@@ -423,11 +374,11 @@ die:
 	assert(0);
 }
 
-void print_pnode(struct pnode __node(my) *pnode) {
+void print_pnode(struct pnode *pnode) {
 	int i;
 	
 	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu] anchor{%lu}:\n",
-                 PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(nab_node0_ptr(pnode)));
+                 PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(pnode));
 	
 	for (i = 0; i <= pnode->slot[0]; i ++)
 		bonsai_print("slot[%d]: %d; ", i, pnode->slot[i]);
@@ -445,21 +396,18 @@ void print_pnode(struct pnode __node(my) *pnode) {
 	bonsai_print("\n");
 }
 
-void print_pnode_summary(struct pnode __node(my) *pnode) {
-	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu] anchor{%lu}\n", PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(nab_node0_ptr(pnode)));
+void print_pnode_summary(struct pnode *pnode) {
+	bonsai_print("pnode == bitmap: %016lx slot[0]: %d [%lu %lu] anchor{%lu}\n", PNODE_BITMAP(pnode), pnode->slot[0], PNODE_MIN_KEY(pnode), PNODE_MAX_KEY(pnode), PNODE_ANCHOR_KEY(pnode));
 }
 
-void dump_pnode_list(void (*printer)(struct pnode __node(my) *pnode)) {
+void dump_pnode_list(void (*printer)(struct pnode *pnode)) {
 	struct data_layer *layer = DATA(bonsai);
-	struct pnode __node(0) *pnode_node0;
-    struct pnode __node(my) *pnode;
+    struct pnode *pnode;
 	int pnode_sum = 0, key_sum = 0;
 
 	bonsai_print("====================================================================================\n");
 
-	for (pnode_node0 = layer->sentinel; pnode_node0; pnode_node0 = pnode_node0->next) {
-        pnode = nab_my_ptr(pnode_node0);
-        nab_pull_region(pnode, offsetof(struct pnode, nab_last));
+	for (pnode = layer->sentinel; pnode; pnode = pnode->next) {
         printer(pnode);
 
 		key_sum += pnode->slot[0];
@@ -475,13 +423,10 @@ void dump_pnode_list(void (*printer)(struct pnode __node(my) *pnode)) {
  */
 struct pnode* data_layer_search_key(pkey_t key) {
 	struct data_layer *layer = DATA(bonsai);
-	struct pnode __node(0) *pnode_node0;
-    struct pnode __node(my) *pnode;
+    struct pnode *pnode;
 	int i;
 	
-	for (pnode_node0 = layer->sentinel; pnode_node0; pnode_node0 = pnode_node0->next) {
-        pnode = nab_my_ptr(pnode_node0);
-        nab_pull_region(pnode, offsetof(struct pnode, nab_last));
+	for (pnode = layer->sentinel; pnode; pnode = pnode->next) {
 		for (i = 1; i < pnode->slot[0]; i ++) {
 			if (!pkey_compare(PNODE_SORTED_KEY(pnode, i), key)) {
 				bonsai_print("data layer search key[%lu]: pnode %016lx key index %d, val address %016lx\n", key, pnode, pnode->slot[i], &pnode->e[pnode->slot[i]].v);

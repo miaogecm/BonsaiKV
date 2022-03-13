@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "bonsai.h"
-#include "nab.h"
 
 pkey_t alloc_nvkey(pkey_t vkey) {
 #ifdef LONG_KEY

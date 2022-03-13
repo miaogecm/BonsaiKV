@@ -17,7 +17,6 @@
 #include "shim.h"
 #include "rcu.h"
 #include "cpu.h"
-#include "nab.h"
 
 #define BDTABLE_MAX_KEYN        24
 #define MPTABLE_MAX_KEYN        (BDTABLE_MAX_KEYN / 2)
@@ -829,7 +828,7 @@ retry:
                 goto retry;
         }
     } else if (addr_in_pnode((unsigned long) addr)) {
-        tmp = nab_dereference(addr);
+        tmp = *addr;
     }
 
 done:

@@ -156,10 +156,6 @@ static inline int pkey_compare(pkey_t a, pkey_t b) {
 	return key_cmp(a, b, 0);
 }
 
-static inline int pkey_compare_pulled(pkey_t a, pkey_t b) {
-	return key_cmp(a, b, 1);
-}
-
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,
 				insert_func_t insert, update_func_t update, remove_func_t remove,
 				lookup_func_t lookup, scan_func_t scan);
@@ -170,6 +166,14 @@ extern void bonsai_recover();
 extern void index_layer_dump();
 
 extern pkey_t bonsai_make_key(const void *key, size_t len);
+
+static inline void *node_ptr(void *ptr, int to_node, int from_node) {
+    struct data_layer *d_layer = DATA(bonsai);
+    if (unlikely(!ptr)) {
+        return NULL;
+    }
+    return d_layer->region[to_node].start + (ptr - d_layer->region[from_node].start);
+}
 
 #ifdef LONG_KEY
 #define MK_K(k, l) (bonsai_make_key(k, l))

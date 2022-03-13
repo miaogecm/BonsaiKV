@@ -222,7 +222,6 @@ int data_region_init(struct data_layer *layer) {
 		}
 		region->pop = pop;
 		region->start = (unsigned long)pop;
-		region->nab = numa_alloc_onnode(sizeof(struct nab_blk_table), node);
 
 		bonsai_print("data_region_init node[%d] region: [%016lx, %016lx]\n", 
 			node, pop, (unsigned long)pop + DATA_REGION_SIZE);

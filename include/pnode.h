@@ -10,7 +10,6 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "numa_config.h"
-#include "nab.h"
 
 enum {
 	PNODE_DATA_CLEAN = 0,
@@ -53,7 +52,7 @@ struct pnode {
 
 	/*cacheline 15 (always in node 0)*/
 	pkey_t 				anchor_key;
-    struct pnode __node(0) *next;
+    struct pnode        *next;
 };
 
 #define PNODE_LOCK(node)						((node)->meta.lock)
@@ -79,7 +78,7 @@ extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, p
 extern void check_pnode(pkey_t key, struct pnode* pnode);
 extern void print_pnode(struct pnode* pnode);
 extern void print_pnode_summary(struct pnode* pnode);
-extern void dump_pnode_list(void (*printer)(struct pnode __node(my) *pnode));
+extern void dump_pnode_list(void (*printer)(struct pnode *pnode));
 extern struct pnode* data_layer_search_key(pkey_t key);
 
 #ifdef __cplusplus
