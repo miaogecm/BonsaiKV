@@ -117,10 +117,10 @@ static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
     uint32_t i;
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE)
-        _mm_clflush(buf + i);
+        _mm_clwb(buf + i);
 
 	if (fence)
-		memory_mfence();
+		memory_sfence();
 #endif
 }
 

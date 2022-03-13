@@ -181,7 +181,7 @@ retry:
 		bonsai_flush(&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
 
         PNODE_FGPRT(pnode, pos) = hash8(key);
-		set_bit(pos, &PNODE_BITMAP(pnode));
+		__set_bit(pos, &PNODE_BITMAP(pnode));
 		bonsai_flush(&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 
         nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
@@ -306,7 +306,7 @@ retry:
 	}
 
 	pnode_sort_slot(pnode, pos, key, OP_REMOVE);
-	clear_bit((1ULL << pos), &PNODE_BITMAP(pnode));
+	__clear_bit((1ULL << pos), &PNODE_BITMAP(pnode));
 
     nab_commit_region(pnode->cls[0], CACHELINE_SIZE);
     nab_commit_region(pnode->cls[14], CACHELINE_SIZE);
@@ -349,7 +349,7 @@ void sentinel_node_init() {
 	pnode->e[pos] = e;
     PNODE_FGPRT(pnode, pos) = hash8(key);
 	pnode_sort_slot(pnode, pos, key, OP_INSERT);
-	set_bit(pos, &PNODE_BITMAP(pnode));
+	__set_bit(pos, &PNODE_BITMAP(pnode));
 
 	bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 1);
 	bonsai_flush((void*)&pnode->slot, NUM_ENTRY_PER_PNODE + 1, 0);
