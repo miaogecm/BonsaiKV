@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include "common.h"
+
 /*
  * machine-, architecture-specific information
  */
@@ -37,6 +39,18 @@ extern "C" {
 #endif
 
 #define barrier()       __asm__ __volatile__("": : :"memory")
+
+static inline void memory_mfence() {
+    __asm__ __volatile__("mfence" : : : "memory");
+}
+
+static inline void memory_lfence() {
+    __asm__ __volatile__("lfence" : : : "memory");
+}
+
+static inline void memory_sfence() {
+    __asm__ __volatile__("sfence" : : : "memory");
+}
 
 #define smp_rmb()       barrier()
 #define smp_wmb()       barrier()

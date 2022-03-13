@@ -32,18 +32,6 @@ typedef struct {
 #define __X86_CASE_L	4
 #define __X86_CASE_Q	8
 
-static inline void memory_mfence() {
-    __asm__ __volatile__("mfence" : : : "memory");
-}
-
-static inline void memory_lfence() {
-    __asm__ __volatile__("lfence" : : : "memory");
-}
-
-static inline void memory_sfence() {
-    __asm__ __volatile__("sfence" : : : "memory");
-}
-
 #define ATOMIC_CAS_FULL(a, e, v)      	(__sync_bool_compare_and_swap(a, e, v))
 #define ATOMIC_FETCH_INC_FULL(a)      	(__sync_fetch_and_add(a, 1))
 #define ATOMIC_FETCH_DEC_FULL(a)      	(__sync_fetch_and_add(a, -1))

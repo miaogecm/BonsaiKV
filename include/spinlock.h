@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include "arch.h"
 #include "atomic.h"
 
 typedef struct {
