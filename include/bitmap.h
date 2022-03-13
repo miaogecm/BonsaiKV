@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stddef.h>
+
 #define __BITS_PER_LONG 64
 #define	  BITS_PER_LONG 64
 
@@ -38,7 +41,19 @@ extern "C" {
 
 #define min(x,y) ((x) < (y) ? x : y)
 
-#define ffz(x)  __ffs(~(x))
+/**
+ * ffz - find first zero bit in word
+ * @word: The word to search
+ *
+ * Undefined if no zero exists, so code should check against ~0UL first.
+ */
+static __always_inline unsigned long ffz(unsigned long word)
+{
+	asm("rep; bsf %1,%0"
+		: "=r" (word)
+		: "r" (~word));
+	return word;
+}
 
 #define __round_mask(x, y) ((__typeof__(x))((y)-1))
 #define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
@@ -46,11 +61,6 @@ extern "C" {
 
 #define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
 #define BITMAP_LAST_WORD_MASK(nbits) (~0UL >> (-(nbits) & (BITS_PER_LONG - 1)))
-
-#ifndef LOCAL
-typedef unsigned long __u64;
-#endif
-typedef unsigned long u64;
 
 static __always_inline unsigned long __ffs(unsigned long word)
 {
@@ -129,23 +139,23 @@ static __always_inline void __clear_bit(long nr, volatile unsigned long *addr)
 	asm volatile("btr %1,%0" : ADDR : "Ir" (nr));
 }
 
-#define ___constant_swab64(x) ((__u64)(				\
-	(((__u64)(x) & (__u64)0x00000000000000ffULL) << 56) |	\
-	(((__u64)(x) & (__u64)0x000000000000ff00ULL) << 40) |	\
-	(((__u64)(x) & (__u64)0x0000000000ff0000ULL) << 24) |	\
-	(((__u64)(x) & (__u64)0x00000000ff000000ULL) <<  8) |	\
-	(((__u64)(x) & (__u64)0x000000ff00000000ULL) >>  8) |	\
-	(((__u64)(x) & (__u64)0x0000ff0000000000ULL) >> 24) |	\
-	(((__u64)(x) & (__u64)0x00ff000000000000ULL) >> 40) |	\
-	(((__u64)(x) & (__u64)0xff00000000000000ULL) >> 56)))
+#define ___constant_swab64(x) ((u64)(				\
+	(((u64)(x) & (u64)0x00000000000000ffULL) << 56) |	\
+	(((u64)(x) & (u64)0x000000000000ff00ULL) << 40) |	\
+	(((u64)(x) & (u64)0x0000000000ff0000ULL) << 24) |	\
+	(((u64)(x) & (u64)0x00000000ff000000ULL) <<  8) |	\
+	(((u64)(x) & (u64)0x000000ff00000000ULL) >>  8) |	\
+	(((u64)(x) & (u64)0x0000ff0000000000ULL) >> 24) |	\
+	(((u64)(x) & (u64)0x00ff000000000000ULL) >> 40) |	\
+	(((u64)(x) & (u64)0xff00000000000000ULL) >> 56)))
 
-static inline __attribute_const__ __u64 __fswab64(__u64 val)
+static inline __attribute_const__ u64 __fswab64(u64 val)
 {
 	return ___constant_swab64(val);
 }
 
 #define __swab64(x)				\
-	(__builtin_constant_p((__u64)(x)) ?	\
+	(__builtin_constant_p((u64)(x)) ?	\
 	___constant_swab64(x) :			\
 	__fswab64(x))
 
@@ -186,7 +196,7 @@ static inline unsigned long find_next_zero_bit_le(const void *addr,
 	return find_next_zero_bit(addr, size, offset);
 }
 
-unsigned long find_first_zero_bit(const unsigned long *addr, unsigned long size)
+static unsigned long find_first_zero_bit(const unsigned long *addr, unsigned long size)
 {
 	unsigned long idx;
 

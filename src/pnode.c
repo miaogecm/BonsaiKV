@@ -22,7 +22,7 @@
 #include "ordo.h"
 
 static uint8_t hash8(pkey_t key) {
-	return key % 256;
+    return pkey_get_signature(key);
 }
 
 /*
@@ -32,14 +32,10 @@ static struct pnode *pnode_find_lowbound(pkey_t key) {
 	struct index_layer* layer = INDEX(bonsai);
     int node = get_numa_node(__this->t_cpu);
     struct pnode *pnode;
-    const void *i_key;
     uint64_t aux;
     size_t len;
 
-    /* Note that @key should be in local NUMA node. */
-    i_key = resolve_key(key, &aux, &len);
-
-	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct[node], i_key, len);
+	pnode = (struct pnode*)layer->lookup(layer->pnode_index_struct[node], pkey_to_str(key).key, KEY_LEN);
 
     return pnode;
 }
@@ -64,7 +60,7 @@ static struct pnode *alloc_pnode(int node) {
     pnode = PTR_ALIGN(pmemobj_direct(toid.oid), CACHELINE_SIZE);
 
     my = node_ptr(pnode, node, 0);
-    PNODE_ANCHOR_KEY(my) = 0;
+    PNODE_ANCHOR_KEY(my) = MIN_KEY;
 	PNODE_BITMAP(my) = cpu_to_le64(0);
     PNODE_LOCK(my) = malloc(sizeof(rwlock_t));
     rwlock_init(PNODE_LOCK(my));
@@ -129,10 +125,7 @@ int pnode_insert(pkey_t key, pval_t val, pval_t *old) {
 	struct pnode *pnode, *next_pnode, *new_pnode;
     int node = get_numa_node(__this->t_cpu);
     uint64_t new_removed;
-    const void *i_key;
     int pos, i, n, d;
-    uint64_t aux;
-    size_t len;
 
 	pnode = pnode_find_lowbound(key);
 	
@@ -190,7 +183,7 @@ retry:
     new_pnode->next = pnode->next;
     pnode->next = new_pnode;
 
-    assert(new_pnode->anchor_key > pnode->anchor_key);
+    assert(pkey_compare(PNODE_ANCHOR_KEY(new_pnode), PNODE_ANCHOR_KEY(pnode)) > 0);
 
 	pnode->slot[0] = n - d;
     PNODE_BITMAP(pnode) &= ~new_removed;
@@ -206,8 +199,8 @@ retry:
                     &PNODE_SORTED_VAL(pnode, i), &PNODE_SORTED_VAL(new_pnode, i));
     }
 
-    i_key = resolve_key(PNODE_ANCHOR_KEY(new_pnode), &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct[node], i_key, len, new_pnode);
+    i_layer->insert(i_layer->pnode_index_struct[node],
+                    pkey_to_str(PNODE_ANCHOR_KEY(new_pnode)).key, KEY_LEN, new_pnode);
 
 	write_unlock(PNODE_LOCK(pnode));
 
@@ -288,9 +281,6 @@ void sentinel_node_init(int node) {
 	pval_t val = ULONG_MAX;
 	pentry_t e = {key, val};
 	struct pnode *pnode;
-    const void *i_key;
-    uint64_t aux;
-    size_t len;
 	int pos;
 
 	/* DATA Layer: allocate a persistent node */
@@ -313,8 +303,7 @@ void sentinel_node_init(int node) {
 	
 	write_unlock(PNODE_LOCK(pnode));
 
-    i_key = resolve_key(key, &aux, &len);
-    i_layer->insert(i_layer->pnode_index_struct[node], i_key, len, pnode);
+    i_layer->insert(i_layer->pnode_index_struct[node], pkey_to_str(key).key, KEY_LEN, pnode);
 
 	bonsai_print("sentinel_node_init: node %d\n", node);
 }
@@ -343,7 +332,7 @@ int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* 
  */
 void check_pnode(pkey_t key, struct pnode* pnode) {
 	unsigned long bitmap = 0;
-	pkey_t prev = 0, curr = ULONG_MAX;
+	pkey_t prev = MIN_KEY, curr = MAX_KEY;
 	int i, die = 0;
 
 	for (i = 1; i <= pnode->slot[0]; i ++) {
@@ -361,7 +350,7 @@ void check_pnode(pkey_t key, struct pnode* pnode) {
 	/* check pnode entries */
 	for (i = 1; i <= pnode->slot[0]; i ++) {
 			curr = PNODE_SORTED_KEY(pnode, i);
-			if (curr < prev) {
+			if (pkey_compare(curr, prev) < 0) {
 				bonsai_print("pnode bad key order key[%d]:%lu key[%d]:%lu [%lu]\n", 
 							i - 1, prev, i, curr, key);
 				goto die;	

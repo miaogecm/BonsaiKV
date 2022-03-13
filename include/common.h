@@ -16,7 +16,6 @@ extern "C" {
 #include <string.h>
 
 #ifndef LOCAL
-typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
 
 typedef uint8_t		        __le8;
@@ -26,7 +25,6 @@ typedef unsigned long long	__le64;
 #else
 #include <linux/types.h>
 
-typedef uint64_t 	pkey_t;
 typedef uint64_t 	pval_t;
 
 
@@ -46,72 +44,32 @@ typedef uint8_t		__le8;
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
 
-//#define LONG_KEY
+#define STR_KEY
 
-#ifdef LONG_KEY
+#ifdef STR_KEY
 
-struct pkey_long_fmt {
-    union {
-        struct {
-            uint64_t nv : 1;
-            uint64_t len : 15;
-            union {
-                uint64_t off : 48;
-                uint64_t addr : 48;
-            };
-        };
-        uint64_t key;
-    };
-};
+#define KEY_LEN             32
 
-static inline int pkey_is_nv(pkey_t pkey) {
-    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
-    return fmt->nv != 0u;
-}
-
-static inline size_t pkey_len(pkey_t pkey) {
-    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
-    return fmt->len;
-}
-
-static inline const void *pkey_addr(pkey_t pkey) {
-    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
-    return (const void *) fmt->addr;
-}
-
-static inline size_t pkey_off(pkey_t pkey) {
-    struct pkey_long_fmt *fmt = (struct pkey_long_fmt *) &pkey;
-    return fmt->off;
-}
-
-static inline pkey_t pkey_generate_v(const void *ptr, size_t len) {
-    struct pkey_long_fmt fmt;
-    fmt.addr = (uint64_t) ptr;
-    fmt.len = len;
-    fmt.nv = 0;
-    return fmt.key;
-}
-
-static inline pkey_t pkey_generate_nv(size_t off, size_t len) {
-    struct pkey_long_fmt fmt;
-    fmt.off = off;
-    fmt.len = len;
-    fmt.nv = 1;
-    return fmt.key;
-}
-
-#define MIN_KEY         (pkey_generate_v("\x00", 1))
-#define MAX_KEY         (pkey_generate_v("\xff", 1))
+#define MAX_KEY             ((pkey_t) { "\x7f" })
+#define MIN_KEY             ((pkey_t) { "" })
 
 #else
 
-#define MIN_KEY         ((pkey_t) 0)
-#define MAX_KEY         ((pkey_t) ULONG_MAX)
+#define KEY_LEN             8
+
+#define INT2KEY(val)        (* (pkey_t *) (unsigned long []) { (val) })
+
+#define MAX_KEY             INT2KEY(-1UL)
+#define MIN_KEY             INT2KEY(0UL)
 
 #endif
 
+typedef struct {
+    char key[KEY_LEN];
+} pkey_t;
+
 typedef struct pentry {
-    __le64 k;
+    pkey_t k;
     __le64 v;
 } pentry_t;
 

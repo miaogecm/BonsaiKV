@@ -260,7 +260,7 @@ static inline void mptable_free(struct mptable *mt) {
 static inline int mptable_lock_correct(struct mptable **mt, pkey_t key) {
     struct mptable *target;
     mptable_lock(*mt);
-    if (unlikely((*mt)->fence == MAX_KEY)) {
+    if (unlikely(!pkey_compare((*mt)->fence, MAX_KEY))) {
         /* It's deleted. */
         mptable_unlock(*mt);
         return -EAGAIN;
@@ -370,12 +370,8 @@ static inline struct mptable *mptable_seek(pkey_t key, seek_opt_t seek_opt) {
     struct index_layer *i_layer = INDEX(bonsai);
     struct mptable *mt, *st_hint;
     struct buddy_table_off bt;
-    const void *i_key;
-    uint64_t aux;
-    size_t len;
 
-    i_key = resolve_key(key, &aux, &len);
-    *(void **) &bt = i_layer->lookup(i_layer->index_struct, i_key, len);
+    *(void **) &bt = i_layer->lookup(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN);
 
     mt = mptable_off2addr(bt.mt);
     st_hint = mptable_off2addr(bt.st_hint);
@@ -502,7 +498,7 @@ static void mptable_split(struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
     bt.st_hint = mptable_addr2off(&bdt[0]);
     smo_append(mt->fence, *(pval_t *) &bt);
 
-    if (key >= fence) {
+    if (pkey_compare(key, fence) >= 0) {
         mptable_unlock(mt);
         *mt_ptr = st;
     } else {
@@ -516,9 +512,6 @@ void do_smo() {
     unsigned long min_ts;
     struct smo_log log;
     int cpu, min_cpu;
-    const void *key;
-    uint64_t aux;
-    size_t len;
 
     while (1) {
         min_ts = ULONG_MAX;
@@ -538,14 +531,7 @@ void do_smo() {
 
         kfifo_get(&s_layer->fifo[min_cpu], &log);
 
-        key = resolve_key(log.k, &aux, &len);
-#ifdef LONG_KEY
-        if (likely(pkey_is_nv(log.k))) {
-            key = nab_owner_ptr((void *) key);
-        }
-#endif
-
-        i_layer->insert(i_layer->index_struct, key, len, (const void *) log.v);
+        i_layer->insert(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN, (const void *) log.v);
     }
 }
 
@@ -572,10 +558,6 @@ int shim_layer_init(struct shim_layer *s_layer) {
     struct index_layer *i_layer = INDEX(bonsai);
     struct buddy_table_off bt;
     struct mptable *mt;
-    const char *i_key;
-    uint64_t aux;
-    pkey_t key;
-    size_t len;
     int cpu;
 
     s_layer->pool = memalign(PAGE_SIZE, sizeof(struct mptable_pool));
@@ -585,9 +567,7 @@ int shim_layer_init(struct shim_layer *s_layer) {
     bt.mt = mptable_addr2off(mt);
     bt.st_hint = mt->slave;
 
-    key = MIN_KEY;
-    i_key = resolve_key(key, &aux, &len);
-    i_layer->insert(i_layer->index_struct, i_key, len, *(void **) &bt);
+    i_layer->insert(i_layer->index_struct, pkey_to_str(MIN_KEY).key, KEY_LEN, *(void **) &bt);
 
     atomic_set(&s_layer->exit, 0);
 
@@ -627,7 +607,7 @@ relookup:
 
     if (i != NOT_FOUND) {
         ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
-        if (unlikely(key == ent->k)) {
+        if (unlikely(!pkey_compare(key, ent->k))) {
             /*
              * The linearization point of update operation. We
              * do not need to get seq version here. If there're
@@ -843,7 +823,7 @@ done:
 }
 
 void shim_dump() {
-    struct mptable *mt = mptable_seek(0, SEEK_ST);
+    struct mptable *mt = mptable_seek(MIN_KEY, SEEK_ST);
     while (1) {
         mptable_dump(mt);
         if (!mt->next) {
@@ -880,10 +860,6 @@ relookup:
     }
 
     ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
-    if (unlikely(key != ent->k)) {
-        ret = -ENOENT;
-        goto out;
-    }
 
     /*
      * The linearization point of update operation. We
@@ -929,9 +905,9 @@ relookup:
             ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
             key = ent->k;
 
-            if (key >= lo) {
+            if (pkey_compare(key, lo) >= 0) {
                 w = arr;
-            } else if (key > hi) {
+            } else if (pkey_compare(key, hi) > 0) {
                 goto out;
             }
 
