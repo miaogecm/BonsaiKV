@@ -395,9 +395,8 @@ void oplog_flush() {
 	struct oplog_work* oworks[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
 	struct work_struct* work;
     int i, j, cpu, cnt, total, node, cpu_idx;
-    int num_region_per_thread, num_region_rest;
-	int num_block_per_thread;
-    int nlogs, empty = 1;
+	int num_work, num_block, num_block_per_worker, num_busy_worker;
+    int empty = 1;
     struct oplog_work empty_owork[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE] = { };
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
@@ -421,11 +420,9 @@ void oplog_flush() {
         cnt = 0;
 
         /* 1. fetch and merge all log lists */
-        nlogs = 0;
         for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx++) {
             cpu = node_to_cpu(node, cpu_idx);
             region = &l_layer->region[cpu];
-            nlogs += atomic_read(&l_layer->nlogs[cpu].cnt);
             curr_blk = ACCESS_ONCE(region->curr_blk);
             /* TODO: Non-full log blocks can not be flushed! */
             if (curr_blk && region->first_blk != curr_blk) {
@@ -450,76 +447,56 @@ void oplog_flush() {
         }
 
         /* 2. merge all logs */
-        if (total == 1) {
-            /* case I: total == 1 */
-            num_region_per_thread = 1;
-            num_block_per_thread = nlogs / NUM_OPLOG_PER_BLK / NUM_PFLUSH_WORKER_PER_NODE;
-            curr_blk = first_blks[0];
-            for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+
+        /* count number of log blocks */
+        num_block = 0;
+        for (i = 0; i < total; i++) {
+            for (curr_blk = first_blks[i];
+                 curr_blk != curr_blks[i];
+                 curr_blk = (struct oplog_blk *) LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]),
+                                                                        curr_blk->next)) {
+                num_block++;
+            }
+        }
+        num_block_per_worker = num_block / NUM_PFLUSH_WORKER_PER_NODE;
+        num_busy_worker = num_block % NUM_PFLUSH_WORKER_PER_NODE;
+        bonsai_print("%d log blocks to proceed, num_block_per_worker=%d, num_busy_worker=%d\n",
+                     num_block, num_block_per_worker, num_busy_worker);
+
+        /* distribute work to workers */
+        j = 0;
+        curr_blk = first_blks[j];
+
+        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+            cnt = num_work = i < num_busy_worker ? (num_block_per_worker + 1) : num_block_per_worker;
+
+            if (unlikely(!cnt)) {
+                owork = &empty_owork[node][i];
+            } else {
                 owork = malloc(sizeof(struct oplog_work));
-                owork->count = num_block_per_thread ? num_region_per_thread : 0;
+                owork->count = 0;
                 owork->layer = l_layer;
                 INIT_LIST_HEAD(&owork->free_page_list);
-                owork->first_blks[0] = curr_blk;
-                if (i != NUM_PFLUSH_WORKER_PER_NODE - 1) {
-                    for (j = 0; j < num_block_per_thread; j++)
-                        curr_blk = (struct oplog_blk *) LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]),
-                                                                               curr_blk->next);
-                } else {
-                    curr_blk = curr_blks[0];
+            }
+
+            while (cnt) {
+                owork->first_blks[owork->count] = curr_blk;
+                for (; curr_blk != curr_blks[j] && cnt;
+                       curr_blk = (struct oplog_blk *) LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]),
+                                                                              curr_blk->next)) {
+                    cnt--;
                 }
-                owork->last_blks[0] = curr_blk;
-                oworks[node][i] = owork;
-            }
-        } else if (total < NUM_PFLUSH_WORKER_PER_NODE) {
-            /* case II: total < NUM_PFLUSH_WORKER_PER_NODE */
-            num_region_per_thread = 1;
-            for (i = 0, j = 0; i < total; i++) {
-                owork = malloc(sizeof(struct oplog_work));
-                owork->count = num_region_per_thread;
-                owork->layer = l_layer;
-                INIT_LIST_HEAD(&owork->free_page_list);
-                while (j < num_region_per_thread) {
-                    owork->first_blks[j] = first_blks[cnt];
-                    owork->last_blks[j] = curr_blks[cnt];
-                    j++;
-                    cnt++;
+                owork->last_blks[owork->count++] = curr_blk;
+
+                if (curr_blk == curr_blks[j]) {
+                    curr_blk = first_blks[++j];
                 }
-                j = 0;
-                oworks[node][i] = owork;
             }
-            for (i = total; i < NUM_PFLUSH_WORKER_PER_NODE; i++)
-                oworks[node][i] = &empty_owork[node][i];
-        } else {
-            /* case III: total >= NUM_PFLUSH_WORKER_PER_NODE */
-            num_region_per_thread = total / NUM_PFLUSH_WORKER_PER_NODE;
-            for (i = 0, j = 0; i < NUM_PFLUSH_WORKER_PER_NODE - 1; i++) {
-                owork = malloc(sizeof(struct oplog_work));
-                owork->count = num_region_per_thread;
-                owork->layer = l_layer;
-                INIT_LIST_HEAD(&owork->free_page_list);
-                while (j < num_region_per_thread) {
-                    owork->first_blks[j] = first_blks[cnt];
-                    owork->last_blks[j] = curr_blks[cnt];
-                    j++;
-                    cnt++;
-                }
-                j = 0;
-                oworks[node][i] = owork;
-            }
-            j = 0;
-            num_region_rest = total - (NUM_PFLUSH_WORKER_PER_NODE - 1) * num_region_per_thread;
-            owork = malloc(sizeof(struct oplog_work));
-            owork->count = num_region_rest;
-            owork->layer = l_layer;
-            INIT_LIST_HEAD(&owork->free_page_list);
-            while (j < num_region_rest) {
-                owork->first_blks[j] = first_blks[cnt];
-                owork->last_blks[j] = curr_blks[cnt];
-                j++;
-                cnt++;
-            }
+
             oworks[node][i] = owork;
+
+            bonsai_print("pflush thread <%d, %d> assigned %d blocks in %d regions.\n",
+                         node, i, num_work, owork->count);
         }
     }
 
