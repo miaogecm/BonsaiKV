@@ -18,9 +18,9 @@
 #include "rcu.h"
 #include "cpu.h"
 
-#define BDTABLE_MAX_KEYN        24
+#define BDTABLE_MAX_KEYN        30
 #define MPTABLE_MAX_KEYN        (BDTABLE_MAX_KEYN / 2)
-#define SLOTS_SIZE              13
+#define SLOTS_SIZE              (MPTABLE_MAX_KEYN + 1)
 
 #define MID_POS         (MPTABLE_MAX_KEYN - 1)
 /* [from, to) */
@@ -35,33 +35,29 @@
 
 typedef uint32_t mptable_off_t;
 
-typedef struct {
-    pkey_t k;
-    pval_t *v;
-} kvpair_t;
-
 struct mptable {
-	/* Header - 6 words */
-
     /* MT Only: */
+    char header_stub[0];
 
+	/* Header - 7/13 words */
     /* @seq protects @slots, @slave, @next, @max, and entries */
     seqcount_t seq;
     /* @slots_seq protects @slots only */
     seqcount_t slots_seq;
     uint8_t slots[SLOTS_SIZE];
-    unsigned short generation;
     pkey_t fence, max;
     mptable_off_t slave, next;
+    unsigned int generation;
     spinlock_t lock;
 
     /* Both: */
+    char body_stub[0];
 
     /* Key signatures - 2 words */
     uint8_t signatures[MPTABLE_MAX_KEYN];
 
-    /* Key-Value pairs - 24 words */
-    kvpair_t entries[MPTABLE_MAX_KEYN];
+    /* Key-Value pairs - 15 words */
+    pentry_t *entries[MPTABLE_MAX_KEYN];
 };
 
 struct mptable_desc {
@@ -297,7 +293,7 @@ static inline struct mptable *table_of_pos(struct mptable *mt, struct mptable *s
 }
 
 static inline struct mptable *table_of_key(struct mptable *mt, struct mptable *st, const uint8_t *slots, pkey_t key) {
-    return !slot_is_half_full(slots) || pkey_compare(key, mt->entries[slot_get(slots, MID_POS)].k) <= 0 ? mt : st;
+    return !slot_is_half_full(slots) || pkey_compare(key, mt->entries[slot_get(slots, MID_POS)]->k) <= 0 ? mt : st;
 }
 
 static inline void mptable_get_pos_range(struct mptable *mt, struct mptable *target, const uint8_t *slots,
@@ -322,7 +318,7 @@ static inline int mptable_find_upperbound(struct mptable *mt, struct mptable *st
     mptable_get_pos_range(mt, target, slots, &from, &to);
     for (i = from; i < to; i++) {
         idx = slot_get(slots, i);
-        if (pkey_compare(target->entries[idx].k, key) > 0) {
+        if (pkey_compare(target->entries[idx]->k, key) > 0) {
             break;
         }
     }
@@ -337,7 +333,7 @@ static inline int mptable_find_equal(struct mptable *mt, struct mptable *st, uin
     for (i = from; i < to; i++) {
         idx = slot_get(slots, i);
         if (target->signatures[idx] == pkey_get_signature(key)) {
-            if (!pkey_compare(target->entries[idx].k, key)) {
+            if (!pkey_compare(target->entries[idx]->k, key)) {
                 return idx;
             }
         }
@@ -351,16 +347,16 @@ typedef enum {
     SEEK_ST_W = 6,  // 0b110
 } seek_opt_t;
 
-#define __mptable_prefetch(prefetcher, t, prefetch_ptr) do { \
+#define __mptable_prefetch(prefetcher, t, from_stub, prefetch_ptr) do { \
         void *(prefetch_ptr);    \
-        for ((prefetch_ptr) = (void *) (t); \
+        for ((prefetch_ptr) = (void *) (t) + ALIGN_DOWN(offsetof(struct mptable, from_stub), CACHELINE_SIZE); \
              (prefetch_ptr) < (void *) (t) + sizeof(struct mptable); \
              (prefetch_ptr) += CACHELINE_SIZE) {    \
             prefetcher(prefetch_ptr);  \
         }                                     \
     } while (0)
-#define mptable_prefetch(prefetcher, t) \
-    __mptable_prefetch(prefetcher, t, __UNIQUE_ID(prefetch_ptr))
+#define mptable_prefetch(prefetcher, t, from_stub) \
+    __mptable_prefetch(prefetcher, t, from_stub, __UNIQUE_ID(prefetch_ptr))
 
 /*
  * Find the key's corresponding mptable. Prefetch the MT and ST
@@ -377,15 +373,15 @@ static inline struct mptable *mptable_seek(pkey_t key, seek_opt_t seek_opt) {
     st_hint = mptable_off2addr(bt.st_hint);
 
     if (seek_opt & SEEK_MT_W) {
-        mptable_prefetch(cache_prefetchw_high, mt);
+        mptable_prefetch(cache_prefetchw_high, mt, header_stub);
     } else {
-        mptable_prefetch(cache_prefetchr_high, mt);
+        mptable_prefetch(cache_prefetchr_high, mt, header_stub);
     }
 
     if (seek_opt & SEEK_ST_W) {
-        mptable_prefetch(cache_prefetchw_high, st_hint);
+        mptable_prefetch(cache_prefetchw_high, st_hint, body_stub);
     } else if (seek_opt & SEEK_ST) {
-        mptable_prefetch(cache_prefetchr_high, st_hint);
+        mptable_prefetch(cache_prefetchr_high, st_hint, body_stub);
     }
 
     return mt;
@@ -393,7 +389,7 @@ static inline struct mptable *mptable_seek(pkey_t key, seek_opt_t seek_opt) {
 
 static void mptable_dump(struct mptable *mt) {
     struct mptable *st;
-    kvpair_t *ent;
+    pentry_t *ent;
     uint8_t idx;
     int i, cnt;
 
@@ -427,12 +423,12 @@ static void mptable_check(struct mptable *mt) {
     for (i = 1; i < cnt && i < MPTABLE_MAX_KEYN; i++) {
         i1 = slot_get(mt->slots, i);
         i2 = slot_get(mt->slots, i - 1);
-        assert(pkey_compare(mt->entries[i1].k, mt->entries[i2].k) >= 0);
+        assert(pkey_compare(mt->entries[i1]->k, mt->entries[i2]->k) >= 0);
     }
     for (i = 1; i + ST_FROM_POS < cnt && i < MPTABLE_MAX_KEYN; i++) {
         i1 = slot_get(mt->slots, i + ST_FROM_POS);
         i2 = slot_get(mt->slots, i - 1 + ST_FROM_POS);
-        assert(pkey_compare(st->entries[i1].k, st->entries[i2].k) >= 0);
+        assert(pkey_compare(st->entries[i1]->k, st->entries[i2]->k) >= 0);
     }
 }
 
@@ -477,7 +473,7 @@ static void mptable_split(struct mptable **mt_ptr, uint8_t *slots, pkey_t key) {
     }
     st->next = mt->next;
 
-    fence = st->entries[slot_get(st->slots, MT_FROM_POS)].k;
+    fence = st->entries[slot_get(st->slots, MT_FROM_POS)]->k;
     st->fence = fence;
     st->max = mt->max;
 
@@ -578,12 +574,12 @@ int shim_layer_init(struct shim_layer *s_layer) {
     return 0;
 }
 
-int shim_upsert(pkey_t key, pval_t *val) {
+int shim_upsert(pkey_t key, pentry_t *val_ent) {
     struct mptable *mt, *st, *target;
     uint8_t slots[SLOTS_SIZE], *sig;
     uint8_t src_idx, dst_idx;
     int i, overlap, ret;
-    kvpair_t *ent;
+    pentry_t **ent;
 
 relookup:
     mt = mptable_seek(key, SEEK_MT_W | SEEK_ST_W);
@@ -607,14 +603,14 @@ relookup:
 
     if (i != NOT_FOUND) {
         ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
-        if (unlikely(!pkey_compare(key, ent->k))) {
+        if (unlikely(!pkey_compare(key, (*ent)->k))) {
             /*
              * The linearization point of update operation. We
              * do not need to get seq version here. If there're
              * some readers holding the stale value ptr, they can
              * still access the correct data inside grace period.
              */
-            ent->v = val;
+            *ent = val_ent;
             ret = -EEXIST;
             goto out;
         }
@@ -635,7 +631,7 @@ relookup:
         }
 
         target->signatures[dst_idx] = pkey_get_signature(key);
-        target->entries[dst_idx] = (kvpair_t) { key, val };
+        target->entries[dst_idx] = val_ent;
 
         /* The linearization point of non-overlapping insert operation without exchange */
         (overlap ? mptable_set_slots_unlocked : mptable_set_slots)(mt, slots);
@@ -659,8 +655,7 @@ relookup:
         write_seqcount_begin(&mt->seq);
 
         *sig = pkey_get_signature(key);
-        ent->k = key;
-        ent->v = val;
+        *ent = val_ent;
 
         mptable_set_slots_unlocked(mt, slots);
 
@@ -741,9 +736,9 @@ out_unlocked:
 int shim_lookup(pkey_t key, pval_t *val) {
     struct mptable *mt, *st, *target;
     uint8_t slots[SLOTS_SIZE];
-    pval_t *addr, tmp = 0;
-    struct oplog *log;
     unsigned int seq;
+    pval_t tmp = 0;
+    pentry_t *ent;
     int ret, pos;
 
     mt = mptable_seek(key, SEEK_ST);
@@ -793,23 +788,9 @@ retry:
      * Dereferencing maybe-invalid addresses in log region or
      * pnode region is OK.
      */
-    addr = table_of_pos(mt, st, pos)->entries[pos].v;
+    ent = table_of_pos(mt, st, pos)->entries[pos];
     ret = 0;
-    if (addr_in_log((unsigned long) addr)) {
-        log = OPLOG(addr);
-        switch (log->o_type) {
-            case OP_INSERT:
-                tmp = log->o_kv.v;
-                break;
-            case OP_REMOVE:
-                ret = -ENOENT;
-                break;
-            default:
-                goto retry;
-        }
-    } else if (addr_in_pnode((unsigned long) addr)) {
-        tmp = *addr;
-    }
+    tmp = ent->v;
 
 done:
     if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
@@ -833,47 +814,68 @@ void shim_dump() {
     }
 }
 
-int shim_update(pkey_t key, const pval_t *old_val, pval_t *new_val) {
-    struct mptable *mt, *st;
+int shim_update(pkey_t key, const pentry_t *old_ent, pentry_t *new_ent) {
+    struct mptable *mt, *st, *target;
     uint8_t slots[SLOTS_SIZE];
-    kvpair_t *ent;
-    int i, ret;
+    unsigned int seq;
+    pentry_t **ent;
+    int ret, pos;
 
-relookup:
-    mt = mptable_seek(key, SEEK_MT_W | SEEK_ST_W);
+    mt = mptable_seek(key, SEEK_ST);
 
-    ret = mptable_lock_correct(&mt, key);
-    if (unlikely(ret == -EAGAIN)) {
-        /* The mptable has been deleted. */
-        goto relookup;
-    }
-
-    memcpy(slots, mt->slots, SLOTS_SIZE);
-
-    st = mptable_off2addr(mt->slave);
-
-    i = mptable_find_equal(mt, st, slots, key);
-
-    if (unlikely(i == NOT_FOUND)) {
-        ret = -ENOENT;
-        goto out;
-    }
-
-    ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
+retry:
+    seq = read_seqcount_begin(&mt->seq);
 
     /*
-     * The linearization point of update operation. We
-     * do not need to get seq version here. If there're
-     * some readers holding the stale value ptr, they can
-     * still access the correct data inside grace period.
+     * Note that mt->max is always a valid pointer to string
+     * any time due to its atomic assignment and delay-free
+     * strategy.
      */
-    ret = 0;
-    if (ent->v == old_val) {
-        ent->v = new_val;
+    if (unlikely(pkey_compare(key, mt->max) >= 0)) {
+        /*
+         * Really within this node? If not, split happens. We'll
+         * go to the target node. But we should guarantee that our
+         * mt->max and mt->target are consistent.
+         */
+        target = mptable_off2addr(mt->next);
+        if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
+            goto retry;
+        }
+        mt = target;
+        goto retry;
     }
 
-out:
-    mptable_unlock(mt);
+    mptable_get_slots_optimistic(mt, slots);
+
+    st = mptable_off2addr(ACCESS_ONCE(mt->slave));
+    if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
+        /*
+         * We should guarantee that @target is still consistent
+         * with the slot array. Note that the consistent here do
+         * not mean that it's unchanged, but all the positions
+         * included in the slot array are valid addresses.
+         */
+        goto retry;
+    }
+
+    pos = mptable_find_equal(mt, st, slots, key);
+    if (unlikely(pos == NOT_FOUND)) {
+        ret = -ENOENT;
+        goto done;
+    }
+
+    /*
+     * Dereferencing maybe-invalid addresses in log region or
+     * pnode region is OK.
+     */
+    ent = &table_of_pos(mt, st, pos)->entries[pos];
+    ret = cmpxchg2(ent, (pentry_t *) old_ent, new_ent) ? 0 : -EAGAIN;
+
+done:
+    if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
+        goto retry;
+    }
+
     return ret;
 }
 
@@ -882,7 +884,7 @@ int shim_scan(pkey_t lo, pkey_t hi, pkey_t *arr) {
     uint8_t slots[SLOTS_SIZE];
     pkey_t key, *w = NULL;
     int i, cnt, ret;
-    kvpair_t *ent;
+    pentry_t *ent;
 
 relookup:
     mt = mptable_seek(lo, SEEK_MT_W | SEEK_ST_W);
@@ -902,7 +904,7 @@ relookup:
 
         cnt = slot_get_cnt(slots);
         for (i = 0; i < cnt; i++) {
-            ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
+            ent = table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
             key = ent->k;
 
             if (pkey_compare(key, lo) >= 0) {

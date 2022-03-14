@@ -12,7 +12,8 @@ extern "C" {
  */
 #define ____ptr_aligned __attribute__((aligned(sizeof(void *))))
 
-#define CACHELINE_SIZE 64
+#define CACHELINE_SIZE  64
+#define XPLINE_SIZE     256
 
 #define PAGE_SHIFT	12
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)

@@ -129,7 +129,7 @@ int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
     struct oplog* log;
     log = oplog_insert(key, value, OP_INSERT, numa_node, cpu);
-	return shim_upsert(key, &log->o_kv.v);
+	return shim_upsert(key, &log->o_kv);
 }
 
 int bonsai_remove(pkey_t key) {

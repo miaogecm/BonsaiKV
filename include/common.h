@@ -70,8 +70,8 @@ typedef struct {
 
 typedef struct pentry {
     pkey_t k;
-    __le64 v;
-} pentry_t;
+    __le64 v : 48;
+} __attribute__((packed)) pentry_t;
 
 #define EOPEN		104 /* open file error */
 #define EPMEMOBJ	105 /* create pmemobj error */

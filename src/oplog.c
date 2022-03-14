@@ -136,8 +136,7 @@ struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, i
 	epoch = block->epoch;
 
 	log->o_type = cpu_to_le8(op);
-	log->o_numa_node = cpu_to_le8(numa_node);
-	log->o_stamp = cpu_to_le64(ordo_new_clock(0));
+    log->o_stamp = cpu_to_le64(ordo_new_clock(0));
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
@@ -346,7 +345,7 @@ static int worker_oplog_flush(void* arg) {
 
 		switch(e->op) {
 		case OP_INSERT:
-            pnode_insert(e->key, e->val, &e->log->o_kv.v);
+            pnode_insert(e->key, e->val, &e->log->o_kv);
 			break;
 		case OP_REMOVE:
 			pnode_remove(e->key);

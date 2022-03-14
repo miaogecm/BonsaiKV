@@ -16,64 +16,58 @@ enum {
 	PNODE_DATA_STALE,
 };
 
-#define NUM_ENTRY_PER_PNODE		48
+#define NUM_ENTRY_PER_PNODE		40
 
 #define PNODE_BITMAP_FULL		0xffffffffffff
 
 struct oplog;
 
-/*128 bytes*/
 struct pnode_meta {
-    /*cacheline 0*/
 	__le64		bitmap;
-	__le8		fgprt[NUM_ENTRY_PER_PNODE];
-    char        padding[8];
+	__le8		slot[NUM_ENTRY_PER_PNODE + 1];
+    char        padding[15];
+} __packed;
 
-    /*cacheline 1 (read only)*/
-    rwlock_t    *lock;
-    char        padding0[CACHELINE_SIZE - 8];
-};
+/*
+ * integer key: 24B
+ * string key:  48B
+ */
+struct pnode_entry {
+    struct pentry ent;
+    uint16_t      epoch;
+    __le64        stamp;
+} __packed;
 
 struct pnode {
-    char                cls[0][CACHELINE_SIZE];
-
-	/*cacheline 0 ~ 1*/
-	struct pnode_meta 	meta;
+    /* cacheline 0 */
+	struct pnode_meta   meta;
 	
-	/*cacheline 2 ~ 13*/
-	pentry_t 			e[NUM_ENTRY_PER_PNODE];
-	
-	/*cacheline 14*/
-	__le8				slot[NUM_ENTRY_PER_PNODE + 1];
-	__le8				stale;
-	__le8				padding1[CACHELINE_SIZE - NUM_ENTRY_PER_PNODE - 2];
+	/*
+	 * integer key: cacheline 1 ~ 15
+	 * string key:  cacheline 1 ~ 30
+	 */
+	struct pnode_entry  e[NUM_ENTRY_PER_PNODE];
 
-    char                nab_last[0];
-
-	/*cacheline 15 (always in node 0)*/
+    /* cacheline 16/31 */
+    rwlock_t            *lock;
 	pkey_t 				anchor_key;
     struct pnode        *next;
 };
 
-#define PNODE_LOCK(node)						((node)->meta.lock)
-#define PNODE_FGPRT(node, i) 					((node)->meta.fgprt[i])
+#define PNODE_LOCK(node)						((node)->lock)
 #define PNODE_BITMAP(node) 						((node)->meta.bitmap)
-#define PNODE_KEY(node, i)						((node)->e[i].k)
-#define PNODE_VAL(node, i)						((node)->e[i].v)
-#define PNODE_SORTED_KEY(node, i)				(PNODE_KEY(node, (node)->slot[i]))
-#define PNODE_SORTED_VAL(node, i)				(PNODE_VAL(node, (node)->slot[i]))
+#define PNODE_PENT(node, i)                     ((node)->e[i])
+#define PNODE_SORTED_PENT(node, i)				(PNODE_PENT(node, (node)->meta.slot[i]))
 #define PNODE_ANCHOR_KEY(node)					((node)->anchor_key)
-#define PNODE_MAX_KEY(node)						(PNODE_SORTED_KEY(node, (node)->slot[0]))
-#define PNODE_MIN_KEY(node)						(PNODE_SORTED_KEY(node, 1))
+#define PNODE_MAX_KEY(node)						(PNODE_SORTED_PENT(node, (node)->meta.slot[0]).ent.k)
+#define PNODE_MIN_KEY(node)						(PNODE_SORTED_PENT(node, 1).ent.k)
 
 extern void sentinel_node_init(int node);
 
-extern int pnode_insert(pkey_t key, pval_t val, pval_t *old);
+extern int pnode_insert(pkey_t key, pval_t val, pentry_t *old_ent);
 extern int pnode_remove(pkey_t key);
 
 extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr);
-
-extern int scan_one_pnode(struct pnode* pnode, int n, pkey_t low, pkey_t high, pval_t* result, pkey_t* curr);
 
 extern void check_pnode(pkey_t key, struct pnode* pnode);
 extern void print_pnode(struct pnode* pnode);

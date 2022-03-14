@@ -34,10 +34,10 @@ struct shim_layer {
 };
 
 int shim_layer_init(struct shim_layer *s_layer);
-int shim_upsert(pkey_t key, pval_t *val);
+int shim_upsert(pkey_t key, pentry_t *val_ent);
 int shim_remove(pkey_t key);
 int shim_lookup(pkey_t key, pval_t *val);
-int shim_update(pkey_t key, const pval_t *old_val, pval_t *new_val);
+int shim_update(pkey_t key, const pentry_t *old_ent, pentry_t *new_ent);
 int shim_scan(pkey_t lo, pkey_t hi, pkey_t *arr);
 void shim_dump();
 
