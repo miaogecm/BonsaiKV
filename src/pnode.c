@@ -171,7 +171,7 @@ retry:
 	}
 
 	new_pnode = alloc_pnode(node);
-	memcpy(new_pnode->e, pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE);
+	memcpy(new_pnode->e, pnode->e, sizeof(pnode->e));
 
 	n = pnode->meta.slot[0];
 	d = n / 2;
@@ -193,15 +193,13 @@ retry:
 	pnode->meta.slot[0] = n - d;
     PNODE_BITMAP(pnode) &= ~new_removed;
 
-	bonsai_flush((void*)&new_pnode->e, sizeof(pentry_t) * NUM_ENTRY_PER_PNODE, 1);
-	bonsai_flush((void*)&new_pnode->meta.slot, NUM_ENTRY_PER_PNODE + 1, 0);
-	bonsai_flush((void*)&PNODE_BITMAP(new_pnode), sizeof(__le64), 1);
-	bonsai_flush((void*)&pnode->meta.slot, NUM_ENTRY_PER_PNODE + 1, 0);
-	bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
+	bonsai_flush(new_pnode->e, sizeof(new_pnode->e), 1);
+	bonsai_flush(&PNODE_BITMAP(new_pnode), sizeof(__le64), 1);
+	bonsai_flush(&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 
     for (i = 1; i <= d; i++) {
         shim_update(PNODE_SORTED_PENT(new_pnode, i).ent.k,
-                    &PNODE_SORTED_PENT(pnode, i).ent, &PNODE_SORTED_PENT(new_pnode, i).ent);
+                    &PNODE_SORTED_PENT(pnode, n - d + i).ent, &PNODE_SORTED_PENT(new_pnode, i).ent);
     }
 
     i_layer->insert(i_layer->pnode_index_struct[node],
@@ -304,7 +302,7 @@ void sentinel_node_init(int node) {
 	pnode_sort_slot(pnode, pos, key, OP_INSERT);
 	__set_bit(pos, &PNODE_BITMAP(pnode));
 
-	bonsai_flush((void*)&pnode->e[pos], sizeof(pentry_t), 1);
+	bonsai_flush((void*)&pnode->e[pos], sizeof(struct pnode_entry), 1);
 	bonsai_flush((void*)&PNODE_BITMAP(pnode), sizeof(__le64), 1);
 	
 	write_unlock(PNODE_LOCK(pnode));

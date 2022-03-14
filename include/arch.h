@@ -15,6 +15,8 @@ extern "C" {
 #define CACHELINE_SIZE  64
 #define XPLINE_SIZE     256
 
+//#define ARCH_SUPPORT_CLWB
+
 #define PAGE_SHIFT	12
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK 	(~(PAGE_SIZE-1))
@@ -120,12 +122,20 @@ static inline unsigned int max_cpu_freq(void)
 static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
 #if 1
     uint32_t i;
-    len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
-    for (i = 0; i < len; i += CACHELINE_SIZE)
-        clwb(buf + i);
+    int support_clwb = 0;
 
-	if (fence)
-		memory_sfence();
+#ifdef ARCH_SUPPORT_CLWB
+    support_clwb = 1;
+#endif
+
+    len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
+    for (i = 0; i < len; i += CACHELINE_SIZE) {
+        (support_clwb ? clwb : clflush)(buf + i);
+    }
+
+	if (fence) {
+        (support_clwb ? memory_sfence : memory_mfence)();
+    }
 #endif
 }
 

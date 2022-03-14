@@ -11,14 +11,9 @@ extern "C" {
 #include "common.h"
 #include "numa_config.h"
 
-enum {
-	PNODE_DATA_CLEAN = 0,
-	PNODE_DATA_STALE,
-};
-
 #define NUM_ENTRY_PER_PNODE		40
 
-#define PNODE_BITMAP_FULL		0xffffffffffff
+#define PNODE_BITMAP_FULL		0xffffffffff
 
 struct oplog;
 
@@ -33,7 +28,7 @@ struct pnode_meta {
  * string key:  48B
  */
 struct pnode_entry {
-    struct pentry ent;
+    pentry_t      ent;
     uint16_t      epoch;
     __le64        stamp;
 } __packed;

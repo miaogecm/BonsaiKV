@@ -334,7 +334,7 @@ static inline int mptable_find_equal(struct mptable *mt, struct mptable *st, uin
         idx = slot_get(slots, i);
         if (target->signatures[idx] == pkey_get_signature(key)) {
             if (!pkey_compare(target->entries[idx]->k, key)) {
-                return idx;
+                return i;
             }
         }
     }
@@ -401,13 +401,13 @@ static void mptable_dump(struct mptable *mt) {
     printf("MT:\n");
     for (i = 0; i < cnt && i < MPTABLE_MAX_KEYN; i++) {
         idx = slot_get(mt->slots, i);
-        ent = &mt->entries[idx];
+        ent = mt->entries[idx];
         printf("MT[%lu{%d}]=%p\n", ent->k, mt->signatures[idx], ent->v);
     }
     printf("ST:\n");
     for (i = 0; i + ST_FROM_POS < cnt && i < MPTABLE_MAX_KEYN; i++) {
         idx = slot_get(mt->slots, i + ST_FROM_POS);
-        ent = &st->entries[idx];
+        ent = st->entries[idx];
         printf("ST[%lu{%d}]=%p\n", ent->k, st->signatures[idx], ent->v);
     }
 }
@@ -610,7 +610,9 @@ relookup:
              * some readers holding the stale value ptr, they can
              * still access the correct data inside grace period.
              */
+            write_seqcount_begin(&mt->seq);
             *ent = val_ent;
+            write_seqcount_end(&mt->seq);
             ret = -EEXIST;
             goto out;
         }
@@ -788,7 +790,7 @@ retry:
      * Dereferencing maybe-invalid addresses in log region or
      * pnode region is OK.
      */
-    ent = table_of_pos(mt, st, pos)->entries[pos];
+    ent = table_of_pos(mt, st, pos)->entries[slot_get(slots, pos)];
     ret = 0;
     tmp = ent->v;
 
@@ -815,67 +817,48 @@ void shim_dump() {
 }
 
 int shim_update(pkey_t key, const pentry_t *old_ent, pentry_t *new_ent) {
-    struct mptable *mt, *st, *target;
+    struct mptable *mt, *st;
     uint8_t slots[SLOTS_SIZE];
-    unsigned int seq;
     pentry_t **ent;
-    int ret, pos;
+    int i, ret;
 
-    mt = mptable_seek(key, SEEK_ST);
+relookup:
+    mt = mptable_seek(key, SEEK_MT_W | SEEK_ST_W);
 
-retry:
-    seq = read_seqcount_begin(&mt->seq);
-
-    /*
-     * Note that mt->max is always a valid pointer to string
-     * any time due to its atomic assignment and delay-free
-     * strategy.
-     */
-    if (unlikely(pkey_compare(key, mt->max) >= 0)) {
-        /*
-         * Really within this node? If not, split happens. We'll
-         * go to the target node. But we should guarantee that our
-         * mt->max and mt->target are consistent.
-         */
-        target = mptable_off2addr(mt->next);
-        if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
-            goto retry;
-        }
-        mt = target;
-        goto retry;
+    ret = mptable_lock_correct(&mt, key);
+    if (unlikely(ret == -EAGAIN)) {
+        /* The mptable has been deleted. */
+        goto relookup;
     }
 
-    mptable_get_slots_optimistic(mt, slots);
+    memcpy(slots, mt->slots, SLOTS_SIZE);
 
-    st = mptable_off2addr(ACCESS_ONCE(mt->slave));
-    if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
-        /*
-         * We should guarantee that @target is still consistent
-         * with the slot array. Note that the consistent here do
-         * not mean that it's unchanged, but all the positions
-         * included in the slot array are valid addresses.
-         */
-        goto retry;
-    }
+    st = mptable_off2addr(mt->slave);
 
-    pos = mptable_find_equal(mt, st, slots, key);
-    if (unlikely(pos == NOT_FOUND)) {
+    i = mptable_find_equal(mt, st, slots, key);
+
+    if (unlikely(i == NOT_FOUND)) {
         ret = -ENOENT;
-        goto done;
+        goto out;
     }
+
+    ent = &table_of_pos(mt, st, i)->entries[slot_get(slots, i)];
 
     /*
-     * Dereferencing maybe-invalid addresses in log region or
-     * pnode region is OK.
+     * The linearization point of update operation. We
+     * do not need to get seq version here. If there're
+     * some readers holding the stale value ptr, they can
+     * still access the correct data inside grace period.
      */
-    ent = &table_of_pos(mt, st, pos)->entries[pos];
-    ret = cmpxchg2(ent, (pentry_t *) old_ent, new_ent) ? 0 : -EAGAIN;
-
-done:
-    if (unlikely(read_seqcount_retry(&mt->seq, seq))) {
-        goto retry;
+    ret = 0;
+    if (*ent == old_ent) {
+        write_seqcount_begin(&mt->seq);
+        *ent = new_ent;
+        write_seqcount_end(&mt->seq);
     }
 
+out:
+    mptable_unlock(mt);
     return ret;
 }
 

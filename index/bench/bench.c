@@ -160,7 +160,7 @@ static void do_op(long id) {
 	pval_t v = 0;
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
-	long i, repeat = 50;
+	long i, repeat = 1;
     int ret, st, ed, opcode;
     pkey_t __key, __key2;
 
