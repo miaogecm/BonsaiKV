@@ -292,45 +292,32 @@ static inline struct mptable *table_of_pos(struct mptable *mt, struct mptable *s
     return pos < MT_TO_POS ? mt : st;
 }
 
-static inline struct mptable *table_of_key(struct mptable *mt, struct mptable *st, const uint8_t *slots, pkey_t key) {
-    return !slot_is_half_full(slots) || pkey_compare(key, mt->entries[slot_get(slots, MID_POS)]->k) <= 0 ? mt : st;
-}
-
-static inline void mptable_get_pos_range(struct mptable *mt, struct mptable *target, const uint8_t *slots,
-                                         int *from, int *to) {
-    if (target == mt) {
-        *from = MT_FROM_POS;
-        *to = MT_TO_POS;
-    } else {
-        *from = ST_FROM_POS;
-        *to = ST_TO_POS;
-    }
-    *to = min(*to, slot_get_cnt(slots));
-}
-
 /*
  * Find the last entry <= key, return its pos in slot array.
  */
 static inline int mptable_find_upperbound(struct mptable *mt, struct mptable *st, const uint8_t *slots, pkey_t key) {
-    struct mptable *target = table_of_key(mt, st, slots, key);
-    int from, to, i;
+    int l = 0, r = slot_get_cnt(slots), mid;
+    struct mptable *target;
     uint8_t idx;
-    mptable_get_pos_range(mt, target, slots, &from, &to);
-    for (i = from; i < to; i++) {
-        idx = slot_get(slots, i);
-        if (pkey_compare(target->entries[idx]->k, key) > 0) {
-            break;
+    while (l != r) {
+        mid = l + (r - l) / 2;
+        target = table_of_pos(mt, st, mid);
+        idx = slot_get(slots, mid);
+        if (pkey_compare(target->entries[idx]->k, key) <= 0) {
+            l = mid + 1;
+        } else {
+            r = mid;
         }
     }
-    return i - 1;
+    return r - 1;
 }
 
 static inline int mptable_find_equal(struct mptable *mt, struct mptable *st, uint8_t *slots, pkey_t key) {
-    struct mptable *target = table_of_key(mt, st, slots, key);
-    int from, to, i;
+    int i, n = slot_get_cnt(slots);
+    struct mptable *target;
     uint8_t idx;
-    mptable_get_pos_range(mt, target, slots, &from, &to);
-    for (i = from; i < to; i++) {
+    for (i = 0; i < n; i++) {
+        target = table_of_pos(mt, st, i);
         idx = slot_get(slots, i);
         if (target->signatures[idx] == pkey_get_signature(key)) {
             if (!pkey_compare(target->entries[idx]->k, key)) {
