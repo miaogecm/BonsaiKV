@@ -1,4 +1,4 @@
-## Building High-performance Key-Value Stores for Hybrid DRAM-NVMM Systems with Multi-Layer Storage
+## Bonsai: a High-performance Scalable Persistent Key-Value Store on DRAM-NVM Systems with Multi-Layer Storage
 
 ### Introduction
 
