@@ -56,7 +56,7 @@ void *run_worker(void *task_) {
 }
 
 double run_test(size_t chunk_size, int num_worker) {
-    struct at_policy policy = { .chunk_size = chunk_size };
+    struct at_policy policy = { .chunk_shift = __ilog2_u64(chunk_size) };
     size_t size_per_dimm = CONFIG_SIZE / CONFIG_DIMM_CNT;
     size_t region_size = CONFIG_SIZE / num_worker;
     double max_time = 0.0;

@@ -89,4 +89,25 @@ static inline int node_to_cpu(int node, int cpu_idx) {
 
 #define ARRAY_LEN(a)        (sizeof(a) / sizeof(*(a)))
 
+static __always_inline unsigned long __fls(unsigned long word)
+{
+	asm("bsr %1,%0"
+	    : "=r" (word)
+	    : "rm" (word));
+	return word;
+}
+
+static __always_inline int fls64(uint64_t x)
+{
+	if (x == 0)
+		return 0;
+	return __fls(x) + 1;
+}
+
+static inline __attribute__((const))
+int __ilog2_u64(uint64_t n)
+{
+	return fls64(n) - 1;
+}
+
 #endif

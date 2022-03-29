@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     }
 
     path = argv[1];
-    out = fopen(path, "rw");
+    out = fopen(path, "w+");
 
     for (i = 0; i < ARRAY_LEN(num_workers); i++) {
         fprintf(out, "%d ", num_workers[i]);
