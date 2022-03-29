@@ -10,7 +10,8 @@
 
 #define CONFIG_SIZE             (25769803776ul)
 
-static size_t chunk_sizes[] = { 256, 512, 1024, 2048, 4096 };
+#define CONFIG_CHUNK_SIZE       256ul
+
 static int num_workers[] = { 1, 2, 4, 8, 16, 24 };
 
 #endif //NVM_INTERLEAVE_GRANULARITY_CONFIG_H

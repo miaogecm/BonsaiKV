@@ -15,7 +15,7 @@
 #include "measure.h"
 #include "config.h"
 
-double run_test(size_t chunk_size, int num_worker);
+double run_test(int num_worker);
 
 int main(int argc, char *argv[]) {
     double time;
@@ -35,12 +35,10 @@ int main(int argc, char *argv[]) {
         fprintf(out, "%d ", num_workers[i]);
     }
 
-    for (i = 0; i < ARRAY_LEN(chunk_sizes); i++) {
-        fprintf(out, "\n%lu ", chunk_sizes[i]);
-        for (j = 0; j < ARRAY_LEN(num_workers); j++) {
-            time = run_test(chunk_sizes[i], num_workers[j]);
-            fprintf(out, "%lf ", time);
-        }
+    fprintf(out, "\n%lu ", CONFIG_CHUNK_SIZE);
+    for (j = 0; j < ARRAY_LEN(num_workers); j++) {
+        time = run_test(num_workers[j]);
+        fprintf(out, "%lf ", time);
     }
 
     fclose(out);
