@@ -2,15 +2,18 @@
 
 import matplotlib.pyplot as plt
 
-with open('data', 'r') as f:
-    names = f.readline().split()
-    x = range(len(names))
+data_files = ('data',)
 
-    while True:
-        data = f.readline()
-        if not data:
-            break
-        data = data.split()
+for data_file in data_files:
+    with open(data_file, 'r') as f:
+        names = f.readline().split()
+        x = range(len(names))
+
+        while True:
+            data = f.readline()
+            if not data:
+                break
+            data = data.split()
 
         plt.plot(x, list(map(float, data[1:])), marker='o', linestyle='-', label=data[0])
 
