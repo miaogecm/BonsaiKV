@@ -46,7 +46,7 @@ void *run_worker(void *task_) {
     while (rep--) {
         for (stride = 0; stride < task->region_size / CONFIG_DIMM_CNT; stride += CONFIG_CHUNK_SIZE) {
             for (dimm = 0; dimm < CONFIG_DIMM_CNT; dimm++) {
-                pa = task->policy->pa_bases[dimm] + stride;
+                pa = task->policy->pa_bases[dimm] + task->base / CONFIG_DIMM_CNT + stride;
                 for (i = 0; i < CONFIG_CHUNK_SIZE / CACHELINE_SIZE; i++, pa += CACHELINE_SIZE) {
                     sum += *(unsigned long *) pa;
                 }
