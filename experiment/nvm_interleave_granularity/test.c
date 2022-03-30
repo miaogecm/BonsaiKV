@@ -33,7 +33,7 @@ static void *dimms[CONFIG_DIMM_CNT];
 void *run_worker(void *task_) {
     struct task_struct *task = task_;
     int rep = 1, cpu, dimm, i;
-    size_t stride;
+    size_t stride, sum = 0;
     void *pa;
 
     cpu = node_to_cpu(CONFIG_NUMA_NODE, task->id);
@@ -48,7 +48,7 @@ void *run_worker(void *task_) {
             for (dimm = 0; dimm < CONFIG_DIMM_CNT; dimm++) {
                 pa = task->policy->pa_bases[dimm] + stride;
                 for (i = 0; i < CONFIG_CHUNK_SIZE / CACHELINE_SIZE; i++, pa += CACHELINE_SIZE) {
-                    asm("" : : "r"(*(unsigned long *) pa));
+                    sum += *(unsigned long *) pa;
                 }
             }
         }
@@ -56,7 +56,7 @@ void *run_worker(void *task_) {
 
     task->time = end_measure();
 
-    printf("================= Worker %d end, time: %lfs\n", task->id, task->time);
+    printf("================= Worker %d end, time: %lfs, sum: %lu\n", task->id, task->time, sum);
 }
 
 double run_test(int num_worker) {
