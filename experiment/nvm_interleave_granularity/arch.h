@@ -110,4 +110,16 @@ int __ilog2_u64(uint64_t n)
 	return fls64(n) - 1;
 }
 
+#define cache_prefetchr_high(__ptr) __builtin_prefetch((void *)__ptr, 0, 3)
+
+#define cache_prefetchr_mid(__ptr) __builtin_prefetch((void *)__ptr, 0, 2)
+
+#define cache_prefetchr_low(__ptr) __builtin_prefetch((void *)__ptr, 0, 0)
+
+#define cache_prefetchw_high(__ptr) __builtin_prefetch((void *)__ptr, 1, 3)
+
+#define cache_prefetchw_mid(__ptr) __builtin_prefetch((void *)__ptr, 1, 2)
+
+#define cache_prefetchw_low(__ptr) __builtin_prefetch((void *)__ptr, 1, 0)
+
 #endif
