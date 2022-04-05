@@ -21,12 +21,13 @@ extern "C" {
 #include "rwlock.h"
 #include "shim.h"
 #include "cpu.h"
+#include "rcu.h"
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
-typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
+typedef void* (*remove_func_t)(void* index_struct, const void *key, size_t len);
 typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
 typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 
@@ -50,7 +51,7 @@ struct index_layer {
 struct log_layer {
 	unsigned int nflush; /* how many flushes */
 	atomic_t exit; /* thread exit */
-    atomic_t force_flush; /* force flush all logs */
+    atomic_t force_flush; /* force flush all lps */
 
     atomic_t epoch_passed;
 	atomic_t checkpoint;
@@ -63,7 +64,7 @@ struct log_layer {
 	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
 	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */
 
-	struct log_region region[NUM_CPU]; /* per-cpu log region */
+	struct log_region_desc *desc;
 
 	pthread_barrier_t barrier[NUM_SOCKET];
 
@@ -111,13 +112,18 @@ struct bonsai_info {
 	struct thread_info *pflush_master;
 	struct thread_info *pflush_workers[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
 
+    /* smo */
 	struct thread_info *smo;
+
+    /* RCU */
+    rcu_t rcu;
 }____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))
 #define SHIM(bonsai)        (&(bonsai->s_layer))
 #define LOG(bonsai)   		(&(bonsai->l_layer))
 #define DATA(bonsai)  		(&(bonsai->d_layer))
+#define RCU(bonsai)         (&(bonsai->rcu))
 
 POBJ_LAYOUT_BEGIN(BONSAI);
 POBJ_LAYOUT_TOID(BONSAI, struct pnode);

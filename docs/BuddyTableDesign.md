@@ -1,94 +1,93 @@
-# Buddy Table Design
+# Bonsai Design
 
-## 数据结构
+## Index Layer (with Shim Layer)
+
+### Unified Indexing
+
+使用统一的一个index，将key映射到pnode或log。
 
 ```C
-typedef uint32_t mptable_off_t;
+/* 3 cachelines */
 
-struct mptable {
-	/* Header - 5 words */
-	unsigned int seq;
-	union {
-		// MT
-		struct {
-        	spinlock_t lock;
-        	uint64_t pa[2];
-        	pkey_t max;
-            unsigned int pa_seq;
-            struct mptable *slave;
-        };
-        // ST
-        struct {
-            struct mptable *next;
-        	//struct pnode *pnode;
-        };
-    };
-    /* Key signatures - 2 words */
-    uint8_t signatures[12];
-    /* Key-Value pairs - 24 words */
-    kvpair_t entries[12];
-};
-```
-
-每对buddy table通过Index Layer索引到。Index Layer的Value格式：
-
-```c
-struct buddy_table_off {
-	mptable_off_t mt, st_hint;
+struct shim_leaf {
+    uint32_t bitmap;
+    uint8_t fgprt[12];
+    
+    struct oplog *lps[12];
+    struct pnode *pnode;
+    
+    spinlock_t lock;
+    seqlock_t seq;
+    
+    struct shim_leaf *next;
+    pkey_t fence;
 }
 ```
 
-对应于
+#### Motivation
 
-```C
-struct buddy_table {
-    struct mptable *mt, *st_hint;
-}
-```
+传统方法通常采用：
 
-## Operations
++ 在DRAM中保存所有Key和Value指针（如old bonsai）。缺点：空间占用很大，不实用。
++ 读时等待，直到日志全部刷完。（如Black-box Concurrent Data Structures for NUMA Architectures, ASPLOS 2017）。缺点：NVM刷日志远远慢于在DRAM中插入，等待时间很长。
++ Separate Indexing，即使用一个Data Index和一个Log Index。Log Index索引尚未flush完毕的数据，Data Index索引已经flush的数据（从key映射到PNode）。查询时，先查V-Index，后查NV-Index。（如TIPS）。缺点：存在查两次的问题。
 
-### Prefetch
+#### 基本操作
 
-Buddy Table将会在访问Master和Slave Table之前将它们全部（或只取各自的第一个Cacheline，根据实验结果调整）预取到Cache当中。好处在于，原本访问是通过master->slave访问slave，也就是要先等master的miss，然后等slave的miss，现在利用MLP隐藏了一次miss。
+##### Upsert(key, log)
 
-因此，在Index Layer的Value中，除了存储真正的MT之外，还存储一个st_hint。大部分情况下，st_hint都对应了MT的ST。然而在某些并发的情况下，不一定成立，但难得几次Prefetch错误影响不大。
+如果节点已满，prefetch所有logs后排序，找到分裂点，然后进行分裂。首先通过fgprt，查是否已存在该key。然后通过更新log指针和bitmap进行插入。
 
-### Lookup
+##### Lookup
 
-+ a. 首先，从索引层查询到Buddy Table。并进行Prefetch。
-+ b. 获取Permutation array，注意检查pa_seq，中间变了的话要重试。
-+ c. 线性查找（先从signature里面筛选一次再去entries里面找）。
-+ d. 查找结束后，检查entry_seq，变了说明中间有Entry被覆盖了，重试。
-+ e. 如果找到，则返回成功。
-+ f. 如果未找到，检查key是否小于上界，如果是，则返回未找到。否则沿着next指针往后找到第一个上界大于等于自己的。
+首先通过fgprt找log层有没有。若没有，则去pnode层查找。
 
-### Upsert
+#### 几个小优化
 
-和之前基本一样。有两个区别：
+##### Leaf Prefetch
 
-+ 先写entry再改permutation array。
+shim_leaf和pnode之间存在一种ordering：先shim_leaf，后pnode，无法充分利用MLP。因此，在index layer存储packed双指针，一半是shim_leaf的偏移，一半是pnode的偏移。然后在开始lookup前prefetch shim_leaf和pnode的metadata cachelines。
 
-+ 如果是覆盖（也就是插入的地方本来已经有值在里面的时候），需要加seq。
+##### Range Update
 
-### Remove
+首先确保shim_leaf里面的所有log对应的pnode全是一样的。然后做两次分裂，并update pnode。
 
-+ 只改Permutation array，不要把Entry置空！
-+ 当节点中的最后一个entry被删除，必须按照下列顺序：
-  + 首先从Index Layer取到前驱，然后将其加锁，并确认是否仍然是前驱。如果不是则重试（说明前驱正在分裂）。
-  + 然后把前驱的max，改为和自身一样。
-  + 将前驱的后继指针，指向自身的next。
-  + 将自身放入Retire List列表。
-  + Epoch Based Reclamation，防止有读者仍然在读一个已经retire掉的node
+##### Checkpoint-based Batch Remove
 
-### Split
+将已刷回的日志从shim layer删除具有很大开销。
 
-和之前基本一样，但是在后面加一个update，更新master的ST Hint。便于后面Prefetch。设置pnode的时候要用CAS指令。
+bitmap中，每个log占2 bit。00、01、02。00表示未占用，01，02表示log的checkpoint。插入时，读取当前的checkpoint值（模3）。在checkpoint $t$
 
-## 与PNode协调
+结束后，批量修改所有shim_leaf的bitmap，将t的都变成0即可。
 
-+ ~~每个Mptable对应一个PNode，称为Persistener。表示该Mptable内的数据由该PNode负责持久化。在ST中可以访问到每个Mptable对应的PNode。~~
-+ ~~每个PNode对应多个Mptable，每个PNode里面存储指向最左Mptable的指针。~~
+## Log Layer
 
-Range Update！
+### Epoch-based Batch Log Persistent
+
+略
+
+### Per-CPU Overflow Pages（小优化）
+
+![image-20220323111127221](/home/hhusjr/.config/Typora/typora-user-images/image-20220323111127221.png)
+
+**得益于log本身是顺序的**，写溢出的Value无需内存分配，而且是顺序写，开销很低。
+
+## Data Layer
+
+### Using Pre-split to Maximize DIMM-level Parallelism
+
+通过Flush前的预分裂（Split and Recolor操作），将数据均匀分布在各个DIMM上，提升存取的并行度。同时提升Flusher写的性能。具体算法：
+
+令$D(i)=|\{a_k|a_k\in I \and c(I)=i\}|$，$E(I)=|a_k|a_k\in I|$。将原问题转化为一个带约束的单目标优化问题：现在需要一种SR的操作序列，该序列需要保证最终能满足$max_i(D(i)) \le \frac{\Sigma_{i=1}^kD(i)}{k}+\epsilon$，并使SR次数最少。
+
+下面将$\epsilon$约束后的问题进行求解。令$P=\frac{\Sigma_{i=1}^kD(i)}{k}+\epsilon$
+
++ 首先，对每种颜色$i$，得到其对应的所有区间构成的向量$V_i=[I_{i1},I_{i2},I_{i3},I_{i4},...,I_{i|V_i|}]$，并对$V_i$中的所有区间按里面包含的数字个数（即$E(I)$）从大到小排序。
++ 初始化items向量和boxes向量。
++ 对每种满足$D(i)>P$的颜色$i$，将$V_i$取出前$t$个：$I_{i1},I_{i2},\cdots,I_{it-1},I^*_{it}$。（最后一个可能不完全等于$I_{it}$），使得$E(I_{i1})+E(I_{i2})+\cdots+E(I_{it-1})+E(I_{it}^*)=P$。将这$t$个区间每一个都作为一个MIN-FIBP问题中的item，大小为在各自范围内的数字的个数（即$E(I)$），全部加入items向量。每个都对应一次SR操作（共$t$次）。
++ 对每种满足$D(i)<P$的颜色$i$，创建一个大小为$P-D(i)$的box，加入boxes向量。
+
+注意到boxes向量里面的元素个数非常少，因此装满所有box造成的SR操作的远远少于刚才划分时的SR操作次数。所以，按任意顺序将item全部移到boxes即可。
+
+### Data migration
 

@@ -9,7 +9,7 @@ extern "C" {
 #include <stdlib.h>
 #include <sys/types.h>
 
-#include "numa_config.h"
+#include "hwconfig.h"
 #include "list.h"
 #include "common.h"
 

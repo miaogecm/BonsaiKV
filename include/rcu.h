@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 #include "atomic.h"
-#include "list.h"
 
 #define RCU_MAX_THREAD_NUM      64
 
@@ -49,6 +48,7 @@ struct rcu_cb_queue {
 
 typedef struct {
     fuzzy_barrier_t fb;
+    int fb_cnt;
     /* Thread-local callback queue */
     struct rcu_cb_queue cb[RCU_MAX_THREAD_NUM];
 } rcu_t;
@@ -64,5 +64,7 @@ static inline void rcu_thread_offline(rcu_t *rcu) {
 void rcu_init(rcu_t *rcu);
 void call_rcu(rcu_t *rcu, rcu_cb_t cb, void *aux);
 void rcu_quiescent(rcu_t *rcu);
+int  rcu_now(rcu_t *rcu);
+void rcu_synchronize(rcu_t *rcu, int since);
 
 #endif //BONSAI_RCU_H

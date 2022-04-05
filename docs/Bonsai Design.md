@@ -14,7 +14,7 @@
 
 ### Unified Indexing
 
-使用统一的一个index，将key映射到pnode1或log。
+使用统一的一个index，将key映射到pnode或log。
 
 ```C
 /* 3 cachelines */
@@ -23,7 +23,7 @@ struct shim_leaf {
     uint32_t bitmap;
     uint8_t fgprt[12];
     
-    struct oplog *logs[12];
+    struct oplog *lps[12];
     struct pnode *pnode;
     
     spinlock_t lock;
@@ -154,3 +154,4 @@ bitmap中，每个log占2 bit。00、01、02。00表示未占用，01，02表示
   + Parallel：由于PNode只分裂，不合并，而各个线程没有相同的PNode，因此无需任何同步机制。
   + Lazy-Persist：对每个线程，插入多个数据之后，再做一次Persistent操作。具体来说，当处理完一个PNode，进入下一个PNode之前，对前一个PNode按照先Entry，后Bitmap的顺序持久化。如果出现崩溃，相当与少插入了连续的一段数据。而这个可以通过日志来恢复。
   + Cache Friendly：预取三个PNode。
+

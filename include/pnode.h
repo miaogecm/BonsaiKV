@@ -9,66 +9,59 @@ extern "C" {
 #include "rwlock.h"
 #include "list.h"
 #include "common.h"
-#include "numa_config.h"
+#include "hwconfig.h"
 
-#define NUM_ENTRY_PER_PNODE		40
+#define PNODE_FANOUT            56
 
-#define PNODE_BITMAP_FULL		0xffffffffff
+#define PNODE_FULL_VALIDMAP     ((1ul << PNODE_FANOUT) - 1)
 
-struct oplog;
+#define PNOID_NONE              (-1u)
 
-struct pnode_meta {
-	__le64		bitmap;
-	__le8		slot[NUM_ENTRY_PER_PNODE + 1];
-    char        padding[15];
-} __packed;
+typedef uint32_t pnoid_t;
 
-/*
- * integer key: 24B
- * string key:  48B
- */
-struct pnode_entry {
-    pentry_t      ent;
-    uint16_t      epoch;
-    __le64        stamp;
-} __packed;
-
-struct pnode {
+typedef struct pnode {
     /* cacheline 0 */
-	struct pnode_meta   meta;
-	
-	/*
-	 * integer key: cacheline 1 ~ 15
-	 * string key:  cacheline 1 ~ 30
-	 */
-	struct pnode_entry  e[NUM_ENTRY_PER_PNODE];
+    __le64        validmap;
+    __le8         fgprt[PNODE_FANOUT];
 
-    /* cacheline 16/31 */
-    rwlock_t            *lock;
-	pkey_t 				anchor_key;
-    struct pnode        *next;
-};
+    /* cacheline [1, 28] */
+    pentry_t      ents[PNODE_FANOUT];
 
-#define PNODE_LOCK(node)						((node)->lock)
-#define PNODE_BITMAP(node) 						((node)->meta.bitmap)
-#define PNODE_PENT(node, i)                     ((node)->e[i])
-#define PNODE_SORTED_PENT(node, i)				(PNODE_PENT(node, (node)->meta.slot[i]))
-#define PNODE_ANCHOR_KEY(node)					((node)->anchor_key)
-#define PNODE_MAX_KEY(node)						(PNODE_SORTED_PENT(node, (node)->meta.slot[0]).ent.k)
-#define PNODE_MIN_KEY(node)						(PNODE_SORTED_PENT(node, 1).ent.k)
+    /* cacheline 29 */
+    rwlock_t     *lock;
+    pkey_t        anchor;
+    pnoid_t       prev, next;
+} pnode_t;
 
-extern void sentinel_node_init(int node);
+typedef struct {
+    enum {
+        PBO_NONE = 0,
+        PBO_INSERT,
+        PBO_REMOVE
+    }      type;
+    pkey_t key;
+    pval_t val;
+    int    done;
+} pbatch_op_t;
 
-extern int pnode_insert(pkey_t key, pval_t val, pentry_t *old_ent);
-extern int pnode_remove(pkey_t key);
+static inline int pnode_color(pnode_t *pnode) {
 
-extern pval_t* pnode_numa_move(struct pnode* pnode, pkey_t key, int numa_node, void* addr);
+}
 
-extern void check_pnode(pkey_t key, struct pnode* pnode);
-extern void print_pnode(struct pnode* pnode);
-extern void print_pnode_summary(struct pnode* pnode);
-extern void dump_pnode_list(void (*printer)(struct pnode *pnode));
-extern struct pnode* data_layer_search_key(pkey_t key);
+void pnode_split_and_recolor(pnode_t **pnode, pnode_t **sibling, pkey_t *cut, int lc, int rc);
+void pnode_run_batch(pnode_t *pnode, pbatch_op_t *ops);
+
+static inline void pnode_split(pnode_t **pnode, pnode_t **sibling, pkey_t *cut) {
+    pnode_split_and_recolor(pnode, sibling, cut, pnode_color(*pnode), pnode_color(*sibling));
+}
+
+static inline void pnode_recolor(pnode_t **pnode, int c) {
+    pnode_split_and_recolor(pnode, NULL, NULL, c, c);
+}
+
+static inline pnode_t *pnode_get(pnoid_t id) {
+    return NULL;
+}
 
 #ifdef __cplusplus
 }

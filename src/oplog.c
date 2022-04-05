@@ -22,6 +22,43 @@
 #include "shim.h"
 #include "hash.h"
 #include "epoch.h"
+#include "rcu.h"
+
+#define LCB_FULL_SIZE   3072
+#define LCB_MAX_SIZE    (LCB_FULL_SIZE * 2)
+
+#define LCB_FULL_NR     (LCB_FULL_SIZE / sizeof(struct oplog))
+#define LCB_MAX_NR      (LCB_MAX_SIZE / sizeof(struct oplog))
+
+union logid_u {
+    logid_t id;
+    struct {
+        uint32_t cpu : 7;
+        uint32_t off : 25;
+    };
+};
+
+static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
+    uint32_t d1 = (meta->end - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+    uint32_t d2 = (off - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+    return (int) (d2 - d1);
+}
+
+/* Get oplog address by logid. */
+struct oplog *oplog_get(logid_t logid) {
+    union logid_u id = { .id = logid };
+    struct cpu_log_region_desc *desc;
+    struct cpu_log_region_meta meta;
+    int overflow;
+    desc = &LOG(bonsai)->desc->descs[id.cpu];
+    meta = desc->region->meta;
+    overflow = oplog_overflow_size(&meta, id.off);
+    if (unlikely(overflow >= 0)) {
+        return &desc->lcb[overflow];
+    } else {
+        return &desc->region->logs[id.off];
+    }
+}
 
 typedef struct {
 	int cpu;
@@ -46,69 +83,61 @@ struct oplog_work {
 	volatile struct oplog_blk* last_blks[NUM_CPU / NUM_PFLUSH_WORKER_PER_NODE];
 };
 
-struct oplog_blk* alloc_oplog_block(int cpu) {
-	struct log_layer* layer = LOG(bonsai);
-	struct log_region* region = &layer->region[cpu];
-	struct log_region_desc* desc = region->desc;
-	struct log_page_desc* page;
-	struct oplog_blk *new_block, *old_block;
-	__le64 old_val, new_val;
-
-again:
-	old_val = desc->r_oplog_top; new_val = old_val + sizeof(struct oplog_blk);
-
-	if (unlikely(!(new_val & ~PAGE_MASK) || !old_val)) {
-		/* we reach a page end or it is first time to allocate an oplog block */
-		page = alloc_log_page(region);
-		new_val = LOG_REGION_ADDR_TO_OFF(region, page) + sizeof(struct oplog_blk);
-	} else {
-		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
-		page = LOG_PAGE_DESC(old_block);
-	}
-
-	if (cmpxchg(&desc->r_oplog_top, old_val, new_val) != old_val)
-		goto again;
-
-	new_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, new_val);
-	new_block->cnt = 0;
-	new_block->cpu = cpu;
-	new_block->epoch = __this->t_epoch;
-	new_block->next = 0;
-
-	if (likely(old_val)) {
-		old_block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, old_val);
-		old_block->next = LOG_REGION_ADDR_TO_OFF(region, new_block);
-		bonsai_flush((void*)&old_block->next, sizeof(__le64), 0);
-	}
-
-	return new_block;
-}
-
 #define CHECK_NLOG_INTERVAL     20
 
-struct oplog* alloc_oplog(struct log_region* region, int cpu) {
-    static __thread int last = 0;
-	volatile struct oplog_blk* block = region->curr_blk;
+logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu) {
 	struct log_layer* layer = LOG(bonsai);
+    struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
+    struct cpu_log_region *region = local_desc->region;
+    uint32_t end = region->meta.end;
+    static __thread int last = 0;
 	struct oplog* log;
+    union logid_u id;
+    size_t len, c;
+    int wb = 0;
+    void *lcb;
 
-	if (unlikely(!block || block->cnt == NUM_OPLOG_PER_BLK)) {
-        try_run_epoch();
+    assert(local_desc->size < LCB_MAX_NR);
 
-		block = alloc_oplog_block(cpu);
+    id.cpu = cpu;
+    id.off = (local_desc->size + end) % OPLOG_NUM_PER_CPU;
 
-        /*
-         * We issue a mfence here, to ensure the newly allocated
-         * block is correctly inserted into log blk list globally.
-         * The pflusher may walk thru that list after modifying
-         * @region->curr_blk.
-         */
-        smp_mb();
+    log = &local_desc->lcb[local_desc->size++];
+	log->o_type = cpu_to_le8(op);
+    log->o_stamp = cpu_to_le64(ordo_new_clock(0));
+	log->o_kv.k = key;
+	log->o_kv.v = val;
 
-		region->curr_blk = block;
-	}
+    if (unlikely(local_desc->size >= LCB_FULL_NR)) {
+        if (pthread_mutex_trylock(local_desc->dimm_lock)) {
+            wb = 1;
+        } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {
+            pthread_mutex_lock(local_desc->dimm_lock);
+            wb = 1;
+        }
 
-	log = &block->logs[block->cnt++];
+        if (wb) {
+            lcb = local_desc->lcb;
+            len = local_desc->size;
+
+            while ((c = max(OPLOG_NUM_PER_CPU - end, len))) {
+                memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
+                end  = (end + c) % OPLOG_NUM_PER_CPU;
+                len -= c;
+                lcb += c;
+            }
+            memory_sfence();
+
+            pthread_mutex_unlock(local_desc->dimm_lock);
+
+            region->meta.end = end;
+            bonsai_flush(&region->meta.end, sizeof(__le32), 1);
+
+            local_desc->size = 0;
+            call_rcu(RCU(bonsai), free, local_desc->lcb);
+            local_desc->lcb = malloc(LCB_MAX_SIZE);
+        }
+    }
 
     if (++last == CHECK_NLOG_INTERVAL) {
         if (atomic_add_return(CHECK_NLOG_INTERVAL, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
@@ -118,38 +147,7 @@ struct oplog* alloc_oplog(struct log_region* region, int cpu) {
         last = 0;
     }
 
-	return log;
-}
-
-struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu) {
-	struct log_layer* layer = LOG(bonsai);
-	unsigned int epoch;
-	struct log_region *region;
-	struct oplog_blk* block;
-	struct oplog* log;
-
-	region = &layer->region[cpu];
-
-	log = alloc_oplog(region, cpu);
-	
-	block = OPLOG_BLK(log);
-	epoch = block->epoch;
-
-	log->o_type = cpu_to_le8(op);
-    log->o_stamp = cpu_to_le64(ordo_new_clock(0));
-	log->o_kv.k = key;
-	log->o_kv.v = val;
-
-    assert(epoch == ACCESS_ONCE(__this->t_epoch));
-
-	if (unlikely(region->curr_blk->cnt == NUM_OPLOG_PER_BLK)) {
-		/* persist it, no memory fence */
-		bonsai_flush((void*)region->curr_blk, sizeof(struct oplog_blk), 0);
-	}
-
-	bonsai_debug("thread [%d] insert an oplog <%lu, %lu>\n", __this->t_id, key, val);
-
-	return log;
+    return id.id;
 }
 
 static void try_free_log_page(struct oplog_blk* block, struct list_head* page_list) {
@@ -239,7 +237,7 @@ static int worker_oplog_collect_and_sort(void *arg) {
 	struct log_layer* layer;
 	volatile struct oplog_blk* block;
 	struct oplog *log;
-    struct log_region* region;
+    struct dimm_log_region* region;
 	int i, j, count, ret = 0;
 	int nlog = 0, nblk = 0;
     log_ent *e;
@@ -251,7 +249,7 @@ static int worker_oplog_collect_and_sort(void *arg) {
 
 	bonsai_print("pflush thread <%d, %d> collect and sort %d log lists\n", owork->node, owork->id, owork->count);
 
-    /* 1. count logs */
+    /* 1. count lps */
 	for (i = 0; i < owork->count; i ++) {
 		block = owork->first_blks[i];
         assert(block != owork->last_blks[i]);
@@ -272,7 +270,7 @@ static int worker_oplog_collect_and_sort(void *arg) {
 		} while(block != owork->last_blks[i]);
     }
 
-    /* 2. collect logs */
+    /* 2. collect lps */
     layer->log_ents[owork->node][owork->id].ents = e = malloc(sizeof(log_ent) * nlog);
 
 	for (i = 0; i < owork->count; i ++) {
@@ -315,7 +313,7 @@ out:
 	/* 3. sort */
 	worker_sort_log(layer, owork->node, owork->id);
 
-	bonsai_print("pflush thread <%d, %d> collect and sort %d logs %d blocks\n", owork->node, owork->id, nlog, nblk);
+	bonsai_print("pflush thread <%d, %d> collect and sort %d lps %d blocks\n", owork->node, owork->id, nlog, nblk);
 	return ret;
 }
 
@@ -365,7 +363,7 @@ static int worker_oplog_flush(void* arg) {
 
 out:
     free(start);
-	bonsai_print("pflush thread <%d, %d> flush %d logs\n", owork->node, owork->id, count);
+	bonsai_print("pflush thread <%d, %d> flush %d lps\n", owork->node, owork->id, count);
 
 	return ret;
 }
@@ -386,7 +384,7 @@ static void free_pages(struct log_layer *layer, struct list_head* page_list) {
  */
 void oplog_flush() {
 	struct log_layer *l_layer = LOG(bonsai);
-    struct log_region *region;
+    struct dimm_log_region *region;
 	volatile struct oplog_blk* first_blks[NUM_CPU_PER_SOCKET];
 	volatile struct oplog_blk* curr_blks[NUM_CPU_PER_SOCKET];
 	volatile struct oplog_blk* curr_blk;
@@ -445,7 +443,7 @@ void oplog_flush() {
             goto out;
         }
 
-        /* 2. merge all logs */
+        /* 2. merge all lps */
 
         /* count number of log blocks */
         num_block = 0;
@@ -504,7 +502,7 @@ void oplog_flush() {
     }
 
     /************************************************
-     *      Per-thread collect and sort logs        *
+     *      Per-thread collect and sort lps        *
      ************************************************/
 
     for (node = 0; node < NUM_SOCKET; node++) {
@@ -526,7 +524,7 @@ void oplog_flush() {
 	if (unlikely(atomic_read(&l_layer->exit))) 
 		goto out;
 
-	/* 3. flush all logs */
+	/* 3. flush all lps */
     for (node = 0; node < NUM_SOCKET; node++) {
         for (cnt = 0; cnt < NUM_PFLUSH_WORKER_PER_NODE; cnt++) {
             work = malloc(sizeof(struct work_struct));
@@ -563,7 +561,7 @@ out:
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }
 
-static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t key) {
+static struct oplog* scan_one_cpu_log_region(struct dimm_log_region *region, pkey_t key) {
 	volatile struct oplog_blk* block;
 	struct oplog *log;
 	int i;
@@ -593,7 +591,7 @@ static struct oplog* scan_one_cpu_log_region(struct log_region *region, pkey_t k
  */
 struct oplog* log_layer_search_key(int cpu, pkey_t key) {
 	struct log_layer *l_layer = LOG(bonsai);
-	struct log_region *region;
+	struct dimm_log_region *region;
 	struct oplog* log = NULL;
 
 	if (cpu != -1) {

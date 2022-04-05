@@ -9,7 +9,7 @@ extern "C" {
 #include <stdio.h>
 #include <assert.h>
 
-#include "numa_config.h"
+#include "hwconfig.h"
 
 #define NOCPU	(-1)
 #define MAXCPU	48

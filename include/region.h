@@ -11,36 +11,8 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-#define LOG_REGION_SIZE		3 * 1024 / 4 * 1024 * 1024ULL  /* 0.75 GB */
-#define DATA_REGION_SIZE	1 * 1024 * 1024 * 1024ULL  /* 1 GB */
-
-struct log_page_desc {
-	__le64 p_off; /* page offset */
-	__le64 p_num_blk; /* how many log block in this page */
-	__le64 p_prev; /* previous log page */ 
-	__le64 p_next; /* next log page */ 
-}__packed;
-
-struct log_region_desc {
-	__le64 r_off; /* region offset */
-	__le64 r_size; /* region size */	
-	__le64 r_oplog_top; /* oplog top */
-}__packed;
-
-struct log_region {
-	volatile struct oplog_blk* first_blk;
-	volatile struct oplog_blk* curr_blk;
-	spinlock_t lock; /* protect curr_blk & first_blk */
-
-	unsigned long vaddr; /* mapped address of all log region of this NUMA node */
-	unsigned long start; /* start address of this log region */
-	struct log_region_desc *desc;
-
-	spinlock_t free_lock;
-	spinlock_t inuse_lock;
-	struct log_page_desc* free;
-	struct log_page_desc* inuse;
-};
+#define LOG_REGION_SIZE		3 * 1024 / 4 * 1024 * 1024UL  /* 0.75 GB */
+#define DATA_REGION_SIZE	1 * 1024 * 1024 * 1024UL      /* 1 GB */
 
 struct data_region {
 	PMEMobjpool* pop;

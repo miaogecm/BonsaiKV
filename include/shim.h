@@ -5,24 +5,29 @@
 extern "C" {
 #endif
 
-#include "common.h"
-#include "numa_config.h"
-#include "list.h"
-#include "rwlock.h"
-#include "seqlock.h"
 #include "kfifo.h"
-#include "ordo.h"
+#include "pnode.h"
 
-#define MPTABLE_POOL_SIZE      (2 * 1024 * 1024 * 1024ul)      // 2GB
-
-struct mptable_pool;
+#define SNODE_POOL_SIZE                         (2 * 1024 * 1024 * 1024ul)
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
+
+typedef struct {
+    pnoid_t pno;
+    pkey_t  pfence;
+} shim_sync_pfence_t;
+
+struct snode;
 
 struct smo_log {
     unsigned long ts;
     pkey_t k;
-    pval_t v;
+    void *v;
+};
+
+struct snode_pool {
+    void *start;
+    struct snode *freelist;
 };
 
 struct shim_layer {
@@ -30,16 +35,17 @@ struct shim_layer {
 
     DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
 
-    struct mptable_pool *pool;
+    struct snode      *head;
+    struct snode_pool *pool;
 };
 
-int shim_layer_init(struct shim_layer *s_layer);
-int shim_upsert(pkey_t key, pentry_t *val_ent);
-int shim_remove(pkey_t key);
+int shim_layer_init(struct shim_layer *layer);
+int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid);
+int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);
-int shim_update(pkey_t key, const pentry_t *old_ent, pentry_t *new_ent);
-int shim_scan(pkey_t lo, pkey_t hi, pkey_t *arr);
-void shim_dump();
+int shim_sync(log_state_t *lst, shim_sync_pfence_t *pfences);
+pnode_t *shim_pnode_of(pkey_t key);
+void shim_cleanup(log_state_t *lst);
 
 #ifdef __cplusplus
 }

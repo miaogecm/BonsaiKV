@@ -48,7 +48,7 @@ typedef uint8_t		__le8;
 
 #ifdef STR_KEY
 
-#define KEY_LEN             32
+#define KEY_LEN             24
 
 #define MAX_KEY             ((pkey_t) { "\x7f" })
 #define MIN_KEY             ((pkey_t) { "" })
@@ -70,7 +70,7 @@ typedef struct {
 
 typedef struct pentry {
     pkey_t k;
-    __le64 v : 48;
+    __le64 v;
 } __attribute__((packed)) pentry_t;
 
 #define EOPEN		104 /* open file error */

@@ -7,9 +7,18 @@ extern "C" {
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define __BITS_PER_LONG 64
 #define	  BITS_PER_LONG 64
+
+#if BITS_PER_LONG == 32
+# define _BITOPS_LONG_SHIFT 5
+#elif BITS_PER_LONG == 64
+# define _BITOPS_LONG_SHIFT 6
+#else
+# error "Unexpected BITS_PER_LONG"
+#endif
 
 /*
  * These have to be done with inline assembly: that way the bit-setting
@@ -184,6 +193,12 @@ static unsigned long _find_next_bit(const unsigned long *addr,
 	return min(start + __ffs(tmp), nbits);
 }
 
+static unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
+			    unsigned long offset)
+{
+	return _find_next_bit(addr, size, offset, 0UL);
+}
+
 static unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long size,
 				unsigned long offset)
 {
@@ -207,6 +222,53 @@ static unsigned long find_first_zero_bit(const unsigned long *addr, unsigned lon
 
 	return size;
 }
+
+static unsigned long find_first_bit(const unsigned long *addr, unsigned long size)
+{
+	unsigned long idx;
+
+	for (idx = 0; idx * BITS_PER_LONG < size; idx++) {
+		if (addr[idx])
+			return min(idx * BITS_PER_LONG + __ffs(addr[idx]), size);
+	}
+
+	return size;
+}
+
+/*
+ * Macros to generate condition code outputs from inline assembly,
+ * The output operand must be type "bool".
+ */
+#ifdef __GCC_ASM_FLAG_OUTPUTS__
+# define CC_SET(c) "\n\t/* output condition code " #c "*/\n"
+# define CC_OUT(c) "=@cc" #c
+#else
+# define CC_SET(c) "\n\tset" #c " %[_cc_" #c "]\n"
+# define CC_OUT(c) [_cc_ ## c] "=qm"
+#endif
+
+static __always_inline bool constant_test_bit(long nr, const volatile unsigned long *addr)
+{
+	return ((1UL << (nr & (BITS_PER_LONG-1))) &
+		(addr[nr >> _BITOPS_LONG_SHIFT])) != 0;
+}
+
+static __always_inline bool variable_test_bit(long nr, volatile const unsigned long *addr)
+{
+	bool oldbit;
+
+	asm volatile("bt %2,%1"
+		     CC_SET(c)
+		     : CC_OUT(c) (oldbit)
+		     : "m" (*(unsigned long *)addr), "Ir" (nr));
+
+	return oldbit;
+}
+
+#define test_bit(nr, addr)			\
+	(__builtin_constant_p((nr))		\
+	 ? constant_test_bit((nr), (addr))	\
+	 : variable_test_bit((nr), (addr)))
 
 #define small_const_nbits(nbits) \
 	(__builtin_constant_p(nbits) && (nbits) <= BITS_PER_LONG)
@@ -254,6 +316,11 @@ static __always_inline int bitmap_weight(const unsigned long *src, unsigned int 
 		return hweight_long(*src & BITMAP_LAST_WORD_MASK(nbits));
 	return __bitmap_weight(src, nbits);
 }
+
+#define for_each_set_bit(bit, addr, size) \
+	for ((bit) = find_first_bit((addr), (size));		\
+	     (bit) < (size);					\
+	     (bit) = find_next_bit((addr), (size), (bit) + 1))
 
 #ifdef __cplusplus
 }

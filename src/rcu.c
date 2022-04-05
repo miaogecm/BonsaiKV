@@ -10,6 +10,7 @@
 
 #define _GNU_SOURCE
 #include <stdlib.h>
+#include <unistd.h>
 #include "rcu.h"
 #include "arch.h"
 
@@ -67,6 +68,7 @@ int fb_end_barrier(fuzzy_barrier_t *fb) {
 
 void rcu_init(rcu_t *rcu) {
     int i;
+    rcu->fb_cnt = 0;
     for (i = 0; i < RCU_MAX_THREAD_NUM; i++) {
         rcu->cb[i].next_head = rcu->cb[i].next_tail = NULL;
         rcu->cb[i].curr_head = NULL;
@@ -74,6 +76,7 @@ void rcu_init(rcu_t *rcu) {
     }
 }
 
+/* Only online threads can call @call_rcu. */
 void call_rcu(rcu_t *rcu, rcu_cb_t cb, void *aux) {
     /* RCU callback will always run at the local thread. */
     struct rcu_cb_queue *q = &rcu->cb[my_tid];
@@ -89,6 +92,7 @@ void call_rcu(rcu_t *rcu, rcu_cb_t cb, void *aux) {
     q->next_tail = item;
 }
 
+/* Only online threads can call @rcu_quiescent. */
 void rcu_quiescent(rcu_t *rcu) {
     struct rcu_cb_queue *q = &rcu->cb[my_tid];
     fuzzy_barrier_t *fb = &rcu->fb;
@@ -110,6 +114,24 @@ void rcu_quiescent(rcu_t *rcu) {
         q->next_head = q->next_tail = NULL;
     }
     if (fb_try_barrier(fb)) {
+        rcu->fb_cnt++;
         fb_end_barrier(fb);
+    }
+}
+
+int rcu_now(rcu_t *rcu) {
+    return rcu->fb_cnt;
+}
+
+/*
+ * Semantics of @rcu_synchronize:
+ * Wait until each online thread has passed through a quiescent state
+ * since @since, which can be derived from @rcu_now.
+ */
+void rcu_synchronize(rcu_t *rcu, int since) {
+    smp_mb();
+
+    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2) {
+        usleep(1000);
     }
 }

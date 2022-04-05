@@ -17,8 +17,8 @@
 #include <sys/types.h> 
 
 #include "bonsai.h"
-#include "numa_config.h"
-#include "shim.h"
+#include "hwconfig.h"
+#include "shim_old.h"
 #include "pnode.h"
 #include "epoch.h"
 #include "cpu.h"

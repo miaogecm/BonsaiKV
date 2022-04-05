@@ -5,10 +5,15 @@
 extern "C" {
 #endif
 
+#include <pthread.h>
+
 #include "atomic.h"
 #include "list.h"
 #include "common.h"
 #include "arch.h"
+
+#define OPLOG_NUM_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
+#define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)
 
 typedef enum {
 	OP_NONE = -1,
@@ -16,53 +21,51 @@ typedef enum {
 	OP_REMOVE,
 } optype_t;
 
-/*
- * operation log definition in log layer
- * For integer keys, each oplog is 23 bytes. We pack 10 oplogs in 4 cache lines (rest: 26),
- * For string keys, each oplog is 47 bytes. We pack 5 oplogs in 4 cache lines (rest: 21),
- * which is called oplog block.
- */
+typedef struct {
+    int turn;
+} log_state_t;
+
+typedef uint32_t logid_t;
+
+/* 48B/32B */
 struct oplog {
-    pentry_t    o_kv;    /* key-value pair */
-	__le64 		o_stamp; /* time stamp */
-	__le8 		o_type;  /* OP_INSERT or OP_REMOVE */
-}__packed;
+    pentry_t o_kv;    /* key-value pair */
+	__le64   o_stamp; /* time stamp */
+	__le64   o_type;  /* OP_INSERT or OP_REMOVE */
+} __packed;
 
-#ifdef STR_KEY
-#define NUM_OPLOG_PER_BLK	5
-#else
-#define NUM_OPLOG_PER_BLK	10
-#endif
+struct cpu_log_region_meta {
+    __le32 start, end;
+} __packed;
 
-/*
- * oplog_blk: 256 bytes
- */
-struct oplog_blk {
-	struct oplog logs[NUM_OPLOG_PER_BLK];
-	__le8 cpu; /* which CPU */
-	__le8 cnt; /* how many logs in oplog block */
-	__le64 epoch; /* epoch */
-	__le64 next; /* next oplog block */
-#ifdef STR_KEY
-    char padding[3];
-#else
-    char padding[8];
-#endif
-}__packed;
+struct cpu_log_region {
+    struct cpu_log_region_meta meta;
+    struct oplog logs[OPLOG_NUM_PER_CPU];
+} __packed;
 
-#define OPLOG(val)      (struct oplog*)(val)
+struct dimm_log_region {
+    struct cpu_log_region regions[NUM_CPU_PER_LOG_DIMM];
+} __packed;
 
-#define OPLOG_BLK_MASK	0xFFFFFFFFFFFFFF00
-#define OPLOG_BLK(addr)	(struct oplog_blk*)((unsigned long)addr & OPLOG_BLK_MASK)
+struct cpu_log_region_desc {
+    struct cpu_log_region *region;
+    pthread_mutex_t *dimm_lock;
+
+    size_t size;
+    struct oplog *lcb;
+};
+
+struct log_region_desc {
+    struct cpu_log_region_desc descs[NUM_CPU];
+};
+
+struct oplog *oplog_get(logid_t logid);
 
 struct pnode;
 struct mptable;
-struct log_region;
 struct log_layer;
 
-extern struct oplog* alloc_oplog(struct log_region* region, int cpu);
-
-extern struct oplog *oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu);
+extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu);
 
 extern void oplog_flush();
 

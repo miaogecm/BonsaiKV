@@ -26,7 +26,7 @@ typedef void (*signal_handler_t)(int);
 void try_run_epoch() {
 	int cpu = __this->t_cpu;
 	struct log_layer* layer = LOG(bonsai);
-	struct log_region *region = &layer->region[cpu];
+	struct dimm_log_region *region = &layer->region[cpu];
 	__le64 old_epoch = bonsai->desc->epoch, new_epoch = old_epoch + 1;
 
     if (likely(atomic_read(&layer->epoch_passed) <= 1 || __this->t_epoch == new_epoch)) {

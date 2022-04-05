@@ -24,19 +24,19 @@
 #include "region.h"
 #include "cpu.h"
 #include "pnode.h"
-#include "numa_config.h"
+#include "hwconfig.h"
 
-static char *log_region_fpath[NUM_SOCKET] = {
-	"/mnt/ext4/node0/region0",
+static char *log_region_fpath[NUM_DIMM] = {
+	"/mnt/ext4/dimm0/",
 	"/mnt/ext4/node1/region1"
 };
 
-static char* data_region_fpath[NUM_SOCKET] = {
+static char* data_region_fpath[NUM_DIMM] = {
 	"/mnt/ext4/node0/objpool0",
 	"/mnt/ext4/node1/objpool1"
 };
 
-void free_log_page(struct log_region *region, struct log_page_desc* page) {
+void free_log_page(struct dimm_log_region *region, struct log_page_desc* page) {
 	struct log_page_desc* prev_page = NULL, *next_page = NULL;
 
 	spin_lock(&region->inuse_lock);
@@ -72,7 +72,7 @@ void free_log_page(struct log_region *region, struct log_page_desc* page) {
 	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
 }
 
-struct log_page_desc* alloc_log_page(struct log_region *region) {
+struct log_page_desc* alloc_log_page(struct dimm_log_region *region) {
 	struct log_page_desc* page;
 
 	spin_lock(&region->free_lock);
@@ -104,8 +104,8 @@ static inline void init_log_page(struct log_page_desc* page, off_t page_off, int
 	page->p_next = last ? -PAGE_SIZE : (page_off + PAGE_SIZE);
 }
 
-static void init_per_cpu_log_region(struct log_region* region, struct log_region_desc *desc, unsigned long start,
-			unsigned long vaddr, off_t offset, size_t size) {
+static void init_per_cpu_log_region(struct dimm_log_region* region, struct log_region_desc *desc, unsigned long start,
+                                    unsigned long vaddr, off_t offset, size_t size) {
 	int i, num_page = LOG_REGION_SIZE / NUM_CPU_PER_SOCKET / PAGE_SIZE;
 
 	desc->r_off = offset;
@@ -144,7 +144,7 @@ void log_region_deinit(struct log_layer* layer) {
 
 int log_region_init(struct log_layer* layer, struct bonsai_desc* bonsai) {
 	struct log_region_desc *desc;
-	struct log_region *region;
+	struct dimm_log_region *region;
 	int node, cpu_idx, fd, cpu, error = 0;
 	size_t size_per_cpu = LOG_REGION_SIZE / NUM_CPU_PER_SOCKET;
 	char *vaddr, *start;
