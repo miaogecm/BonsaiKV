@@ -111,28 +111,29 @@ static inline unsigned int max_cpu_freq(void)
 
 #define cache_prefetchw_low(__ptr) __builtin_prefetch((void *)__ptr, 1, 0)
 
-static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
-#if 1
-    uint32_t i;
-    int support_clwb = 0;
-
+static inline void persistent_barrier() {
 #ifdef ARCH_SUPPORT_CLWB
-    support_clwb = 1;
+    memory_sfence();
+#else
+    memory_mfence();
 #endif
+}
+
+static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
+    uint32_t i;
 
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE) {
-        if (support_clwb) {
+#ifdef ARCH_SUPPORT_CLWB
             clwb(buf + i);
-        } else {
+#else
             clflush(buf + i);
-        }
+#endif
     }
 
 	if (fence) {
-        (support_clwb ? memory_sfence : memory_mfence)();
+        persistent_barrier();
     }
-#endif
 }
 
 static void memcpy_nt(void *dst, void *src, size_t len, int fence) {

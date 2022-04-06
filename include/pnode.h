@@ -11,27 +11,7 @@ extern "C" {
 #include "common.h"
 #include "hwconfig.h"
 
-#define PNODE_FANOUT            56
-
-#define PNODE_FULL_VALIDMAP     ((1ul << PNODE_FANOUT) - 1)
-
-#define PNOID_NONE              (-1u)
-
 typedef uint32_t pnoid_t;
-
-typedef struct pnode {
-    /* cacheline 0 */
-    __le64        validmap;
-    __le8         fgprt[PNODE_FANOUT];
-
-    /* cacheline [1, 28] */
-    pentry_t      ents[PNODE_FANOUT];
-
-    /* cacheline 29 */
-    rwlock_t     *lock;
-    pkey_t        anchor;
-    pnoid_t       prev, next;
-} pnode_t;
 
 typedef struct {
     enum {
@@ -44,23 +24,21 @@ typedef struct {
     int    done;
 } pbatch_op_t;
 
-static inline int pnode_color(pnode_t *pnode) {
+static inline int pnode_color(pnoid_t pnode) {
 
 }
 
-void pnode_split_and_recolor(pnode_t **pnode, pnode_t **sibling, pkey_t *cut, int lc, int rc);
-void pnode_run_batch(pnode_t *pnode, pbatch_op_t *ops);
+void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
+void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops);
 
-static inline void pnode_split(pnode_t **pnode, pnode_t **sibling, pkey_t *cut) {
+int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
+
+static inline void pnode_split(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut) {
     pnode_split_and_recolor(pnode, sibling, cut, pnode_color(*pnode), pnode_color(*sibling));
 }
 
-static inline void pnode_recolor(pnode_t **pnode, int c) {
+static inline void pnode_recolor(pnoid_t *pnode, int c) {
     pnode_split_and_recolor(pnode, NULL, NULL, c, c);
-}
-
-static inline pnode_t *pnode_get(pnoid_t id) {
-    return NULL;
 }
 
 #ifdef __cplusplus

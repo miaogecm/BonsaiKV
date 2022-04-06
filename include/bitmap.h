@@ -288,8 +288,33 @@ static __always_inline bool variable_test_bit(long nr, volatile const unsigned l
 #define __const_hweight32(w) (__const_hweight16(w) + __const_hweight16((w) >> 16))
 #define __const_hweight64(w) (__const_hweight32(w) + __const_hweight32((w) >> 32))
 
-#define hweight32(w) __const_hweight32(w)
-#define hweight64(w) __const_hweight64(w) 
+#define hweight32(w) (__builtin_constant_p(w) ? __const_hweight32(w) : __arch_hweight32(w))
+#define hweight64(w) (__builtin_constant_p(w) ? __const_hweight64(w) : __arch_hweight64(w))
+
+/* popcnt %edi, %eax */
+#define POPCNT32 ".byte 0xf3,0x0f,0xb8,0xc7"
+/* popcnt %rdi, %rax */
+#define POPCNT64 ".byte 0xf3,0x48,0x0f,0xb8,0xc7"
+#define REG_IN "D"
+#define REG_OUT "a"
+
+static __always_inline unsigned long __arch_hweight64(unsigned long w)
+{
+	unsigned long res;
+
+	asm (POPCNT64 : "="REG_OUT (res) : REG_IN (w));
+
+	return res;
+}
+
+static __always_inline unsigned int __arch_hweight32(unsigned int w)
+{
+	unsigned int res;
+
+	asm (POPCNT32 : "="REG_OUT (res) : REG_IN (w));
+
+	return res;
+}
 
 static __always_inline unsigned long hweight_long(unsigned long w)
 {

@@ -44,8 +44,7 @@ int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid);
 int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);
 int shim_sync(log_state_t *lst, shim_sync_pfence_t *pfences);
-pnode_t *shim_pnode_of(pkey_t key);
-void shim_cleanup(log_state_t *lst);
+pnoid_t shim_pnode_of(pkey_t key);
 
 #ifdef __cplusplus
 }

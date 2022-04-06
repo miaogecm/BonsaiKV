@@ -76,7 +76,10 @@ struct log_layer {
 
 struct data_layer {
 	struct data_region region[NUM_SOCKET];
-    struct pnode *sentinel;
+    pnoid_t sentinel;
+
+    /* Protect the pnode list. */
+    spinlock_t plist_lock;
 };
 
 #define REGION_FPATH_LEN	19

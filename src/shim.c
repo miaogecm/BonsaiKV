@@ -405,7 +405,7 @@ static unsigned snode_find_(lp_t *lp, snode_t *snode, pkey_t key, uint8_t *fgprt
     return NOT_FOUND;
 }
 
-static unsigned snode_find(snode_t *snode, pkey_t key) {
+static inline unsigned snode_find(snode_t *snode, pkey_t key) {
     lp_t lp;
     return snode_find_(&lp, snode, key, snode->fgprt, snode->validmap);
 }
