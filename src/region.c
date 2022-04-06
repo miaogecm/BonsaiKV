@@ -27,82 +27,34 @@
 #include "hwconfig.h"
 
 static char *log_region_fpath[NUM_DIMM] = {
-	"/mnt/ext4/dimm0/",
-	"/mnt/ext4/node1/region1"
+	"/mnt/ext4/dimm0/log",
+	"/mnt/ext4/dimm1/log",
+	"/mnt/ext4/dimm2/log",
+	"/mnt/ext4/dimm3/log",
+	"/mnt/ext4/dimm4/log",
+	"/mnt/ext4/dimm5/log",
+	"/mnt/ext4/dimm6/log",
+	"/mnt/ext4/dimm7/log",
+	"/mnt/ext4/dimm8/log",
+	"/mnt/ext4/dimm9/log",
+	"/mnt/ext4/dimm10/log",
+	"/mnt/ext4/dimm11/log",
 };
 
 static char* data_region_fpath[NUM_DIMM] = {
-	"/mnt/ext4/node0/objpool0",
-	"/mnt/ext4/node1/objpool1"
+	"/mnt/ext4/dimm0/objpool",
+	"/mnt/ext4/dimm1/objpool",
+	"/mnt/ext4/dimm2/objpool",
+	"/mnt/ext4/dimm3/objpool",
+	"/mnt/ext4/dimm4/objpool",
+	"/mnt/ext4/dimm5/objpool",
+	"/mnt/ext4/dimm6/objpool",
+	"/mnt/ext4/dimm7/objpool",
+	"/mnt/ext4/dimm8/objpool",
+	"/mnt/ext4/dimm9/objpool",
+	"/mnt/ext4/dimm10/objpool",
+	"/mnt/ext4/dimm11/objpool",
 };
-
-void free_log_page(struct dimm_log_region *region, struct log_page_desc* page) {
-	struct log_page_desc* prev_page = NULL, *next_page = NULL;
-
-	spin_lock(&region->inuse_lock);
-	if (page->p_prev != -PAGE_SIZE)
-		prev_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_prev);
-	if (page->p_next != -PAGE_SIZE)
-		next_page = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-
-	if (prev_page && next_page) {
-		prev_page->p_next = page->p_next;
-		next_page->p_prev = page->p_prev;
-	} else if (!prev_page && next_page) {
-		/* I am the first */
-		next_page->p_prev = -PAGE_SIZE;
-		region->inuse = next_page;
-	} else if (prev_page && !next_page) {
-		/* I am the last */
-		prev_page->p_next = -PAGE_SIZE;
-	} else {
-		/* I am the only one */
-		region->inuse = NULL;
-	}
-	spin_unlock(&region->inuse_lock);
-
-	page->p_prev = -PAGE_SIZE;
-
-	spin_lock(&region->free_lock);
-	page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->free);
-	region->free->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
-	region->free = page;
-	spin_unlock(&region->free_lock);
-
-	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
-}
-
-struct log_page_desc* alloc_log_page(struct dimm_log_region *region) {
-	struct log_page_desc* page;
-
-	spin_lock(&region->free_lock);
-	page = region->free;
-    assert(page->p_next != -PAGE_SIZE);
-	region->free = (struct log_page_desc*)LOG_REGION_OFF_TO_ADDR(region, page->p_next);
-	region->free->p_prev = -PAGE_SIZE;
-	spin_unlock(&region->free_lock);
-
-	spin_lock(&region->inuse_lock);
-	if (likely(region->inuse)) {
-		page->p_next = LOG_REGION_ADDR_TO_OFF(region, region->inuse);
-		region->inuse->p_prev = LOG_REGION_ADDR_TO_OFF(region, page);
-	} else
-		page->p_next = -PAGE_SIZE;
-		
-	region->inuse = page;
-	spin_unlock(&region->inuse_lock);
-
-	bonsai_flush((void*)page, sizeof(struct log_page_desc), 1);
-
-	return page;
-}
-
-static inline void init_log_page(struct log_page_desc* page, off_t page_off, int first, int last) {
-	page->p_off = page_off;
-	page->p_num_blk = 0;
-	page->p_prev = first ? -PAGE_SIZE : (page_off - PAGE_SIZE);
-	page->p_next = last ? -PAGE_SIZE : (page_off + PAGE_SIZE);
-}
 
 static void init_per_cpu_log_region(struct dimm_log_region* region, struct log_region_desc *desc, unsigned long start,
                                     unsigned long vaddr, off_t offset, size_t size) {
@@ -203,18 +155,18 @@ static inline int file_exists(const char *filename) {
 
 int data_region_init(struct data_layer *layer) {
 	struct data_region *region;
-	int node;
+	int dimm;
 	PMEMobjpool* pop;
 
-	for (node = 0; node < NUM_SOCKET; node ++) {
-		region = &layer->region[node];
+	for (dimm = 0; dimm < NUM_DIMM; dimm ++) {
+		region = &layer->region[dimm];
 		
-		if (!file_exists(data_region_fpath[node])) {
+		if (!file_exists(data_region_fpath[dimm])) {
 			perror("create a existed new pmdk pool");
 			return -EPMEMOBJ;
 		}
 		
-		if ((pop = pmemobj_create(data_region_fpath[node], 
+		if ((pop = pmemobj_create(data_region_fpath[dimm],
 								POBJ_LAYOUT_NAME(BONSAI),
                               	DATA_REGION_SIZE, 0666)) == NULL) {
 			perror("fail to create object pool");
@@ -223,8 +175,8 @@ int data_region_init(struct data_layer *layer) {
 		region->pop = pop;
 		region->start = (unsigned long)pop;
 
-		bonsai_print("data_region_init node[%d] region: [%016lx, %016lx]\n", 
-			node, pop, (unsigned long)pop + DATA_REGION_SIZE);
+		bonsai_print("data_region_init dimm[%d] region: [%016lx, %016lx]\n",
+                     dimm, pop, (unsigned long)pop + DATA_REGION_SIZE);
 	}
 
 	return 0;

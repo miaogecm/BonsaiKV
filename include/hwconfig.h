@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-#define NUM_CPU                 12
-#define NUM_DIMM                6
+#define NUM_CPU                 48
+#define NUM_DIMM                12
 #define NUM_SOCKET              2
 #define NUM_CPU_PER_SOCKET      (NUM_CPU / NUM_SOCKET)
 #define NUM_DIMM_PER_SOCKET     (NUM_DIMM / NUM_SOCKET)

@@ -22,8 +22,6 @@
 #define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pnoent_t) / PNODE_INTERLEAVING_SIZE)
 #define PNODE_NUM_BLK           (PNODE_NUM_ENT_BLK + 1)
 
-#define PNOID_NULL              (-1u)
-
 #define NOT_FOUND               (-1u)
 
 static unsigned global_epoch;
@@ -40,7 +38,7 @@ typedef struct inode {
     /* cacheline 0 */
     __le64        validmap;
     __le8         fgprt[PNODE_FANOUT];
-    __le64        padding;
+    __le64        free;
 
     /* cacheline 1 */
     rwlock_t     *lock;
@@ -55,14 +53,98 @@ typedef struct dnode {
 
 #define PNODE_NUM_PERMUTE       64
 
-extern int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK];
+int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK] = {
+    { 5, 3, 2, 1, 4, 0 }, 
+    { 5, 0, 2, 3, 1, 4 }, 
+    { 1, 3, 2, 5, 4, 0 }, 
+    { 2, 4, 3, 5, 0, 1 }, 
+    { 2, 3, 1, 5, 4, 0 }, 
+    { 4, 3, 0, 2, 1, 5 }, 
+    { 2, 1, 3, 0, 4, 5 }, 
+    { 4, 1, 5, 2, 0, 3 }, 
+    { 4, 2, 0, 5, 3, 1 }, 
+    { 3, 1, 4, 2, 0, 5 }, 
+    { 0, 1, 3, 4, 2, 5 }, 
+    { 5, 4, 1, 3, 0, 2 }, 
+    { 3, 5, 1, 0, 4, 2 }, 
+    { 0, 3, 5, 2, 4, 1 }, 
+    { 3, 2, 0, 5, 1, 4 }, 
+    { 1, 3, 2, 4, 5, 0 }, 
+    { 2, 4, 0, 1, 3, 5 }, 
+    { 5, 1, 3, 2, 0, 4 }, 
+    { 5, 0, 4, 2, 1, 3 }, 
+    { 1, 4, 2, 5, 0, 3 }, 
+    { 2, 0, 4, 3, 5, 1 }, 
+    { 2, 5, 4, 0, 3, 1 }, 
+    { 2, 1, 0, 4, 3, 5 }, 
+    { 0, 5, 1, 2, 3, 4 }, 
+    { 5, 2, 4, 0, 1, 3 }, 
+    { 4, 2, 5, 1, 3, 0 }, 
+    { 0, 3, 5, 4, 2, 1 }, 
+    { 3, 2, 1, 4, 5, 0 }, 
+    { 3, 2, 4, 0, 1, 5 }, 
+    { 0, 3, 5, 1, 2, 4 }, 
+    { 2, 4, 5, 0, 3, 1 }, 
+    { 5, 1, 2, 4, 3, 0 }, 
+    { 2, 4, 3, 0, 1, 5 }, 
+    { 2, 5, 4, 3, 1, 0 }, 
+    { 3, 4, 1, 5, 0, 2 }, 
+    { 4, 0, 2, 3, 1, 5 }, 
+    { 3, 4, 5, 1, 0, 2 }, 
+    { 4, 1, 2, 3, 5, 0 }, 
+    { 1, 3, 0, 5, 4, 2 }, 
+    { 3, 5, 1, 0, 4, 2 }, 
+    { 4, 0, 5, 1, 2, 3 }, 
+    { 4, 0, 3, 2, 5, 1 }, 
+    { 3, 1, 4, 2, 0, 5 }, 
+    { 0, 1, 2, 4, 5, 3 }, 
+    { 5, 3, 1, 4, 0, 2 }, 
+    { 1, 5, 4, 0, 2, 3 }, 
+    { 0, 4, 1, 2, 3, 5 }, 
+    { 0, 1, 2, 4, 3, 5 }, 
+    { 1, 5, 0, 4, 2, 3 }, 
+    { 5, 4, 2, 1, 0, 3 }, 
+    { 1, 5, 3, 0, 2, 4 }, 
+    { 2, 5, 1, 0, 3, 4 }, 
+    { 5, 1, 3, 2, 4, 0 }, 
+    { 2, 5, 1, 3, 0, 4 }, 
+    { 1, 3, 5, 0, 2, 4 }, 
+    { 4, 2, 5, 1, 3, 0 }, 
+    { 0, 2, 5, 3, 1, 4 }, 
+    { 4, 2, 1, 3, 5, 0 }, 
+    { 1, 5, 2, 4, 0, 3 }, 
+    { 1, 4, 3, 0, 5, 2 }, 
+    { 1, 0, 4, 5, 2, 3 }, 
+    { 3, 0, 4, 1, 2, 5 }, 
+    { 0, 2, 4, 5, 1, 3 }, 
+    { 0, 5, 3, 1, 2, 4 }, 
+};
+
+union pnoid_u {
+    struct {
+        uint32_t node : 3;
+        uint32_t off  : 29;
+    };
+    pnoid_t id;
+};
+
+static inline int pnode_node(pnoid_t pno) {
+    union pnoid_u u = { .id = pno };
+    return (int) u.node;
+}
+
+static inline unsigned long pnode_off(pnoid_t pno) {
+    union pnoid_u u = { .id = pno };
+    return u.off * (unsigned long) PNODE_INTERLEAVING_SIZE;
+}
 
 static inline int *pnode_permute(pnoid_t pno) {
     return pnode_dimm_permute[pno % PNODE_NUM_PERMUTE];
 }
 
-static inline void *pnode_dimm_addr(pnoid_t pno, int dimm) {
-
+static inline void *pnode_dimm_addr(pnoid_t pno, int dimm_idx) {
+    int node = pnode_node(pno), dimm = node_to_dimm(node, dimm_idx);
+    return (void *) DATA(bonsai)->region[dimm].start + pnode_off(pno);
 }
 
 static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
@@ -73,12 +155,19 @@ static inode_t *pnode_meta(pnoid_t pno) {
     return pnode_get_blk(pno, 0);
 }
 
-static inline int pnode_node(pnoid_t pno) {
-
-}
-
-static inline pnoent_t *ent_node_cvt(pnoent_t *ent, int to, int from) {
-
+static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node) {
+    struct data_layer *d_layer = DATA(bonsai);
+    int dimm_idx, dimm;
+    void *start;
+    for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
+        dimm = node_to_dimm(from_node, dimm_idx);
+        start = (void *) d_layer->region[dimm].start;
+        if (ptr >= start && ptr < start + DATA_REGION_SIZE) {
+            dimm = node_to_dimm(to_node, dimm_idx);
+            return (void *) d_layer->region[dimm].start + (ptr - start);
+        }
+    }
+    assert(0);
 }
 
 static inline pnoent_t *ent_fetch(pnoent_t *ent, int node) {
@@ -91,7 +180,7 @@ static inline pnoent_t *ent_fetch(pnoent_t *ent, int node) {
         return ent;
     }
 
-    local = ent_node_cvt(ent, my, node);
+    local = pnoptr_cvt_node(ent, my, node);
     epoch = global_epoch;
     if (epoch > local->epoch + 1) {
         /* At lease one epoch in between. It's invalidated. */

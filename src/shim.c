@@ -91,11 +91,11 @@ static inline void pack_pptr(void **pptr, snode_t *snode, pnoid_t pnode) {
     *pptr = ((struct pptr) {{{ snode_ptr2off(snode), pnode }}}).pptr;
 }
 
-static inline void unpack_pptr(snode_t **snode, struct pnode **pnode, void *pptr) {
+static inline void unpack_pptr(snode_t **snode, pnoid_t *pnode, void *pptr) {
     struct pptr p;
     p.pptr = pptr;
     *snode = snode_off2ptr(p.snode);
-    *pnode = pnode_get(p.pnode);
+    *pnode = p.pnode;
 }
 
 void do_smo() {
@@ -106,7 +106,7 @@ void do_smo() {
     struct smo_log log;
     int cpu, min_cpu;
     void *key, *pptr;
-    pnode_t *pno;
+    pnoid_t pno;
 
     while (1) {
         min_ts = ULONG_MAX;
@@ -462,8 +462,8 @@ relookup:
     return ret;
 }
 
-static int go_down(struct pnode *pnode, pkey_t key, pval_t *val) {
-
+static int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {
+    return pnode_lookup(pnode, key, val);
 }
 
 static inline void fgprt_copy(uint8_t *dst, const uint8_t *src) {
@@ -475,9 +475,9 @@ static inline void fgprt_copy(uint8_t *dst, const uint8_t *src) {
 int shim_lookup(pkey_t key, pval_t *val) {
     uint8_t fgprt[SNODE_FANOUT];
     snode_t *snode, *next;
-    struct pnode *pnode;
     uint32_t validmap;
     unsigned int seq;
+    pnoid_t pnode;
     unsigned pos;
     pkey_t max;
     lp_t lp;
@@ -514,7 +514,7 @@ retry:
     }
 
     /* Value in pnode. */
-    pnode = pnode_get(ACCESS_ONCE(snode->pno));
+    pnode = ACCESS_ONCE(snode->pno);
 
     ret = -ENOENT;
 
@@ -530,8 +530,8 @@ done:
     return ret;
 }
 
-struct pnode *shim_pnode_of(pkey_t key) {
-    return pnode_get(snode_seek(key, 0)->pno);
+pnoid_t shim_pnode_of(pkey_t key) {
+    return snode_seek(key, 0)->pno;
 }
 
 static inline int snode_remove_old(log_state_t *lst, snode_t *prev, snode_t *snode, pkey_t fence) {
@@ -629,7 +629,7 @@ no_split:
 
             snode->pfence = pos;
 
-            if (++p->pno == PNOID_NONE) {
+            if (++p->pno == PNOID_NULL) {
                 break;
             }
         } else {

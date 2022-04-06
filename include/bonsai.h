@@ -75,7 +75,7 @@ struct log_layer {
 };
 
 struct data_layer {
-	struct data_region region[NUM_SOCKET];
+	struct data_region region[NUM_DIMM];
     pnoid_t sentinel;
 
     /* Protect the pnode list. */
@@ -136,7 +136,7 @@ extern struct bonsai_info* bonsai;
 
 static inline int pkey_compare(pkey_t a, pkey_t b) {
 #ifdef STR_KEY
-#if KEY_LEN != 32
+#if KEY_LEN != 24
 #error "Unsupported key length!"
 #endif
     unsigned long pos;
@@ -175,7 +175,7 @@ static inline pkey_t pkey_to_str(pkey_t k) {
 
 static inline pkey_t pkey_prev(pkey_t k) {
 #ifdef STR_KEY
-#if KEY_LEN != 32
+#if KEY_LEN != 24
 #error "Unsupported key length!"
 #endif
     k.key[KEY_LEN - 1]--;
@@ -192,15 +192,14 @@ static inline pkey_t pkey_prev(pkey_t k) {
 static inline uint8_t pkey_get_signature(pkey_t k) {
     uint8_t res;
 #ifdef STR_KEY
-#if KEY_LEN != 32
+#if KEY_LEN != 24
 #error "Unsupported key length!"
 #endif
     /* 37^i */
     const static uint8_t factor[KEY_LEN] = {
         1, 37, 89, 221, 241, 213, 201, 13,
         225, 133, 57, 61, 209, 53, 169, 109,
-        193, 229, 25, 157, 177, 149, 137, 205,
-        161, 69, 249, 253, 145, 245, 105, 45
+        193, 229, 25, 157, 177, 149, 137, 205
     };
     uint8_t *vector = (uint8_t *) k.key;
     int i;
@@ -231,14 +230,6 @@ extern void bonsai_recover();
 extern void index_layer_dump();
 
 extern pkey_t bonsai_make_key(const void *key, size_t len);
-
-static inline void *node_ptr(void *ptr, int to_node, int from_node) {
-    struct data_layer *d_layer = DATA(bonsai);
-    if (unlikely(!ptr)) {
-        return NULL;
-    }
-    return d_layer->region[to_node].start + (ptr - d_layer->region[from_node].start);
-}
 
 #ifdef __cplusplus
 }

@@ -13,6 +13,8 @@ extern "C" {
 
 typedef uint32_t pnoid_t;
 
+#define PNOID_NULL              (-1u)
+
 typedef struct {
     enum {
         PBO_NONE = 0,
