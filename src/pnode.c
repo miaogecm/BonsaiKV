@@ -41,7 +41,6 @@ typedef struct inode {
     char         padding[16];
 
     /* cacheline 1 */
-    rwlock_t    *lock;
     pnoid_t      prev, next;
     /* [lfence, rfence) */
     pkey_t       lfence, rfence;
@@ -128,7 +127,7 @@ union pnoid_u {
     pnoid_t id;
 };
 
-static inline int pnode_node(pnoid_t pno) {
+int pnode_node(pnoid_t pno) {
     union pnoid_u u = { .id = pno };
     return (int) u.node;
 }
@@ -196,14 +195,14 @@ static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
     return ent_fetch(ent, pnode_node(pno));
 }
 
-static pnoid_t alloc_pnode(int c) {
+static pnoid_t alloc_pnode(int node) {
     struct data_layer *d_layer = DATA(bonsai);
     union pnoid_u id;
 
     do {
         id.id = d_layer->free_list;
     } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->next));
-    id.node = c;
+    id.node = node;
 
     return id.id;
 }
@@ -453,7 +452,7 @@ static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     inode_t *head_ino, *tail_ino, *ino;
     pnoent_t merged[PNODE_FANOUT], *m;
     pnoent_t ents[PNODE_FANOUT], *ent;
-    int color = pnode_color(pnode);
+    int node = pnode_node(pnode);
     unsigned cnt, mcnt, i;
     pbatch_op_t *op;
 
@@ -471,7 +470,7 @@ static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
             }
         }
 
-        tail = alloc_pnode(color);
+        tail = alloc_pnode(node);
         tail_ino = pnode_meta(tail);
         pnode_init_from_arr(tail, m, mcnt);
         if (unlikely(prev == PNOID_NULL)) {
@@ -560,4 +559,9 @@ int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
     }
 
     return ret;
+}
+
+int is_in_pnode(pnoid_t pnode, pkey_t key) {
+    inode_t *ino = pnode_meta(pnode);
+    return pkey_compare(key, ino->lfence) >= 0 && pkey_compare(key, ino->rfence) < 0;
 }

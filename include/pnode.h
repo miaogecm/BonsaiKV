@@ -26,14 +26,17 @@ typedef struct {
     int    done;
 } pbatch_op_t;
 
-static inline int pnode_color(pnoid_t pnode) {
+int pnode_node(pnoid_t pno);
 
+static inline int pnode_color(pnoid_t pno) {
+    return pnode_node(pno);
 }
 
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
 void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops);
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
+int is_in_pnode(pnoid_t pnode, pkey_t key);
 
 static inline void pnode_split(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut) {
     pnode_split_and_recolor(pnode, sibling, cut, pnode_color(*pnode), pnode_color(*sibling));
