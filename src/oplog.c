@@ -150,26 +150,6 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu
     return id.id;
 }
 
-static void try_free_log_page(struct oplog_blk* block, struct list_head* page_list) {
-	struct log_page_desc *page;
-	flush_page_struct *p;
-
-	asm volatile("lock; decl %0" : "+m" (block->cnt));
-
-	if (!ACCESS_ONCE(block->cnt)) {
-		page = LOG_PAGE_DESC(block);
-
-        /* We free the page if and only if we flushed its last block. */
-        if ((void *) block + sizeof(*block) == (void*) page + PAGE_SIZE) {
-			p = malloc(sizeof(flush_page_struct));
-			p->cpu = block->cpu;
-			p->page = page;
-			INIT_LIST_HEAD(&p->list);
-			list_add(&p->list, page_list);
-        }
-	}
-}
-
 #define num_cmp(x, y)           ((x) == (y) ? 0 : ((x) < (y) ? -1 : 1))
 #define sort_cmp(a, b, arg)     (pkey_compare(((log_ent *) (a))->key, ((log_ent *) (b))->key) \
                                  ? : num_cmp(((log_ent *) (a))->ts, ((log_ent *) (b))->ts))

@@ -36,15 +36,15 @@ typedef struct pnoent {
 
 typedef struct inode {
     /* cacheline 0 */
-    __le64        validmap;
-    __le8         fgprt[PNODE_FANOUT];
-    __le64        free;
+    __le64       validmap;
+    __le8        fgprt[PNODE_FANOUT];
+    char         padding[16];
 
     /* cacheline 1 */
-    rwlock_t     *lock;
-    pnoid_t       prev, next;
+    rwlock_t    *lock;
+    pnoid_t      prev, next;
     /* [lfence, rfence) */
-    pkey_t        lfence, rfence;
+    pkey_t       lfence, rfence;
 } inode_t;
 
 typedef struct dnode {
@@ -197,7 +197,15 @@ static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
 }
 
 static pnoid_t alloc_pnode(int c) {
+    struct data_layer *d_layer = DATA(bonsai);
+    union pnoid_u id;
 
+    do {
+        id.id = d_layer->free_list;
+    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->next));
+    id.node = c;
+
+    return id.id;
 }
 
 static int ent_compare(const void *p, const void *q) {
