@@ -140,7 +140,7 @@ tramp
 .\#*
 
 # Org-mode
-.org-id-locations
+.org-wid-locations
 *_archive
 
 # flymake-mode

@@ -66,12 +66,7 @@ struct log_layer {
 
 	struct log_region_desc *desc;
 
-	pthread_barrier_t barrier[NUM_SOCKET];
-
-    struct {
-        struct log_ent *ents;
-        int n;
-    } log_ents[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
+    log_state_t lst;
 };
 
 struct data_layer {

@@ -21,7 +21,6 @@
 #include "pnode.h"
 #include "shim.h"
 #include "hash.h"
-#include "epoch.h"
 #include "rcu.h"
 
 #define LCB_FULL_SIZE   3072
@@ -33,7 +32,7 @@
 #define OPLOG_TYPE(t)   ((t) & 2)
 #define OPLOG_TURN(t)   ((t) & 1)
 
-static log_state_t global_lst;
+#define CHECK_NLOG_INTERVAL     20
 
 union logid_u {
     logid_t id;
@@ -43,14 +42,43 @@ union logid_u {
     };
 };
 
-void oplog_snapshot_lst(log_state_t *lst) {
-    *lst = global_lst;
-}
+struct pflush_work_desc {
+    int wid, cpu;
+    void *workset;
+};
+
+typedef struct {
+    struct oplog *logs;
+    int cnt;
+} logs_t;
+
+struct worker_load {
+    size_t load;
+    struct list_head cluster;
+};
+
+struct cluster_workset {
+    logs_t logs[NUM_PFLUSH_WORKER];
+
+    struct worker_load loads[NUM_PFLUSH_WORKER][NUM_PFLUSH_WORKER];
+
+    pthread_barrier_t barrier;
+};
+
+struct cluster {
+    pnoid_t pnode;
+    struct list_head pbatch_list;
+    struct list_head list;
+};
 
 static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
     uint32_t d1 = (meta->end - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
     uint32_t d2 = (off - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
     return (int) (d2 - d1);
+}
+
+void oplog_snapshot_lst(log_state_t *lst) {
+    *lst = LOG(bonsai)->lst;
 }
 
 /* Get oplog address by logid. */
@@ -68,25 +96,6 @@ struct oplog *oplog_get(logid_t logid) {
         return &desc->region->logs[id.off];
     }
 }
-
-typedef struct log_ent {
-    pkey_t key;
-    pval_t val;
-    unsigned long op : 2;
-    unsigned long ts : 62;
-    struct oplog *log;
-} log_ent;
-
-struct oplog_work {
-    int node, id;
-	int count;
-	struct list_head free_page_list;
-	struct log_layer* layer;
-	volatile struct oplog_blk* first_blks[NUM_CPU / NUM_PFLUSH_WORKER_PER_NODE];
-	volatile struct oplog_blk* last_blks[NUM_CPU / NUM_PFLUSH_WORKER_PER_NODE];
-};
-
-#define CHECK_NLOG_INTERVAL     20
 
 logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu) {
 	struct log_layer* layer = LOG(bonsai);
@@ -155,83 +164,77 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu
 
 static void new_turn() {
     rcu_t *rcu = RCU(bonsai);
-    xadd(&global_lst.turn, 1);
+    xadd(&LOG(bonsai)->lst.turn, 1);
     /* Wait for all the user threads to observe the latest turn. */
     rcu_synchronize(rcu, rcu_now(rcu));
 }
 
-static pbatch_op_t *fetch_cpu_batchops(int cpu) {
+static logs_t fetch_cpu_logs(int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
-    int target_turn = ~global_lst.turn;
-    pbatch_op_t *ops, *op;
-    struct oplog *log;
+    int target_turn = ~layer->lst.turn;
+    struct oplog *plog, *logs, *log;
     uint32_t cur, end;
     size_t total;
+
+    /* TODO: Fetch those in DRAM LCB!!! */
 
     cur = region->meta.start;
     end = region->meta.end;
 
     total = (end - cur + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
-    ops = op = malloc(total);
+    logs = malloc(total);
 
-    for (; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU) {
-        log = &region->logs[cur];
-        if (unlikely(OPLOG_TURN(log->o_type) != target_turn)) {
+    for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
+        plog = &region->logs[cur];
+        if (unlikely(OPLOG_TURN(plog->o_type) != target_turn)) {
             break;
         }
 
-        op->key = log->o_kv.k;
-        op->val = log->o_kv.v;
-        switch (OPLOG_TYPE(log->o_type)) {
-            case OP_INSERT: op->type = PBO_INSERT; break;
-            case OP_REMOVE: op->type = PBO_REMOVE; break;
-            default: assert(0);
-        }
+        memcpy(log, plog, sizeof(*log));
     }
+
+    return (logs_t) { logs, (int) (log - logs) };
 }
 
-void oplog_flush() {
-
-}
-
+/* Inline the sort function to reduce overhead caused by frequently making indirect call to cmp. */
 #define num_cmp(x, y)           ((x) == (y) ? 0 : ((x) < (y) ? -1 : 1))
-#define sort_cmp(a, b, arg)     (pkey_compare(((log_ent *) (a))->key, ((log_ent *) (b))->key) \
-                                 ? : num_cmp(((log_ent *) (a))->ts, ((log_ent *) (b))->ts))
+#define sort_cmp(a, b, arg)     (pkey_compare(((struct oplog *) (a))->o_kv.k, ((struct oplog *) (b))->o_kv.k) \
+                                 ? : num_cmp(((struct oplog *) (a))->o_ts, ((struct oplog *) (b))->o_ts))
 #include "sort.h"
 
-static void worker_sort_log(struct log_layer *layer, int node, int id) {
-	int phase, n = NUM_PFLUSH_WORKER_PER_NODE, i, left, oid, cnt, ocnt, delta;
-    log_ent *ent, *oent, *nent, *nptr, *data, *odata, **get;
+static void collaboratively_sort_logs(pthread_barrier_t *barrier, logs_t *logs, int wid) {
+	int phase, n = NUM_PFLUSH_WORKER, i, left, oid, cnt, ocnt, delta;
+    struct oplog *ent, *oent, *nent, *nptr, *data, *odata, **get;
 
-    data = layer->log_ents[node][id].ents;
-    cnt = layer->log_ents[node][id].n;
+    data = logs[wid].logs;
+    cnt = logs[wid].cnt;
 
-    do_qsort(data, cnt, sizeof(log_ent), NULL);
+    do_qsort(data, cnt, sizeof(struct oplog), NULL);
 
 	for (phase = 0; phase < n; phase++) {
         /* Wait for the last phase to be done. */
-	    pthread_barrier_wait(&layer->barrier[node]);
+	    pthread_barrier_wait(barrier);
 
-		bonsai_print("thread <%d, %d> -----------------phase [%d]---------------\n", node, id, phase);
+        bonsai_print("[pflush worker %d] collaboratively_sort_logs: phase %d\n", wid, phase);
 
         /* Am I the left half in this phase? */
-        left = id % 2 == phase % 2;
+        left = wid % 2 == phase % 2;
         delta = left ? 1 : -1;
-        oid = id + delta;
-        if (oid < 0 || oid >= NUM_PFLUSH_WORKER_PER_NODE) {
-            pthread_barrier_wait(&layer->barrier[node]);
+        oid = wid + delta;
+        if (oid < 0 || oid >= NUM_PFLUSH_WORKER) {
+            pthread_barrier_wait(barrier);
             continue;
         }
 
-        ocnt = layer->log_ents[node][oid].n;
-        odata = layer->log_ents[node][oid].ents;
+        ocnt = logs[oid].cnt;
+        odata = logs[oid].logs;
 
         ent = left ? data : (data + cnt - 1);
         oent = left ? odata : (odata + ocnt - 1);
 
-        nent = malloc(sizeof(log_ent) * cnt);
+        nent = malloc(sizeof(struct oplog) * cnt);
         nptr = left ? nent : (nent + cnt - 1);
 
         for (i = 0; i < cnt; i++) {
@@ -240,10 +243,10 @@ static void worker_sort_log(struct log_layer *layer, int node, int id) {
             } else if (unlikely(oent - odata == ocnt || oent < odata)) {
                 get = &ent;
             } else {
-                if (!pkey_compare(ent->key, oent->key)) {
+                if (!pkey_compare(ent->o_kv.k, oent->o_kv.k)) {
                     get = &ent;
                 } else {
-                    get = (!left ^ (pkey_compare(ent->key, oent->key) < 0)) ? &ent : &oent;
+                    get = (!left ^ (pkey_compare(ent->o_kv.k, oent->o_kv.k) < 0)) ? &ent : &oent;
                 }
             }
             *nptr = **get;
@@ -251,158 +254,163 @@ static void worker_sort_log(struct log_layer *layer, int node, int id) {
             nptr += delta;
         }
 
-	    pthread_barrier_wait(&layer->barrier[node]);
+	    pthread_barrier_wait(barrier);
 
         free(data);
-        layer->log_ents[node][id].ents = data = nent;
+        logs[wid].logs = data = nent;
 	}
 }
 
-static int worker_oplog_collect_and_sort(void *arg) {
-	struct oplog_work* owork = (struct oplog_work*)arg;
-	struct log_layer* layer;
-	volatile struct oplog_blk* block;
-	struct oplog *log;
-    struct dimm_log_region* region;
-	int i, j, count, ret = 0;
-	int nlog = 0, nblk = 0;
-    log_ent *e;
+static inline int pnode_assignee(pnoid_t pnode) {
+    /* TODO: Better hash function */
+    /* TODO: NUMA-Aware assignee */
+    return pnode % NUM_PFLUSH_WORKER;
+}
 
-	if (unlikely(!owork))
-		goto out;
+static void pbatch_op_add(struct worker_load *loads, pbatch_cursor_t *cursors, int *assignee, struct oplog *log) {
+    struct list_head *cluster_list;
+    struct cluster *cluster;
+    pbatch_cursor_t *cursor;
+    pbatch_op_t *op;
+    pnoid_t pnode;
+    int split = 0;
 
-	layer = owork->layer;
-
-	bonsai_print("pflush thread <%d, %d> collect and sort %d log lists\n", owork->node, owork->id, owork->count);
-
-    /* 1. count lps */
-	for (i = 0; i < owork->count; i ++) {
-		block = owork->first_blks[i];
-        assert(block != owork->last_blks[i]);
-        do {
-			count = block->cnt;
-
-            nblk++;
-            nlog += count;
-
-			region = &layer->region[block->cpu];
-			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
-
-			if (unlikely(atomic_read(&layer->exit))) {
-				ret = -EEXIT;
-                nlog = 0;
-				goto out;
-			}
-		} while(block != owork->last_blks[i]);
+    /* Are we still in the right pnode? */
+    cluster_list = &loads[*assignee].cluster;
+    cluster = list_last_entry(cluster_list, struct cluster, list);
+    if (list_empty(cluster_list) || !is_in_pnode(cluster->pnode, log->o_kv.k)) {
+        pnode = shim_pnode_of(log->o_kv.k);
+        *assignee = pnode_assignee(pnode);
+        split = 1;
     }
 
-    /* 2. collect lps */
-    layer->log_ents[owork->node][owork->id].ents = e = malloc(sizeof(log_ent) * nlog);
+    cursor = &cursors[*assignee];
 
-	for (i = 0; i < owork->count; i ++) {
-		block = owork->first_blks[i];
+    /* Insert into current cursor position. */
+    op = pbatch_cursor_get(cursor);
+    switch (OPLOG_TYPE(log->o_type)) {
+        case OP_INSERT: op->type = PBO_INSERT; break;
+        case OP_REMOVE: op->type = PBO_REMOVE; break;
+        default: assert(0);
+    }
+    op->done = 0;
+    op->key = log->o_kv.k;
+    op->val = log->o_kv.v;
 
-        assert(block != owork->last_blks[i]);
+    /* Handle split. */
+    if (unlikely(split)) {
+        cluster = malloc(sizeof(*cluster));
+        cluster->pnode = pnode;
+        INIT_LIST_HEAD(&cluster->pbatch_list);
+        INIT_LIST_HEAD(&cluster->list);
+        list_add_tail(&cluster->list, &loads[*assignee].cluster);
+        pbatch_list_split(&cluster->pbatch_list, cursor);
+    }
 
-		do {
-			count = block->cnt;
-			
-			for (j = 0; j < count; j ++) {
-				log = &block->logs[j];
+    /* Forward the cursor. */
+    pbatch_cursor_inc(cursor);
+}
 
-				try_free_log_page((struct oplog_blk*)block, &owork->free_page_list);
+static void merge_and_cluster_logs(struct worker_load *loads, logs_t *logs, int wid) {
+    int i, next_wid, total = logs[wid].cnt, assignee = 0;
+    struct list_head pbatch_lists[NUM_PFLUSH_WORKER];
+    pbatch_cursor_t cursors[NUM_PFLUSH_WORKER];
+    struct oplog *log = logs[wid].logs;
+    pbatch_op_t *ops;
 
-                atomic_dec(&layer->nlogs[block->cpu].cnt);
+    if (unlikely(!total)) {
+        return;
+    }
 
-                e->op = log->o_type;
-                e->key = log->o_kv.k;
-                e->val = log->o_kv.v;
-                e->ts = log->o_stamp;
-                e->log = log;
-                e++;
-			}
+    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        ops = malloc(total * sizeof(*ops));
+        INIT_LIST_HEAD(&pbatch_lists[i]);
+        pbatch_list_create(&pbatch_lists[i], ops, total, 1);
+        pbatch_cursor_init(&cursors[i], &pbatch_lists[i]);
+    }
 
-			region = &layer->region[block->cpu];
-			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
+    for (; --total; log++) {
+        if (pkey_compare(log[0].o_kv.k, log[1].o_kv.k)) {
+            pbatch_op_add(loads, cursors, &assignee, log);
+        }
+    }
 
-			if (unlikely(atomic_read(&layer->exit))) {
-				ret = -EEXIT;
-                nlog = 0;
-				goto out;
-			}
-		} while(block != owork->last_blks[i]);
-	}
+    for (next_wid = wid + 1; next_wid < NUM_PFLUSH_WORKER && !logs[next_wid].cnt; next_wid++);
+    if (next_wid >= NUM_PFLUSH_WORKER || pkey_compare(logs[next_wid].logs[0].o_kv.k, log->o_kv.k)) {
+        pbatch_op_add(loads, cursors, &assignee, log);
+    }
 
-out:
-    layer->log_ents[owork->node][owork->id].n = nlog;
+    /* Remove the trailing empty space. */
+    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        if (!pbatch_cursor_is_end(&cursors[i])) {
+            pbatch_list_split(&pbatch_lists[i], &cursors[i]);
+            pbatch_list_destroy(&pbatch_lists[i]);
+        }
+    }
+}
+
+static void clustering_work(void *arg) {
+    struct pflush_work_desc *desc = arg;
+    struct cluster_workset *ws = desc->workset;
+    struct worker_load *loads;
+    int wid = desc->wid, i;
+
+    /* Fetch all the logs. */
+    /* TODO: It's wrong. It should consider all the user threads. */
+    ws->logs[wid] = fetch_cpu_logs(desc->cpu);
+
+    /* Sort them collaboratively. */
+    collaboratively_sort_logs(&ws->barrier, ws->logs, wid);
     
-	/* 3. sort */
-	worker_sort_log(layer, owork->node, owork->id);
-
-	bonsai_print("pflush thread <%d, %d> collect and sort %d lps %d blocks\n", owork->node, owork->id, nlog, nblk);
-	return ret;
-}
-
-static int worker_oplog_flush(void* arg) {
-	struct oplog_work* owork = arg;
-	struct log_layer* layer = owork->layer;
-	int count = 0, ret = 0, n, delta;
-    log_ent *start, *end, *e;
-
-	bonsai_print("pflush thread <%d, %d> start flush\n", owork->node, owork->id);
-
-    n = layer->log_ents[owork->node][owork->id].n;
-    start = layer->log_ents[owork->node][owork->id].ents;
-    end = start + n;
-
-    if (owork->node % 2) {
-        e = end - 1;
-        delta = -1;
-    } else {
-        e = start;
-        delta = 1;
+    /* Merge and cluster the logs. */
+    loads = ws->loads[wid];
+    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        INIT_LIST_HEAD(&loads[i].cluster);
     }
+    merge_and_cluster_logs(loads, ws->logs, wid);
 
-	for (; n; n--, e += delta) {
-		bonsai_debug("pflush thread[%d] flush <%lu %lu> [%s]\n", 
-			__this->t_id, log->o_kv.k, log->o_kv.v, log->o_type ? "remove" : "insert");
-
-		switch(e->op) {
-		case OP_INSERT:
-            pnode_insert(e->key, e->val, &e->log->o_kv);
-			break;
-		case OP_REMOVE:
-			pnode_remove(e->key);
-			break;
-		default:
-			perror("bad operation type\n");
-			break;
-		}
-
-		count ++;
-
-		if (unlikely(count % 10 == 0 && atomic_read(&layer->exit))) {
-			ret = -EEXIT;
-			goto out;
-		}
-	}
-
-out:
-    free(start);
-	bonsai_print("pflush thread <%d, %d> flush %d lps\n", owork->node, owork->id, count);
-
-	return ret;
+    /* Free logs */
+    pthread_barrier_wait(&ws->barrier);
+    free(ws->logs[wid].logs);
 }
 
-static void free_pages(struct log_layer *layer, struct list_head* page_list) {
-	flush_page_struct *p, *n;
-	//int i = 0;
-	
-	list_for_each_entry_safe(p, n, page_list, list) {
-		free_log_page(&layer->region[p->cpu], p->page);
-		bonsai_debug("free log page[%d]: addr: %016lx\n", 0, p->page);
-		free(p);
-	}
+static void global_clustering(struct worker_load *loads, struct worker_load *loads_per_worker[NUM_PFLUSH_WORKER]) {
+    struct worker_load *load, *load_per_worker;
+    struct list_head *addon, *target;
+    struct cluster *prev, *curr;
+    int assignee, i;
+
+    for (assignee = 0; assignee < NUM_PFLUSH_WORKER; assignee++) {
+        load = &loads[assignee];
+
+        load->load = 0;
+        target = &load->cluster;
+        INIT_LIST_HEAD(target);
+
+        for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+            load_per_worker = &loads_per_worker[i][assignee];
+
+            addon = &load_per_worker->cluster;
+
+            if (likely(!list_empty(target))) {
+                prev = list_last_entry(target, struct cluster, list);
+                curr = list_first_entry(addon, struct cluster, list);
+                if (prev->pnode == curr->pnode) {
+                    pbatch_list_merge(&prev->pbatch_list, &curr->pbatch_list);
+                    list_del(&curr->list);
+                    free(curr);
+                }
+            }
+
+            list_splice_tail(addon, target);
+            
+            load->load += load_per_worker->load;
+        }
+    }
+}
+
+static void load_balance(struct worker_load *loads) {
+
 }
 
 /*
@@ -585,55 +593,4 @@ out:
 	atomic_set(&l_layer->checkpoint, 0);
 
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
-}
-
-static struct oplog* scan_one_cpu_log_region(struct dimm_log_region *region, pkey_t key) {
-	volatile struct oplog_blk* block;
-	struct oplog *log;
-	int i;
-
-	if (region->curr_blk) {
-		block = region->first_blk;
-		while (1) {
-			for (i = 0; i < block->cnt; i ++) {
-				log = &block->logs[i];
-				if (!pkey_compare(log->o_kv.k, key)) {
-					return log;
-				}
-			}
-			if (block == region->curr_blk)
-				return NULL;
-			
-			block = (struct oplog_blk*)LOG_REGION_OFF_TO_ADDR(region, block->next);
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * log_layer_search_key: scan @cpu log region and search @key,
- * find @cpu equals -1, scan all log regions, you must stop the world first.
- */
-struct oplog* log_layer_search_key(int cpu, pkey_t key) {
-	struct log_layer *l_layer = LOG(bonsai);
-	struct dimm_log_region *region;
-	struct oplog* log = NULL;
-
-	if (cpu != -1) {
-		region = &l_layer->region[cpu];
-		log = scan_one_cpu_log_region(region, key);
-	}
-	else {
-		for (cpu = 0; cpu < NUM_CPU; cpu ++) {
-			region = &l_layer->region[cpu];
-			log = scan_one_cpu_log_region(region, key);
-			if (log) 
-				goto out;
-		}
-	}
-
-out:
-	bonsai_print("log layer search key[%lu]: log %016lx\n", log ? log->o_kv.k : key, log);
-	return log;
 }

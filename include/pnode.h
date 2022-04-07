@@ -21,9 +21,9 @@ typedef struct {
         PBO_INSERT,
         PBO_REMOVE
     }      type;
+    int    done;
     pkey_t key;
     pval_t val;
-    int    done;
 } pbatch_op_t;
 
 typedef struct {
@@ -48,15 +48,26 @@ static inline int pbatch_cursor_is_end(pbatch_cursor_t *cursor) {
     return cursor->curr == cursor->list;
 }
 
-static inline void pbatch_cursor_forward(pbatch_cursor_t *cursor) {
-    pbatch_node_t *node = list_entry(cursor->curr, pbatch_node_t, list);
-    assert(!pbatch_cursor_is_end(cursor));
-    cursor->i++;
-    /* carry */
-    if (unlikely(cursor->i >= node->len)) {
-        cursor->curr = cursor->curr->next;
-        cursor->i = 0;
+static inline void pbatch_cursor_forward(pbatch_cursor_t *cursor, size_t stride) {
+    pbatch_node_t *node;
+    size_t avail;
+    while (1) {
+        assert(!pbatch_cursor_is_end(cursor));
+        node = list_entry(cursor->curr, pbatch_node_t, list);
+        avail = node->len - cursor->i;
+        if (stride < avail) {
+            cursor->i += stride;
+            break;
+        } else {
+            cursor->curr = cursor->curr->next;
+            cursor->i = 0;
+            stride -= avail;
+        }
     }
+}
+
+static inline void pbatch_cursor_inc(pbatch_cursor_t *cursor) {
+    pbatch_cursor_forward(cursor, 1);
 }
 
 static inline pbatch_op_t *pbatch_cursor_get(pbatch_cursor_t *cursor) {
@@ -86,6 +97,15 @@ static inline void pbatch_list_destroy(struct list_head *list) {
     }
 }
 
+static inline size_t pbatch_list_len(struct list_head *list) {
+    pbatch_node_t *node;
+    size_t len = 0;
+    list_for_each_entry(node, list, list) {
+        len += node->len;
+    }
+    return len;
+}
+
 static inline void pbatch_list_split(struct list_head *dst, pbatch_cursor_t *cursor) {
     pbatch_node_t *node = list_entry(cursor->curr, pbatch_node_t, list), *next;
     assert(!pbatch_cursor_is_end(cursor));
@@ -107,6 +127,13 @@ static inline void pbatch_list_split(struct list_head *dst, pbatch_cursor_t *cur
 
 static inline void pbatch_list_merge(struct list_head *dst, struct list_head *src) {
     list_splice(src, dst);
+}
+
+static inline pbatch_op_t *pbatch_list_get(struct list_head *list, size_t i) {
+    pbatch_cursor_t cursor;
+    pbatch_cursor_init(&cursor, list);
+    pbatch_cursor_forward(&cursor, i);
+    return pbatch_cursor_get(&cursor);
 }
 
 int pnode_node(pnoid_t pno);
