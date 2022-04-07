@@ -30,6 +30,11 @@
 #define LCB_FULL_NR     (LCB_FULL_SIZE / sizeof(struct oplog))
 #define LCB_MAX_NR      (LCB_MAX_SIZE / sizeof(struct oplog))
 
+#define OPLOG_TYPE(t)   ((t) & 2)
+#define OPLOG_TURN(t)   ((t) & 1)
+
+static log_state_t global_lst;
+
 union logid_u {
     logid_t id;
     struct {
@@ -37,6 +42,10 @@ union logid_u {
         uint32_t off : 25;
     };
 };
+
+void oplog_snapshot_lst(log_state_t *lst) {
+    *lst = global_lst;
+}
 
 static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
     uint32_t d1 = (meta->end - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
@@ -59,12 +68,6 @@ struct oplog *oplog_get(logid_t logid) {
         return &desc->region->logs[id.off];
     }
 }
-
-typedef struct {
-	int cpu;
-	struct log_page_desc* page;
-	struct list_head list;
-} flush_page_struct;
 
 typedef struct log_ent {
     pkey_t key;
@@ -148,6 +151,49 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu
     }
 
     return id.id;
+}
+
+static void new_turn() {
+    rcu_t *rcu = RCU(bonsai);
+    xadd(&global_lst.turn, 1);
+    /* Wait for all the user threads to observe the latest turn. */
+    rcu_synchronize(rcu, rcu_now(rcu));
+}
+
+static pbatch_op_t *fetch_cpu_batchops(int cpu) {
+	struct log_layer *layer = LOG(bonsai);
+    struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
+    struct cpu_log_region *region = local_desc->region;
+    int target_turn = ~global_lst.turn;
+    pbatch_op_t *ops, *op;
+    struct oplog *log;
+    uint32_t cur, end;
+    size_t total;
+
+    cur = region->meta.start;
+    end = region->meta.end;
+
+    total = (end - cur + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+    ops = op = malloc(total);
+
+    for (; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU) {
+        log = &region->logs[cur];
+        if (unlikely(OPLOG_TURN(log->o_type) != target_turn)) {
+            break;
+        }
+
+        op->key = log->o_kv.k;
+        op->val = log->o_kv.v;
+        switch (OPLOG_TYPE(log->o_type)) {
+            case OP_INSERT: op->type = PBO_INSERT; break;
+            case OP_REMOVE: op->type = PBO_REMOVE; break;
+            default: assert(0);
+        }
+    }
+}
+
+void oplog_flush() {
+
 }
 
 #define num_cmp(x, y)           ((x) == (y) ? 0 : ((x) < (y) ? -1 : 1))

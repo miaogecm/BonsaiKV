@@ -16,9 +16,8 @@ extern "C" {
 #define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)
 
 typedef enum {
-	OP_NONE = -1,
-	OP_INSERT = 0,
-	OP_REMOVE,
+    OP_INSERT = 0,
+	OP_REMOVE = 2,
 } optype_t;
 
 typedef struct {
@@ -64,6 +63,8 @@ struct oplog *oplog_get(logid_t logid);
 struct pnode;
 struct mptable;
 struct log_layer;
+
+extern void oplog_snapshot_lst(log_state_t *lst);
 
 extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu);
 

@@ -26,6 +26,89 @@ typedef struct {
     int    done;
 } pbatch_op_t;
 
+typedef struct {
+    pbatch_op_t *start;
+    size_t len;
+    int autofree;
+    struct list_head list;
+} pbatch_node_t;
+
+typedef struct {
+    struct list_head *list, *curr;
+    size_t i;
+} pbatch_cursor_t;
+
+static inline void pbatch_cursor_init(pbatch_cursor_t *cursor, struct list_head *list) {
+    cursor->list = list;
+    cursor->curr = list->next;
+    cursor->i = 0;
+}
+
+static inline int pbatch_cursor_is_end(pbatch_cursor_t *cursor) {
+    return cursor->curr == cursor->list;
+}
+
+static inline void pbatch_cursor_forward(pbatch_cursor_t *cursor) {
+    pbatch_node_t *node = list_entry(cursor->curr, pbatch_node_t, list);
+    assert(!pbatch_cursor_is_end(cursor));
+    cursor->i++;
+    /* carry */
+    if (unlikely(cursor->i >= node->len)) {
+        cursor->curr = cursor->curr->next;
+        cursor->i = 0;
+    }
+}
+
+static inline pbatch_op_t *pbatch_cursor_get(pbatch_cursor_t *cursor) {
+    pbatch_node_t *node = list_entry(cursor->curr, pbatch_node_t, list);
+    assert(!pbatch_cursor_is_end(cursor));
+    return &node->start[cursor->i];
+}
+
+static inline void pbatch_list_create(struct list_head *list, pbatch_op_t *start, size_t len, int autofree) {
+    pbatch_node_t *node;
+    assert(len);
+    node = malloc(sizeof(*node));
+    node->start = start;
+    node->len = len;
+    node->autofree = autofree;
+    INIT_LIST_HEAD(&node->list);
+    list_add_tail(list, &node->list);
+}
+
+static inline void pbatch_list_destroy(struct list_head *list) {
+    pbatch_node_t *node, *tmp;
+    list_for_each_entry_safe(node, tmp, list, list) {
+        if (node->autofree) {
+            free(node->start);
+        }
+        free(node);
+    }
+}
+
+static inline void pbatch_list_split(struct list_head *dst, pbatch_cursor_t *cursor) {
+    pbatch_node_t *node = list_entry(cursor->curr, pbatch_node_t, list), *next;
+    assert(!pbatch_cursor_is_end(cursor));
+    if (cursor->i) {
+        /* Split the node itself. */
+        next = malloc(sizeof(*next));
+        next->start = node->start + cursor->i;
+        next->len = node->len - cursor->i;
+        node->len = cursor->i;
+        next->autofree = 0;
+        INIT_LIST_HEAD(&next->list);
+        list_add(&next->list, &node->list);
+        node = next;
+    }
+    list_replace_init(cursor->list, dst);
+    list_cut_position(cursor->list, dst, node->list.prev);
+    pbatch_cursor_init(cursor, dst);
+}
+
+static inline void pbatch_list_merge(struct list_head *dst, struct list_head *src) {
+    list_splice(src, dst);
+}
+
 int pnode_node(pnoid_t pno);
 
 static inline int pnode_color(pnoid_t pno) {
