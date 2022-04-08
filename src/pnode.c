@@ -445,7 +445,7 @@ static void pnode_inplace_insert(pnoid_t pnode, pbatch_op_t *ops) {
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
-static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
+static void pnode_prebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
 
     pnoid_t head, tail, next, prev = PNOID_NULL;
@@ -496,7 +496,7 @@ static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     mno = pnode_meta(pnode);
 
     /*
-     * Now we've done partial rebuild, we need to link it to the
+     * Now we've done @pnode prebuild, we need to link it to the
      * global list. Note that we only need to guarantee the dur-
      * ability of @next. @prev can be set during recovery stage.
      */
@@ -534,11 +534,11 @@ void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops) {
     validmap = pnode_meta(pnode)->validmap;
     tot += bitmap_weight(&validmap, PNODE_FANOUT);
 
-    /* Inplace insert or partial rebuild? */
+    /* Inplace insert or prebuild? */
     if (tot <= PNODE_FANOUT) {
         pnode_inplace_insert(pnode, ops);
     } else {
-        pnode_partial_rebuild(pnode, ops, tot);
+        pnode_prebuild(pnode, ops, tot);
     }
 }
 
