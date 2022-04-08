@@ -8,7 +8,7 @@ extern "C" {
 #include "kfifo.h"
 #include "pnode.h"
 
-#define SNODE_POOL_SIZE                         (2 * 1024 * 1024 * 1024ul)
+#define INODE_POOL_SIZE                         (2 * 1024 * 1024 * 1024ul)
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
@@ -17,7 +17,7 @@ typedef struct {
     pkey_t  pfence;
 } shim_sync_pfence_t;
 
-struct snode;
+struct inode;
 
 struct smo_log {
     unsigned long ts;
@@ -25,9 +25,9 @@ struct smo_log {
     void *v;
 };
 
-struct snode_pool {
+struct inode_pool {
     void *start;
-    struct snode *freelist;
+    struct inode *freelist;
 };
 
 struct shim_layer {
@@ -35,8 +35,8 @@ struct shim_layer {
 
     DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
 
-    struct snode      *head;
-    struct snode_pool *pool;
+    struct inode      *head;
+    struct inode_pool *pool;
 };
 
 int shim_layer_init(struct shim_layer *layer);
