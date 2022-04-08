@@ -34,7 +34,7 @@ typedef struct pnoent {
     uint16_t    epoch;
 } __attribute__((packed)) pnoent_t;
 
-typedef struct inode {
+typedef struct mnode {
     /* cacheline 0 */
     __le64       validmap;
     __le8        fgprt[PNODE_FANOUT];
@@ -44,7 +44,7 @@ typedef struct inode {
     pnoid_t      prev, next;
     /* [lfence, rfence) */
     pkey_t       lfence, rfence;
-} inode_t;
+} mnode_t;
 
 typedef struct dnode {
     pnoent_t     ents[PNODE_INTERLEAVING_SIZE / sizeof(pnoent_t)];
@@ -150,7 +150,7 @@ static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
     return pnode_dimm_addr(pno, pnode_permute(pno)[blk]);
 }
 
-static inode_t *pnode_meta(pnoid_t pno) {
+static mnode_t *pnode_meta(pnoid_t pno) {
     return pnode_get_blk(pno, 0);
 }
 
@@ -225,11 +225,11 @@ static inline void pnode_persist(pnoid_t pnode, int fence) {
 }
 
 static void gen_fgprt(pnoid_t pnode) {
-    inode_t *ino = pnode_meta(pnode);
-    unsigned long validmap = ino->validmap;
+    mnode_t *mno = pnode_meta(pnode);
+    unsigned long validmap = mno->validmap;
     unsigned pos;
     for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
-        ino->fgprt[pos] = pkey_get_signature(pnode_ent(pnode, pos)->k);
+        mno->fgprt[pos] = pkey_get_signature(pnode_ent(pnode, pos)->k);
     }
 }
 
@@ -279,7 +279,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     pnoid_t original = *pnode, l, r = PNOID_NULL;
     struct data_layer *layer = DATA(bonsai);
     pnoent_t ents[PNODE_FANOUT], *ent;
-    inode_t *ino, *lino, *rino;
+    mnode_t *mno, *lmno, *rmno;
     unsigned pos, cnt = 0;
     int cmp;
 
@@ -305,18 +305,18 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     l = alloc_pnode(lc);
     r = alloc_pnode(rc);
 
-    ino = pnode_meta(original);
-    lino = pnode_meta(l);
-    rino = pnode_meta(r);
+    mno = pnode_meta(original);
+    lmno = pnode_meta(l);
+    rmno = pnode_meta(r);
 
     pnode_init_from_arr(l, ents, pos);
     pnode_init_from_arr(r, ents + pos, cnt - pos);
 
-    lino->lfence = ino->lfence;
-    rino->lfence = *cut;
+    lmno->lfence = mno->lfence;
+    rmno->lfence = *cut;
 
-    lino->next = r;
-    rino->next = ino->next;
+    lmno->next = r;
+    rmno->next = mno->next;
 
     /* Persist and save the right node. */
     pnode_persist(r, 0);
@@ -330,8 +330,8 @@ done:
     persistent_barrier();
 
     /* Link @l to the pnode list. */
-    if (likely(lino->prev)) {
-        pnode_meta(lino->prev)->next = l;
+    if (likely(lmno->prev)) {
+        pnode_meta(lmno->prev)->next = l;
     } else {
         layer->sentinel = l;
     }
@@ -352,9 +352,9 @@ static unsigned pnode_find_(pnoent_t *ent, pnoid_t pnode, pkey_t key, uint8_t *f
 }
 
 static inline unsigned pnode_find(pnoid_t pnode, pkey_t key) {
-    inode_t *ino = pnode_meta(pnode);
+    mnode_t *mno = pnode_meta(pnode);
     pnoent_t ent;
-    return pnode_find_(&ent, pnode, key, ino->fgprt, ino->validmap);
+    return pnode_find_(&ent, pnode, key, mno->fgprt, mno->validmap);
 }
 
 static void flush_ents(pnoid_t pnode, unsigned long changemap) {
@@ -366,8 +366,8 @@ static void flush_ents(pnoid_t pnode, unsigned long changemap) {
 }
 
 static size_t pnode_run_nosmo(pnoid_t pnode, pbatch_op_t *ops) {
-    inode_t *ino = pnode_meta(pnode);
-    unsigned long validmap = ino->validmap, changemap = 0;
+    mnode_t *mno = pnode_meta(pnode);
+    unsigned long validmap = mno->validmap, changemap = 0;
     size_t insert_cnt = 0;
     pbatch_op_t *op;
     unsigned pos;
@@ -405,19 +405,19 @@ static size_t pnode_run_nosmo(pnoid_t pnode, pbatch_op_t *ops) {
         insert_cnt++;
     }
 
-    ino->validmap = validmap;
+    mno->validmap = validmap;
 
     /*
      * Persist those operations. Note that if crash, these updates
      * can be safely redone by oplog.
      */
     flush_ents(pnode, changemap);
-    bonsai_flush(&ino->validmap, sizeof(__le64), 1);
+    bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
 static void pnode_inplace_insert(pnoid_t pnode, pbatch_op_t *ops) {
-    inode_t *ino = pnode_meta(pnode);
-    unsigned long validmap = ino->validmap, changemap = 0;
+    mnode_t *mno = pnode_meta(pnode);
+    unsigned long validmap = mno->validmap, changemap = 0;
     pbatch_op_t *op;
     unsigned pos;
     pnoent_t *e;
@@ -441,15 +441,15 @@ static void pnode_inplace_insert(pnoid_t pnode, pbatch_op_t *ops) {
     persistent_barrier();
 
     validmap |= changemap;
-    ino->validmap = validmap;
-    bonsai_flush(&ino->validmap, sizeof(__le64), 1);
+    mno->validmap = validmap;
+    bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
 static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
 
     pnoid_t head, tail, next, prev = PNOID_NULL;
-    inode_t *head_ino, *tail_ino, *ino;
+    mnode_t *head_mno, *tail_mno, *mno;
     pnoent_t merged[PNODE_FANOUT], *m;
     pnoent_t ents[PNODE_FANOUT], *ent;
     int node = pnode_node(pnode);
@@ -471,29 +471,29 @@ static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
         }
 
         tail = alloc_pnode(node);
-        tail_ino = pnode_meta(tail);
+        tail_mno = pnode_meta(tail);
         pnode_init_from_arr(tail, m, mcnt);
         if (unlikely(prev == PNOID_NULL)) {
             head = tail;
-            tail_ino->lfence = pnode_meta(pnode)->lfence;
+            tail_mno->lfence = pnode_meta(pnode)->lfence;
         } else {
-            ino = pnode_meta(prev);
-            tail_ino->lfence = ino->rfence = m[0].k;
-            ino->next = tail;
-            tail_ino->prev = prev;
+            mno = pnode_meta(prev);
+            tail_mno->lfence = mno->rfence = m[0].k;
+            mno->next = tail;
+            tail_mno->prev = prev;
             pnode_persist(prev, 0);
         }
 
         prev = tail;
     }
 
-    tail_ino->rfence = pnode_meta(pnode)->rfence;
+    tail_mno->rfence = pnode_meta(pnode)->rfence;
     pnode_persist(tail, 0);
 
     persistent_barrier();
 
-    head_ino = pnode_meta(head);
-    ino = pnode_meta(pnode);
+    head_mno = pnode_meta(head);
+    mno = pnode_meta(pnode);
 
     /*
      * Now we've done partial rebuild, we need to link it to the
@@ -503,22 +503,22 @@ static void pnode_partial_rebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     /* TODO: Fine-grained locking */
     spin_lock(&d_layer->plist_lock);
 
-    head_ino->prev = prev = ino->prev;
-    tail_ino->next = next = ino->next;
-    bonsai_flush(&tail_ino->next, sizeof(pnoid_t), 1);
+    head_mno->prev = prev = mno->prev;
+    tail_mno->next = next = mno->next;
+    bonsai_flush(&tail_mno->next, sizeof(pnoid_t), 1);
 
     if (unlikely(prev == PNOID_NULL)) {
         d_layer->sentinel = head;
     } else {
-        ino = pnode_meta(prev);
-        ino->next = head;
+        mno = pnode_meta(prev);
+        mno->next = head;
         /* The durability point. */
-        bonsai_flush(&ino->next, sizeof(pnoid_t), 1);
+        bonsai_flush(&mno->next, sizeof(pnoid_t), 1);
     }
 
     if (likely(next != PNOID_NULL)) {
-        ino = pnode_meta(next);
-        ino->prev = tail;
+        mno = pnode_meta(next);
+        mno->prev = tail;
     }
 
     spin_unlock(&d_layer->plist_lock);
@@ -543,14 +543,14 @@ void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops) {
 }
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
-    inode_t *ino = pnode_meta(pnode);
+    mnode_t *mno = pnode_meta(pnode);
     uint8_t fgprt[PNODE_FANOUT];
     unsigned long validmap;
     pnoent_t ent;
     int ret = 0;
 
-    validmap = ino->validmap;
-    memcpy(fgprt, ino->fgprt, PNODE_FANOUT);
+    validmap = mno->validmap;
+    memcpy(fgprt, mno->fgprt, PNODE_FANOUT);
 
     if (unlikely(pnode_find_(&ent, pnode, key, fgprt, validmap) == NOT_FOUND)) {
         ret = -ENOENT;
@@ -562,6 +562,6 @@ int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
 }
 
 int is_in_pnode(pnoid_t pnode, pkey_t key) {
-    inode_t *ino = pnode_meta(pnode);
-    return pkey_compare(key, ino->lfence) >= 0 && pkey_compare(key, ino->rfence) < 0;
+    mnode_t *mno = pnode_meta(pnode);
+    return pkey_compare(key, mno->lfence) >= 0 && pkey_compare(key, mno->rfence) < 0;
 }
