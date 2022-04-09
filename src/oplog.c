@@ -30,7 +30,7 @@
 #define LCB_MAX_NR      (LCB_MAX_SIZE / sizeof(struct oplog))
 
 #define OPLOG_TYPE(t)   ((t) & 2)
-#define OPLOG_TURN(t)   ((t) & 1)
+#define OPLOG_FLIP(t)   ((t) & 1)
 
 #define CHECK_NLOG_INTERVAL     20
 
@@ -320,7 +320,7 @@ static size_t fetch_cpu_logs(struct oplog *logs, struct cpu_log_snapshot *snap) 
 
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
-        if (unlikely(OPLOG_TURN(plog->o_type) != target_turn)) {
+        if (unlikely(OPLOG_FLIP(plog->o_type) != target_turn)) {
             break;
         }
 
@@ -332,7 +332,7 @@ static size_t fetch_cpu_logs(struct oplog *logs, struct cpu_log_snapshot *snap) 
 
     for (cur = 0; cur < vnr; cur++, log++) {
         plog = &snap->lcb[cur];
-        if (unlikely(OPLOG_TURN(plog->o_type) != target_turn)) {
+        if (unlikely(OPLOG_FLIP(plog->o_type) != target_turn)) {
             break;
         }
 
