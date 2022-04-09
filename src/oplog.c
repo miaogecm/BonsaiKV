@@ -20,7 +20,6 @@
 #include "thread.h"
 #include "pnode.h"
 #include "shim.h"
-#include "hash.h"
 #include "rcu.h"
 
 #define LCB_FULL_SIZE   3072
@@ -49,8 +48,6 @@ typedef struct {
 
 struct cpu_log_snapshot {
     uint32_t region_start, region_end;
-    struct oplog *lcb;
-    uint32_t lcb_size;
     int cpu;
 };
 
@@ -81,6 +78,8 @@ struct desc_workset {
 struct fetch_workset {
     /* The output of the fetch work. Collected logs for each worker. */
     logs_t per_worker_logs[NUM_PFLUSH_WORKER];
+
+    uint32_t new_region_starts[NUM_CPU];
 };
 
 struct clustering_workset {
@@ -206,8 +205,6 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 
             lcb = malloc(LCB_MAX_SIZE);
 
-            spin_lock(&local_desc->lock);
-
             local_desc->size = 0;
             call_rcu(RCU(bonsai), free, local_desc->lcb);
 
@@ -215,8 +212,6 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
             region->meta.end = end;
             local_desc->lcb = lcb;
             write_seqcount_end(&local_desc->seq);
-
-            spin_unlock(&local_desc->lock);
 
             bonsai_flush(&region->meta.end, sizeof(__le32), 1);
         }
@@ -245,7 +240,7 @@ static inline int worker_nr(int wid) {
     return wid % NUM_PFLUSH_WORKER_PER_NODE;
 }
 
-static inline void new_turn() {
+static inline void new_flip() {
     rcu_t *rcu = RCU(bonsai);
     xadd(&LOG(bonsai)->lst.flip, 1);
     /* Wait for all the user threads to observe the latest flip. */
@@ -272,77 +267,46 @@ static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, voi
 	park_master();
 }
 
-static size_t log_nv_nr(struct cpu_log_snapshot *snap) {
-    return (snap->region_end - snap->region_start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
-}
-
-static size_t log_v_nr(struct cpu_log_snapshot *snap) {
-    return snap->lcb_size;
-}
-
 static size_t log_nr(struct cpu_log_snapshot *snap) {
-    return log_nv_nr(snap) + log_v_nr(snap);
+    return (snap->region_end - snap->region_start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
 }
 
 static void snapshot_cpu_log(struct cpu_log_snapshot *snap, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
-    struct oplog *lcb;
 
     snap->cpu = cpu;
-    snap->lcb = lcb = malloc(LCB_MAX_SIZE * sizeof(*lcb));
-
-    spin_lock(&local_desc->lock);
     snap->region_start = region->meta.start;
     snap->region_end = region->meta.end;
-    snap->lcb_size = local_desc->size;
-    memcpy(lcb, local_desc->lcb, local_desc->size * sizeof(*lcb));
-    spin_unlock(&local_desc->lock);
 }
 
-static void snapshot_destroy(struct cpu_log_snapshot *snap) {
-    free(snap->lcb);
-}
-
-static size_t fetch_cpu_logs(struct oplog *logs, struct cpu_log_snapshot *snap) {
+static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, struct cpu_log_snapshot *snap) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[snap->cpu];
     struct cpu_log_region *region = local_desc->region;
-    int target_turn = ~layer->lst.flip;
+    int target_flip = ~layer->lst.flip;
     struct oplog *plog, *log;
     uint32_t cur, end;
-    size_t vnr;
 
-    /* collect logs in NVM */
     cur = snap->region_start;
     end = snap->region_end;
 
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
-        if (unlikely(OPLOG_FLIP(plog->o_type) != target_turn)) {
+        if (unlikely(OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
 
         memcpy(log, plog, sizeof(*log));
     }
 
-    /* collect logs in LCB */
-    vnr = log_v_nr(snap);
-
-    for (cur = 0; cur < vnr; cur++, log++) {
-        plog = &snap->lcb[cur];
-        if (unlikely(OPLOG_FLIP(plog->o_type) != target_turn)) {
-            break;
-        }
-
-        memcpy(log, plog, sizeof(*log));
-    }
+    new_region_starts[snap->cpu] = end;
 
     return log - logs;
 }
 
-static logs_t fetch_logs(int nr_cpu, int *cpus) {
+static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     struct cpu_log_snapshot snapshots[NUM_CPU];
     logs_t fetched = { .cnt = 0 };
     struct oplog *log;
@@ -356,7 +320,7 @@ static logs_t fetch_logs(int nr_cpu, int *cpus) {
     log = fetched.logs = malloc(sizeof(*log) * fetched.cnt);
 
     for (i = 0; i < nr_cpu; i++) {
-        log += fetch_cpu_logs(log, &snapshots[i]);
+        log += fetch_cpu_logs(new_region_starts, log, &snapshots[i]);
     }
 
     return fetched;
@@ -380,7 +344,7 @@ static int fetch_work(void *arg) {
         cpus[nr_cpu] = node_to_cpu(numa_node, i);
     }
 
-    ws->per_worker_logs[wid] = fetch_logs(nr_cpu, cpus);
+    ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, cpus);
 
     return 0;
 }
@@ -495,7 +459,8 @@ static void pbatch_op_add(struct flush_load *per_socket_loads,
     per_socket_loads[*numa_node].load++;
 }
 
-static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *logs, int wid) {
+static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *logs,
+                                   pthread_barrier_t *barrier, int wid) {
     int i, next_wid, total = logs[wid].cnt, numa_node = 0;
     struct list_head pbatch_lists[NUM_SOCKET];
     pbatch_cursor_t cursors[NUM_SOCKET];
@@ -533,6 +498,10 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
             pbatch_list_destroy(&pbatch_lists[i]);
         }
     }
+
+    pthread_barrier_wait(barrier);
+
+    free(logs[wid].logs);
 }
 
 static void inter_worker_clustering(struct flush_load *per_socket_loads,
@@ -595,7 +564,7 @@ static int clustering_work(void *arg) {
     collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
-    merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, wid);
+    merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
 
     /* Do global inter-worker clustering. (per-worker per-socket loads -> per-socket loads) */
     inter_worker_clustering(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
@@ -756,15 +725,28 @@ static int flush_work(void *arg) {
     struct pflush_work_desc *desc = arg;
     struct flush_workset *ws = desc->workset;
     struct flush_load *load = &ws->per_worker_loads[desc->wid];
-    struct cluster *c;
+    struct cluster *c, *tmp;
 
-    list_for_each_entry(c, &load->cluster, list) {
-        pnode_run_batch(c->pnode, &c->pbatch_list);
+    list_for_each_entry_safe(c, tmp, &load->cluster, list) {
+        pnode_run_batch(NULL, c->pnode, &c->pbatch_list);
+
+        pbatch_list_destroy(&c->pbatch_list);
+        list_del(&c->list);
+        free(c);
+    }
+}
+
+static void cleanup_logs(const uint32_t *new_region_starts) {
+	struct log_layer *l_layer = LOG(bonsai);
+    int cpu;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        l_layer->desc->descs[cpu].region->meta.start = new_region_starts[cpu];
     }
 }
 
 static void init_stage(struct pflush_worksets *worksets) {
-
+    pthread_barrier_init(&worksets->clustering_ws.barrier, NULL, NUM_PFLUSH_WORKER);
+    pthread_barrier_init(&worksets->load_balance_ws.barrier, NULL, NUM_PFLUSH_WORKER);
 }
 
 static void fetch_stage(struct pflush_worksets *worksets, logs_t **per_worker_logs) {
@@ -792,7 +774,9 @@ static void flush_stage(struct pflush_worksets *worksets, struct flush_load *per
 }
 
 static void cleanup_stage(struct pflush_worksets *worksets) {
+    cleanup_logs(worksets->fetch_ws.new_region_starts);
 
+    pnode_recycle();
 }
 
 /*
@@ -808,7 +792,7 @@ void oplog_flush() {
 
 	atomic_set(&l_layer->checkpoint, 1);
 
-    new_turn();
+    new_flip();
 
     /* init work */
     init_stage(&ws);
@@ -828,7 +812,6 @@ void oplog_flush() {
     /* cleanup work */
     cleanup_stage(&ws);
 
-	/* 5. finish */
 	l_layer->nflush++;
 	atomic_set(&l_layer->checkpoint, 0);
 

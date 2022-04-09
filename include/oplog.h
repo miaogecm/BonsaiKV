@@ -54,7 +54,6 @@ struct cpu_log_region_desc {
     size_t size;
     struct oplog *lcb;
 
-    spinlock_t lock;
     seqcount_t seq;
 };
 

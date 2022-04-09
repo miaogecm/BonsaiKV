@@ -71,7 +71,10 @@ struct log_layer {
 
 struct data_layer {
 	struct data_region region[NUM_DIMM];
+
     pnoid_t free_list;
+
+    pnoid_t tofree_head, tofree_tail;
 
     pnoid_t sentinel;
 

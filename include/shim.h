@@ -13,8 +13,8 @@ extern "C" {
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
 typedef struct {
-    pnoid_t pno;
     pkey_t  pfence;
+    pnoid_t pno;
 } shim_sync_pfence_t;
 
 struct inode;

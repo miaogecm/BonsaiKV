@@ -200,11 +200,25 @@ static pnoid_t alloc_pnode(int node) {
     union pnoid_u id;
 
     do {
-        id.id = d_layer->free_list;
-    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->next));
+        id.id = ACCESS_ONCE(d_layer->free_list);
+    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->prev));
     id.numa_node = node;
 
     return id.id;
+}
+
+static void delay_free_pnode(pnoid_t pnode) {
+    struct data_layer *d_layer = DATA(bonsai);
+    mnode_t *mno = pnode_meta(pnode);
+    pnoid_t head;
+
+    do {
+        mno->prev = head = ACCESS_ONCE(d_layer->tofree_head);
+    } while (!cmpxchg2(&d_layer->tofree_head, head, pnode));
+
+    if (head == PNOID_NULL) {
+        d_layer->tofree_tail = pnode;
+    }
 }
 
 static int ent_compare(const void *p, const void *q) {
@@ -335,9 +349,13 @@ done:
     } else {
         layer->sentinel = l;
     }
+
+    /* Delay free the original pnode. */
+    delay_free_pnode(original);
 }
 
 static unsigned pnode_find_(pnoent_t *ent, pnoid_t pnode, pkey_t key, uint8_t *fgprt, __le64 validmap) {
+    /* TODO: Bitmap too short!! (Only 16bits) */
     __m128i x = _mm_set1_epi8((char) pkey_get_signature(key));
     __m128i y = _mm_load_si128((const __m128i *) fgprt);
     unsigned long cmp = _mm_movemask_epi8(_mm_cmpeq_epi8(x, y)) & validmap;
@@ -451,10 +469,11 @@ static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
-static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
+static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
 
     pnoid_t head, tail, next, prev = PNOID_NULL;
+    shim_sync_pfence_t *pfences, *pfence;
     mnode_t *head_mno, *tail_mno, *mno;
     pnoent_t merged[PNODE_FANOUT], *m;
     pnoent_t ents[PNODE_FANOUT], *ent;
@@ -462,6 +481,8 @@ static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t 
     pbatch_cursor_t cursor;
     unsigned cnt, mcnt, i;
     pbatch_op_t *op;
+
+    pfence = pfences = malloc((tot / (PNODE_FANOUT / 2)) * sizeof(*pfence));
 
     arr_init_from_pnode(ents, pnode, &cnt);
 
@@ -495,6 +516,8 @@ static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t 
             pnode_persist(prev, 0);
         }
 
+        *pfence++ = (shim_sync_pfence_t) { tail_mno->lfence, tail };
+
         prev = tail;
     }
 
@@ -502,6 +525,8 @@ static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t 
     pnode_persist(tail, 0);
 
     persistent_barrier();
+
+    *pfence++ = (shim_sync_pfence_t) { tail_mno->rfence, PNOID_NULL };
 
     head_mno = pnode_meta(head);
     mno = pnode_meta(pnode);
@@ -533,23 +558,38 @@ static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t 
     }
 
     spin_unlock(&d_layer->plist_lock);
+
+    /* Delay free the original pnode. */
+    delay_free_pnode(pnode);
+
+    return pfences;
 }
 
-void pnode_run_batch(pnoid_t pnode, struct list_head *pbatch_list) {
+void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list) {
+    mnode_t *mno = pnode_meta(pnode);
+    shim_sync_pfence_t nosmo_pfences[] = { { mno->lfence, pnode }, { mno->rfence, PNOID_NULL } };
+    shim_sync_pfence_t *pfences = nosmo_pfences;
     unsigned long validmap;
     size_t tot;
 
     tot = pnode_run_nosmo(pnode, pbatch_list);
 
     /* Precalculate total number of entries of the @pnode. */
-    validmap = pnode_meta(pnode)->validmap;
+    validmap = mno->validmap;
     tot += bitmap_weight(&validmap, PNODE_FANOUT);
 
     /* Inplace insert or prebuild? */
     if (tot <= PNODE_FANOUT) {
         pnode_inplace_insert(pnode, pbatch_list);
     } else {
-        pnode_prebuild(pnode, pbatch_list, tot);
+        pfences = pnode_prebuild(pnode, pbatch_list, tot);
+    }
+
+    /* Sync with shim layer. */
+    shim_sync(lst, pfences);
+
+    if (pfences != nosmo_pfences) {
+        free(pfences);
     }
 }
 
@@ -575,4 +615,15 @@ int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
 int is_in_pnode(pnoid_t pnode, pkey_t key) {
     mnode_t *mno = pnode_meta(pnode);
     return pkey_compare(key, mno->lfence) >= 0 && pkey_compare(key, mno->rfence) < 0;
+}
+
+void pnode_recycle() {
+    struct data_layer *d_layer = DATA(bonsai);
+
+    if (d_layer->tofree_head == PNOID_NULL) {
+        return;
+    }
+
+    pnode_meta(d_layer->tofree_tail)->prev = d_layer->free_list;
+    d_layer->free_list = d_layer->tofree_head;
 }

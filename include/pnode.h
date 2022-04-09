@@ -144,10 +144,12 @@ static inline int pnode_color(pnoid_t pno) {
 }
 
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
-void pnode_run_batch(pnoid_t pnode, struct list_head *pbatch_list);
+void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list);
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
 int is_in_pnode(pnoid_t pnode, pkey_t key);
+
+void pnode_recycle();
 
 static inline void pnode_split(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut) {
     pnode_split_and_recolor(pnode, sibling, cut, pnode_color(*pnode), pnode_color(*sibling));
