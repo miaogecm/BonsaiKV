@@ -797,7 +797,7 @@ void oplog_flush() {
     /* init work */
     init_stage(&ws);
 
-    /* fetch all current-flip logs in NVM and LCB to DRAM buffer */
+    /* fetch all current-flip logs in NVM to DRAM buffer */
     fetch_stage(&ws, &per_worker_logs);
 
     /* sort, merge, and clustering based on pnode */
