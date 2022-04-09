@@ -22,7 +22,7 @@ typedef enum {
 } optype_t;
 
 typedef struct {
-    int turn;
+    int flip;
 } log_state_t;
 
 typedef uint32_t logid_t;

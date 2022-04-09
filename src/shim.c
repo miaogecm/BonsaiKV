@@ -36,7 +36,7 @@ typedef uint32_t lp_t;
 typedef struct inode {
     /* header, 6-8 words */
     uint16_t validmap;
-    uint16_t turnmap;
+    uint16_t flipmap;
     uint32_t pfence;
 
     uint32_t next;
@@ -282,14 +282,14 @@ static inline pval_t lp_get_val(lp_t lp) {
     return oplog_get(lp)->o_kv.v;
 }
 
-static void set_turn(uint16_t *turnmap, log_state_t *lst, unsigned pos) {
-    unsigned long tmp = *turnmap;
-    if (lst->turn) {
+static void set_flip(uint16_t *flipmap, log_state_t *lst, unsigned pos) {
+    unsigned long tmp = *flipmap;
+    if (lst->flip) {
         __set_bit(pos, &tmp);
     } else {
         __clear_bit(pos, &tmp);
     }
-    *turnmap = tmp;
+    *flipmap = tmp;
 }
 
 struct lp_info {
@@ -359,7 +359,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
     /* Alloc and init the right node. */
     right = inode_alloc();
     right->validmap = rvmp;
-    right->turnmap = inode->turnmap;
+    right->flipmap = inode->flipmap;
     right->next = inode->next;
     right->pno = inode->pno;
     right->fence = inode->fence;
@@ -451,7 +451,7 @@ relookup:
         ret = 0;
     }
 
-    set_turn(&inode->turnmap, lst, pos);
+    set_flip(&inode->flipmap, lst, pos);
     inode->lps[pos] = log;
     barrier();
 
@@ -538,7 +538,7 @@ static inline int inode_remove_old(log_state_t *lst, inode_t *prev, inode_t *ino
     unsigned long validmap;
 
     /* Remove unused. */
-    validmap = inode->validmap & (inode->turnmap ^ (lst->turn ? 0 : -1u));
+    validmap = inode->validmap & (inode->flipmap ^ (lst->flip ? 0 : -1u));
     /* Do not delete pfence! */
     if (inode->pfence != NOT_FOUND) {
         /* The log item should be removed, but not the valid bit. */

@@ -247,8 +247,8 @@ static inline int worker_nr(int wid) {
 
 static inline void new_turn() {
     rcu_t *rcu = RCU(bonsai);
-    xadd(&LOG(bonsai)->lst.turn, 1);
-    /* Wait for all the user threads to observe the latest turn. */
+    xadd(&LOG(bonsai)->lst.flip, 1);
+    /* Wait for all the user threads to observe the latest flip. */
     rcu_synchronize(rcu, rcu_now(rcu));
 }
 
@@ -309,7 +309,7 @@ static size_t fetch_cpu_logs(struct oplog *logs, struct cpu_log_snapshot *snap) 
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[snap->cpu];
     struct cpu_log_region *region = local_desc->region;
-    int target_turn = ~layer->lst.turn;
+    int target_turn = ~layer->lst.flip;
     struct oplog *plog, *log;
     uint32_t cur, end;
     size_t vnr;
