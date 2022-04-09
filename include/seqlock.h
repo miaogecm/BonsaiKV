@@ -253,7 +253,7 @@ static inline int raw_read_seqcount_latch(seqcount_t *s)
  *
  * Where the traditional RCU/lockless data structures rely on atomic
  * modifications to ensure queries observe either the old or the new state the
- * latch allows the same for non-atomic updates. The trade-off is doubling the
+ * latch allows the same for non-atomic updates. The trade-nr is doubling the
  * cost of storage; we have to maintain two copies of the entire data
  * structure.
  *

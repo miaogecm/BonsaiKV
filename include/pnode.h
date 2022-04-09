@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stdint-gcc.h>
 #include "arch.h"
 #include "rwlock.h"
 #include "list.h"
@@ -136,14 +137,14 @@ static inline pbatch_op_t *pbatch_list_get(struct list_head *list, size_t i) {
     return pbatch_cursor_get(&cursor);
 }
 
-int pnode_node(pnoid_t pno);
+int pnode_numa_node(uint32_t pno);
 
 static inline int pnode_color(pnoid_t pno) {
-    return pnode_node(pno);
+    return pnode_numa_node(pno);
 }
 
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
-void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops);
+void pnode_run_batch(pnoid_t pnode, struct list_head *pbatch_list);
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
 int is_in_pnode(pnoid_t pnode, pkey_t key);

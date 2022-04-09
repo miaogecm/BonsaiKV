@@ -11,6 +11,7 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "arch.h"
+#include "seqlock.h"
 
 #define OPLOG_NUM_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
 #define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)
@@ -52,6 +53,9 @@ struct cpu_log_region_desc {
 
     size_t size;
     struct oplog *lcb;
+
+    spinlock_t lock;
+    seqcount_t seq;
 };
 
 struct log_region_desc {
@@ -66,7 +70,7 @@ struct log_layer;
 
 extern void oplog_snapshot_lst(log_state_t *lst);
 
-extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu);
+extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu);
 
 extern void oplog_flush();
 

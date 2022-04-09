@@ -121,20 +121,20 @@ int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK] = {
 
 union pnoid_u {
     struct {
-        uint32_t node : 3;
-        uint32_t off  : 29;
+        uint32_t numa_node : 3;
+        uint32_t nr        : 29;
     };
     pnoid_t id;
 };
 
-int pnode_node(pnoid_t pno) {
+int pnode_numa_node(pnoid_t pno) {
     union pnoid_u u = { .id = pno };
-    return (int) u.node;
+    return (int) u.numa_node;
 }
 
 static inline unsigned long pnode_off(pnoid_t pno) {
     union pnoid_u u = { .id = pno };
-    return u.off * (unsigned long) PNODE_INTERLEAVING_SIZE;
+    return u.nr * (unsigned long) PNODE_INTERLEAVING_SIZE;
 }
 
 static inline int *pnode_permute(pnoid_t pno) {
@@ -142,7 +142,7 @@ static inline int *pnode_permute(pnoid_t pno) {
 }
 
 static inline void *pnode_dimm_addr(pnoid_t pno, int dimm_idx) {
-    int node = pnode_node(pno), dimm = node_to_dimm(node, dimm_idx);
+    int node = pnode_numa_node(pno), dimm = node_to_dimm(node, dimm_idx);
     return (void *) DATA(bonsai)->region[dimm].start + pnode_off(pno);
 }
 
@@ -192,7 +192,7 @@ static inline pnoent_t *ent_fetch(pnoent_t *ent, int node) {
 
 static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
     pnoent_t *ent = (pnoent_t *) pnode_get_blk(pno, i / PNODE_NUM_ENT_BLK + 1) + i % PNODE_NUM_ENT_BLK;
-    return ent_fetch(ent, pnode_node(pno));
+    return ent_fetch(ent, pnode_numa_node(pno));
 }
 
 static pnoid_t alloc_pnode(int node) {
@@ -202,7 +202,7 @@ static pnoid_t alloc_pnode(int node) {
     do {
         id.id = d_layer->free_list;
     } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->next));
-    id.node = node;
+    id.numa_node = node;
 
     return id.id;
 }
@@ -365,9 +365,10 @@ static void flush_ents(pnoid_t pnode, unsigned long changemap) {
     }
 }
 
-static size_t pnode_run_nosmo(pnoid_t pnode, pbatch_op_t *ops) {
+static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap, changemap = 0;
+    pbatch_cursor_t cursor;
     size_t insert_cnt = 0;
     pbatch_op_t *op;
     unsigned pos;
@@ -376,7 +377,9 @@ static size_t pnode_run_nosmo(pnoid_t pnode, pbatch_op_t *ops) {
      * Scan @ops, and perform all the update and remove operations,
      * as they do not incur SMO.
      */
-    for (op = ops; op->type; op++) {
+    for (pbatch_cursor_init(&cursor, pbatch_list); !pbatch_cursor_is_end(&cursor); pbatch_cursor_inc(&cursor)) {
+        op = pbatch_cursor_get(&cursor);
+
         assert(!op->done);
 
         pos = pnode_find(pnode, op->key);
@@ -415,14 +418,17 @@ static size_t pnode_run_nosmo(pnoid_t pnode, pbatch_op_t *ops) {
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
-static void pnode_inplace_insert(pnoid_t pnode, pbatch_op_t *ops) {
+static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap, changemap = 0;
+    pbatch_cursor_t cursor;
     pbatch_op_t *op;
     unsigned pos;
     pnoent_t *e;
 
-    for (op = ops; op->type; op++) {
+    for (pbatch_cursor_init(&cursor, pbatch_list); !pbatch_cursor_is_end(&cursor); pbatch_cursor_inc(&cursor)) {
+        op = pbatch_cursor_get(&cursor);
+
         if (op->done) {
             continue;
         }
@@ -445,28 +451,33 @@ static void pnode_inplace_insert(pnoid_t pnode, pbatch_op_t *ops) {
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 }
 
-static void pnode_prebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
+static void pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
 
     pnoid_t head, tail, next, prev = PNOID_NULL;
     mnode_t *head_mno, *tail_mno, *mno;
     pnoent_t merged[PNODE_FANOUT], *m;
     pnoent_t ents[PNODE_FANOUT], *ent;
-    int node = pnode_node(pnode);
+    int node = pnode_numa_node(pnode);
+    pbatch_cursor_t cursor;
     unsigned cnt, mcnt, i;
     pbatch_op_t *op;
 
     arr_init_from_pnode(ents, pnode, &cnt);
 
-    for (; tot; tot -= mcnt) {
+    for (pbatch_cursor_init(&cursor, pbatch_list); tot; tot -= mcnt) {
         mcnt = tot >= PNODE_FANOUT ? PNODE_FANOUT / 2 : tot;
         m = merged;
         for (i = 0; i < mcnt; i++) {
-            if (!op->type || (ent < ents + cnt && pkey_compare(ent->k, op->key) < 0)) {
+            op = unlikely(pbatch_cursor_is_end(&cursor)) ? NULL : pbatch_cursor_get(&cursor);
+            if (!op || (ent < ents + cnt && pkey_compare(ent->k, op->key) < 0)) {
                 *m++ = *ent++;
             } else {
                 *m++ = (pnoent_t) { op->key, op->val, 0 };
-                while ((++op)->done);
+                do {
+                    pbatch_cursor_inc(&cursor);
+                    op = pbatch_cursor_get(&cursor);
+                } while (op->done);
             }
         }
 
@@ -524,11 +535,11 @@ static void pnode_prebuild(pnoid_t pnode, pbatch_op_t *ops, size_t tot) {
     spin_unlock(&d_layer->plist_lock);
 }
 
-void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops) {
+void pnode_run_batch(pnoid_t pnode, struct list_head *pbatch_list) {
     unsigned long validmap;
     size_t tot;
 
-    tot = pnode_run_nosmo(pnode, ops);
+    tot = pnode_run_nosmo(pnode, pbatch_list);
 
     /* Precalculate total number of entries of the @pnode. */
     validmap = pnode_meta(pnode)->validmap;
@@ -536,9 +547,9 @@ void pnode_run_batch(pnoid_t pnode, pbatch_op_t *ops) {
 
     /* Inplace insert or prebuild? */
     if (tot <= PNODE_FANOUT) {
-        pnode_inplace_insert(pnode, ops);
+        pnode_inplace_insert(pnode, pbatch_list);
     } else {
-        pnode_prebuild(pnode, ops, tot);
+        pnode_prebuild(pnode, pbatch_list, tot);
     }
 }
 

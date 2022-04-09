@@ -42,27 +42,22 @@ union logid_u {
     };
 };
 
-struct pflush_work_desc {
-    int wid, cpu;
-    void *workset;
-};
-
 typedef struct {
     struct oplog *logs;
     int cnt;
 } logs_t;
 
-struct worker_load {
-    size_t load;
-    struct list_head cluster;
+struct cpu_log_snapshot {
+    uint32_t region_start, region_end;
+    struct oplog *lcb;
+    uint32_t lcb_size;
+    int cpu;
 };
 
-struct cluster_workset {
-    logs_t logs[NUM_PFLUSH_WORKER];
-
-    struct worker_load loads[NUM_PFLUSH_WORKER][NUM_PFLUSH_WORKER];
-
-    pthread_barrier_t barrier;
+struct flush_load {
+    int color;
+    size_t load;
+    struct list_head cluster;
 };
 
 struct cluster {
@@ -70,6 +65,62 @@ struct cluster {
     struct list_head pbatch_list;
     struct list_head list;
 };
+
+/* pflush work descriptor (be passed to each worker's arg) */
+struct pflush_work_desc {
+    int wid, cpu;
+    void *workset;
+};
+
+/* workset definitions */
+
+struct desc_workset {
+    struct pflush_work_desc desc[NUM_PFLUSH_WORKER];
+};
+
+struct fetch_workset {
+    /* The output of the fetch work. Collected logs for each worker. */
+    logs_t per_worker_logs[NUM_PFLUSH_WORKER];
+};
+
+struct clustering_workset {
+    /* The input of the clustering work. Collected logs for each worker. */
+    logs_t *per_worker_logs;
+
+    struct flush_load per_worker_per_socket_loads[NUM_PFLUSH_WORKER][NUM_SOCKET];
+
+    /* The output of the clustering work. Loads for each NUMA node. */
+    struct flush_load per_socket_loads[NUM_SOCKET];
+
+    pthread_barrier_t barrier;
+};
+
+struct load_balance_workset {
+    /* The input of the load balance work. Loads for each NUMA node. */
+    struct flush_load *per_socket_loads;
+
+    /* The output of the load balance work. Loads for each worker. */
+    struct flush_load per_worker_loads[NUM_PFLUSH_WORKER];
+
+    pthread_barrier_t barrier;
+};
+
+struct flush_workset {
+    /* The input of the flush work. Loads for each worker. */
+    struct flush_load *per_worker_loads;
+};
+
+struct pflush_worksets {
+    struct desc_workset         desc_ws;
+    struct fetch_workset        fetch_ws;
+    struct clustering_workset   clustering_ws;
+    struct load_balance_workset load_balance_ws;
+    struct flush_workset        flush_ws;
+};
+
+static inline size_t max_load_per_socket(size_t avg_load) {
+    return avg_load + 1000000;
+}
 
 static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
     uint32_t d1 = (meta->end - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
@@ -86,18 +137,29 @@ struct oplog *oplog_get(logid_t logid) {
     union logid_u id = { .id = logid };
     struct cpu_log_region_desc *desc;
     struct cpu_log_region_meta meta;
+    struct oplog *oplog;
+    unsigned seq;
     int overflow;
+
     desc = &LOG(bonsai)->desc->descs[id.cpu];
-    meta = desc->region->meta;
-    overflow = oplog_overflow_size(&meta, id.off);
-    if (unlikely(overflow >= 0)) {
-        return &desc->lcb[overflow];
-    } else {
-        return &desc->region->logs[id.off];
-    }
+
+    do {
+        seq = read_seqcount_begin(&desc->seq);
+
+        meta = ACCESS_ONCE(desc->region->meta);
+        overflow = oplog_overflow_size(&meta, id.off);
+
+        if (unlikely(overflow >= 0)) {
+            oplog = &desc->lcb[overflow];
+        } else {
+            oplog = &desc->region->logs[id.off];
+        }
+    } while (read_seqcount_retry(&desc->seq, seq));
+
+    return oplog;
 }
 
-logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu) {
+logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 	struct log_layer* layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
@@ -142,12 +204,21 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu
 
             pthread_mutex_unlock(local_desc->dimm_lock);
 
-            region->meta.end = end;
-            bonsai_flush(&region->meta.end, sizeof(__le32), 1);
+            lcb = malloc(LCB_MAX_SIZE);
+
+            spin_lock(&local_desc->lock);
 
             local_desc->size = 0;
             call_rcu(RCU(bonsai), free, local_desc->lcb);
-            local_desc->lcb = malloc(LCB_MAX_SIZE);
+
+            write_seqcount_begin(&local_desc->seq);
+            region->meta.end = end;
+            local_desc->lcb = lcb;
+            write_seqcount_end(&local_desc->seq);
+
+            spin_unlock(&local_desc->lock);
+
+            bonsai_flush(&region->meta.end, sizeof(__le32), 1);
         }
     }
 
@@ -162,29 +233,90 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int numa_node, int cpu
     return id.id;
 }
 
-static void new_turn() {
+static inline int worker_id(int numa_node, int nr) {
+    return NUM_PFLUSH_WORKER_PER_NODE * numa_node + nr;
+}
+
+static inline int worker_numa_node(int wid) {
+    return wid / NUM_PFLUSH_WORKER_PER_NODE;
+}
+
+static inline int worker_nr(int wid) {
+    return wid % NUM_PFLUSH_WORKER_PER_NODE;
+}
+
+static inline void new_turn() {
     rcu_t *rcu = RCU(bonsai);
     xadd(&LOG(bonsai)->lst.turn, 1);
     /* Wait for all the user threads to observe the latest turn. */
     rcu_synchronize(rcu, rcu_now(rcu));
 }
 
-static logs_t fetch_cpu_logs(int cpu) {
+static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, void *workset) {
+    struct work_struct works[NUM_PFLUSH_WORKER], *work;
+    struct pflush_work_desc *desc;
+    int wid;
+
+    for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
+        desc = &worksets->desc_ws.desc[wid];
+        desc->workset = workset;
+
+        work = &works[wid];
+        INIT_LIST_HEAD(&work->list);
+        work->exec = fn;
+        work->exec_arg = desc;
+        workqueue_add(&bonsai->pflush_workers[worker_numa_node(wid)][worker_nr(wid)]->t_wq, work);
+    }
+
+	wakeup_workers();
+	park_master();
+}
+
+static size_t log_nv_nr(struct cpu_log_snapshot *snap) {
+    return (snap->region_end - snap->region_start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+}
+
+static size_t log_v_nr(struct cpu_log_snapshot *snap) {
+    return snap->lcb_size;
+}
+
+static size_t log_nr(struct cpu_log_snapshot *snap) {
+    return log_nv_nr(snap) + log_v_nr(snap);
+}
+
+static void snapshot_cpu_log(struct cpu_log_snapshot *snap, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
+    struct oplog *lcb;
+
+    snap->cpu = cpu;
+    snap->lcb = lcb = malloc(LCB_MAX_SIZE * sizeof(*lcb));
+
+    spin_lock(&local_desc->lock);
+    snap->region_start = region->meta.start;
+    snap->region_end = region->meta.end;
+    snap->lcb_size = local_desc->size;
+    memcpy(lcb, local_desc->lcb, local_desc->size * sizeof(*lcb));
+    spin_unlock(&local_desc->lock);
+}
+
+static void snapshot_destroy(struct cpu_log_snapshot *snap) {
+    free(snap->lcb);
+}
+
+static size_t fetch_cpu_logs(struct oplog *logs, struct cpu_log_snapshot *snap) {
+	struct log_layer *layer = LOG(bonsai);
+    struct cpu_log_region_desc *local_desc = &layer->desc->descs[snap->cpu];
+    struct cpu_log_region *region = local_desc->region;
     int target_turn = ~layer->lst.turn;
-    struct oplog *plog, *logs, *log;
+    struct oplog *plog, *log;
     uint32_t cur, end;
-    size_t total;
+    size_t vnr;
 
-    /* TODO: Fetch those in DRAM LCB!!! */
-
-    cur = region->meta.start;
-    end = region->meta.end;
-
-    total = (end - cur + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
-    logs = malloc(total);
+    /* collect logs in NVM */
+    cur = snap->region_start;
+    end = snap->region_end;
 
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
@@ -195,7 +327,62 @@ static logs_t fetch_cpu_logs(int cpu) {
         memcpy(log, plog, sizeof(*log));
     }
 
-    return (logs_t) { logs, (int) (log - logs) };
+    /* collect logs in LCB */
+    vnr = log_v_nr(snap);
+
+    for (cur = 0; cur < vnr; cur++, log++) {
+        plog = &snap->lcb[cur];
+        if (unlikely(OPLOG_TURN(plog->o_type) != target_turn)) {
+            break;
+        }
+
+        memcpy(log, plog, sizeof(*log));
+    }
+
+    return log - logs;
+}
+
+static logs_t fetch_logs(int nr_cpu, int *cpus) {
+    struct cpu_log_snapshot snapshots[NUM_CPU];
+    logs_t fetched = { .cnt = 0 };
+    struct oplog *log;
+    int i;
+
+    for (i = 0; i < nr_cpu; i++) {
+        snapshot_cpu_log(&snapshots[i], cpus[i]);
+        fetched.cnt += (int) log_nr(&snapshots[i]);
+    }
+
+    log = fetched.logs = malloc(sizeof(*log) * fetched.cnt);
+
+    for (i = 0; i < nr_cpu; i++) {
+        log += fetch_cpu_logs(log, &snapshots[i]);
+    }
+
+    return fetched;
+}
+
+/*
+ * Fetch worker
+ * O: per_worker_logs
+ */
+static int fetch_work(void *arg) {
+    struct pflush_work_desc *desc = arg;
+    struct fetch_workset *ws = desc->workset;
+    int tot = NUM_CPU / NUM_PFLUSH_WORKER;
+    int wid = desc->wid, wnr, numa_node;
+    int i, nr_cpu, cpus[tot];
+
+    numa_node = worker_numa_node(wid);
+    wnr = worker_nr(wid);
+
+    for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
+        cpus[nr_cpu] = node_to_cpu(numa_node, i);
+    }
+
+    ws->per_worker_logs[wid] = fetch_logs(nr_cpu, cpus);
+
+    return 0;
 }
 
 /* Inline the sort function to reduce overhead caused by frequently making indirect call to cmp. */
@@ -204,7 +391,7 @@ static logs_t fetch_cpu_logs(int cpu) {
                                  ? : num_cmp(((struct oplog *) (a))->o_ts, ((struct oplog *) (b))->o_ts))
 #include "sort.h"
 
-static void collaboratively_sort_logs(pthread_barrier_t *barrier, logs_t *logs, int wid) {
+static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, int wid) {
 	int phase, n = NUM_PFLUSH_WORKER, i, left, oid, cnt, ocnt, delta;
     struct oplog *ent, *oent, *nent, *nptr, *data, *odata, **get;
 
@@ -261,13 +448,8 @@ static void collaboratively_sort_logs(pthread_barrier_t *barrier, logs_t *logs, 
 	}
 }
 
-static inline int pnode_assignee(pnoid_t pnode) {
-    /* TODO: Better hash function */
-    /* TODO: NUMA-Aware assignee */
-    return pnode % NUM_PFLUSH_WORKER;
-}
-
-static void pbatch_op_add(struct worker_load *loads, pbatch_cursor_t *cursors, int *assignee, struct oplog *log) {
+static void pbatch_op_add(struct flush_load *per_socket_loads,
+                          pbatch_cursor_t *cursors, int *numa_node, struct oplog *log) {
     struct list_head *cluster_list;
     struct cluster *cluster;
     pbatch_cursor_t *cursor;
@@ -276,15 +458,15 @@ static void pbatch_op_add(struct worker_load *loads, pbatch_cursor_t *cursors, i
     int split = 0;
 
     /* Are we still in the right pnode? */
-    cluster_list = &loads[*assignee].cluster;
+    cluster_list = &per_socket_loads[*numa_node].cluster;
     cluster = list_last_entry(cluster_list, struct cluster, list);
     if (list_empty(cluster_list) || !is_in_pnode(cluster->pnode, log->o_kv.k)) {
         pnode = shim_pnode_of(log->o_kv.k);
-        *assignee = pnode_assignee(pnode);
+        *numa_node = pnode_numa_node(pnode);
         split = 1;
     }
 
-    cursor = &cursors[*assignee];
+    cursor = &cursors[*numa_node];
 
     /* Insert into current cursor position. */
     op = pbatch_cursor_get(cursor);
@@ -303,18 +485,20 @@ static void pbatch_op_add(struct worker_load *loads, pbatch_cursor_t *cursors, i
         cluster->pnode = pnode;
         INIT_LIST_HEAD(&cluster->pbatch_list);
         INIT_LIST_HEAD(&cluster->list);
-        list_add_tail(&cluster->list, &loads[*assignee].cluster);
+        list_add_tail(&cluster->list, &per_socket_loads[*numa_node].cluster);
         pbatch_list_split(&cluster->pbatch_list, cursor);
     }
 
     /* Forward the cursor. */
     pbatch_cursor_inc(cursor);
+
+    per_socket_loads[*numa_node].load++;
 }
 
-static void merge_and_cluster_logs(struct worker_load *loads, logs_t *logs, int wid) {
-    int i, next_wid, total = logs[wid].cnt, assignee = 0;
-    struct list_head pbatch_lists[NUM_PFLUSH_WORKER];
-    pbatch_cursor_t cursors[NUM_PFLUSH_WORKER];
+static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *logs, int wid) {
+    int i, next_wid, total = logs[wid].cnt, numa_node = 0;
+    struct list_head pbatch_lists[NUM_SOCKET];
+    pbatch_cursor_t cursors[NUM_SOCKET];
     struct oplog *log = logs[wid].logs;
     pbatch_op_t *ops;
 
@@ -322,26 +506,28 @@ static void merge_and_cluster_logs(struct worker_load *loads, logs_t *logs, int 
         return;
     }
 
-    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+    for (i = 0; i < NUM_SOCKET; i++) {
         ops = malloc(total * sizeof(*ops));
         INIT_LIST_HEAD(&pbatch_lists[i]);
         pbatch_list_create(&pbatch_lists[i], ops, total, 1);
         pbatch_cursor_init(&cursors[i], &pbatch_lists[i]);
+        INIT_LIST_HEAD(&per_socket_loads[i].cluster);
+        per_socket_loads[i].load = 0;
     }
 
     for (; --total; log++) {
         if (pkey_compare(log[0].o_kv.k, log[1].o_kv.k)) {
-            pbatch_op_add(loads, cursors, &assignee, log);
+            pbatch_op_add(per_socket_loads, cursors, &numa_node, log);
         }
     }
 
     for (next_wid = wid + 1; next_wid < NUM_PFLUSH_WORKER && !logs[next_wid].cnt; next_wid++);
     if (next_wid >= NUM_PFLUSH_WORKER || pkey_compare(logs[next_wid].logs[0].o_kv.k, log->o_kv.k)) {
-        pbatch_op_add(loads, cursors, &assignee, log);
+        pbatch_op_add(per_socket_loads, cursors, &numa_node, log);
     }
 
     /* Remove the trailing empty space. */
-    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+    for (i = 0; i < NUM_SOCKET; i++) {
         if (!pbatch_cursor_is_end(&cursors[i])) {
             pbatch_list_split(&pbatch_lists[i], &cursors[i]);
             pbatch_list_destroy(&pbatch_lists[i]);
@@ -349,67 +535,263 @@ static void merge_and_cluster_logs(struct worker_load *loads, logs_t *logs, int 
     }
 }
 
-static void clustering_work(void *arg) {
-    struct pflush_work_desc *desc = arg;
-    struct cluster_workset *ws = desc->workset;
-    struct worker_load *loads;
-    int wid = desc->wid, i;
-
-    /* Fetch all the logs. */
-    /* TODO: It's wrong. It should consider all the user threads. */
-    ws->logs[wid] = fetch_cpu_logs(desc->cpu);
-
-    /* Sort them collaboratively. */
-    collaboratively_sort_logs(&ws->barrier, ws->logs, wid);
-    
-    /* Merge and cluster the logs. */
-    loads = ws->loads[wid];
-    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
-        INIT_LIST_HEAD(&loads[i].cluster);
-    }
-    merge_and_cluster_logs(loads, ws->logs, wid);
-
-    /* Free logs */
-    pthread_barrier_wait(&ws->barrier);
-    free(ws->logs[wid].logs);
-}
-
-static void global_clustering(struct worker_load *loads, struct worker_load *loads_per_worker[NUM_PFLUSH_WORKER]) {
-    struct worker_load *load, *load_per_worker;
+static void inter_worker_clustering(struct flush_load *per_socket_loads,
+                                    struct flush_load per_worker_per_socket_loads[][NUM_SOCKET],
+                                    pthread_barrier_t *barrier, int wid) {
+    struct flush_load *load, *load_per_worker;
     struct list_head *addon, *target;
     struct cluster *prev, *curr;
-    int assignee, i;
+    int numa_node, i;
 
-    for (assignee = 0; assignee < NUM_PFLUSH_WORKER; assignee++) {
-        load = &loads[assignee];
+    /* Wait for all local clustering to be done. */
+    pthread_barrier_wait(barrier);
 
-        load->load = 0;
-        target = &load->cluster;
-        INIT_LIST_HEAD(target);
+    /* Only one worker per NUMA node. */
+    if (worker_nr(wid) != 0) {
+        return;
+    }
 
-        for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
-            load_per_worker = &loads_per_worker[i][assignee];
+    numa_node = worker_numa_node(wid);
 
-            addon = &load_per_worker->cluster;
+    load = &per_socket_loads[numa_node];
 
-            if (likely(!list_empty(target))) {
-                prev = list_last_entry(target, struct cluster, list);
-                curr = list_first_entry(addon, struct cluster, list);
-                if (prev->pnode == curr->pnode) {
-                    pbatch_list_merge(&prev->pbatch_list, &curr->pbatch_list);
-                    list_del(&curr->list);
-                    free(curr);
-                }
+    load->load = 0;
+    load->color = numa_node;
+    target = &load->cluster;
+    INIT_LIST_HEAD(target);
+
+    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        load_per_worker = &per_worker_per_socket_loads[i][numa_node];
+
+        addon = &load_per_worker->cluster;
+
+        if (likely(!list_empty(target))) {
+            prev = list_last_entry(target, struct cluster, list);
+            curr = list_first_entry(addon, struct cluster, list);
+            if (prev->pnode == curr->pnode) {
+                pbatch_list_merge(&prev->pbatch_list, &curr->pbatch_list);
+                list_del(&curr->list);
+                free(curr);
             }
+        }
 
-            list_splice_tail(addon, target);
-            
-            load->load += load_per_worker->load;
+        list_splice_tail(addon, target);
+
+        load->load += load_per_worker->load;
+    }
+}
+
+/*
+ * Clustering worker
+ * I: per_worker_logs
+ * O: per_socket_loads
+ */
+static int clustering_work(void *arg) {
+    struct pflush_work_desc *desc = arg;
+    struct clustering_workset *ws = desc->workset;
+    int wid = desc->wid;
+
+    /* Sort them collaboratively. */
+    collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
+    
+    /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
+    merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, wid);
+
+    /* Do global inter-worker clustering. (per-worker per-socket loads -> per-socket loads) */
+    inter_worker_clustering(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
+
+    return 0;
+}
+
+static int cluster_cmp(void *priv, struct list_head *a, struct list_head *b) {
+    struct cluster *p = list_entry(a, struct cluster, list), *q = list_entry(b, struct cluster, list);
+    size_t na = pbatch_list_len(&p->pbatch_list), nb = pbatch_list_len(&q->pbatch_list);
+    if (na > nb) {
+        return -1;
+    }
+    if (na < nb) {
+        return 1;
+    }
+    return 0;
+}
+
+static void load_split_and_recolor(struct flush_load *dst, struct flush_load *src, size_t nr, int color) {
+    struct cluster *c, *sibling;
+    pbatch_cursor_t cursor;
+    size_t cnt = 0, len;
+    pkey_t *cut;
+
+    list_for_each_entry(c, &src->cluster, list) {
+        len = pbatch_list_len(&c->pbatch_list);
+        if (cnt + len > nr) {
+            break;
+        }
+
+        if (color != src->color) {
+            pnode_split_and_recolor(&c->pnode, NULL, NULL, color, color);
+        }
+
+        cnt += len;
+    }
+
+    if (cnt < nr) {
+        sibling = malloc(sizeof(*sibling));
+        INIT_LIST_HEAD(&sibling->pbatch_list);
+        INIT_LIST_HEAD(&sibling->list);
+
+        pbatch_cursor_init(&cursor, &c->pbatch_list);
+        pbatch_cursor_forward(&cursor, nr - cnt);
+
+        cut = &pbatch_cursor_get(&cursor)->key;
+        pnode_split_and_recolor(&c->pnode, &sibling->pnode, cut, color, src->color);
+
+        pbatch_list_split(&sibling->pbatch_list, &cursor);
+
+        list_add(&sibling->list, &c->list);
+
+        c = sibling;
+    }
+
+    list_cut_position(&dst->cluster, &src->cluster, c->list.prev);
+
+    dst->load = nr;
+    src->load -= nr;
+
+    dst->color = color;
+}
+
+static void load_merge(struct flush_load *dst, struct flush_load *src) {
+    assert(src->color == dst->color);
+    list_splice_tail(&src->cluster, &dst->cluster);
+    dst->load += src->load;
+    src->load = 0;
+}
+
+static void do_inter_socket_load_balance(struct flush_load *per_socket_loads) {
+    size_t avg_load = 0, max_load;
+    struct flush_load *load, cut;
+    int node, victim;
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        avg_load += per_socket_loads[node].load;
+    }
+    avg_load /= NUM_SOCKET;
+
+    max_load = max_load_per_socket(avg_load);
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        load = &per_socket_loads[node];
+
+        if (load->load > max_load) {
+            for (victim = 0; victim < NUM_SOCKET && per_socket_loads[node].load >= avg_load; victim++);
+            assert(victim < NUM_SOCKET);
+
+            list_sort(NULL, &load->cluster, cluster_cmp);
+            load_split_and_recolor(&cut, load, load->load - avg_load, victim);
+            load_merge(&per_socket_loads[victim], &cut);
+
+            node = -1;
         }
     }
 }
 
-static void load_balance(struct worker_load *loads) {
+static void do_intra_socket_load_balance(struct flush_load *per_worker_loads, struct flush_load *loads,
+                                         int nr_worker) {
+    int nr_busy_worker = (int) (loads->load % nr_worker), i;
+    size_t per_worker_load = loads->load / nr_worker, load;
+    for (i = 0; i < nr_worker; i++) {
+        load = i < nr_busy_worker ? per_worker_load + 1 : per_worker_load;
+        load_split_and_recolor(&per_worker_loads[i], loads, load, loads->color);
+    }
+}
+
+static void inter_socket_load_balance(struct flush_load *per_socket_loads, int wid) {
+    if (wid == 0) {
+        /* We only want one global worker to do this now. */
+        do_inter_socket_load_balance(per_socket_loads);
+    }
+}
+
+static void intra_socket_load_balance(struct flush_load *per_worker_loads, struct flush_load *per_socket_loads,
+                                      pthread_barrier_t *barrier, int wid) {
+    struct flush_load per_socket_per_worker_loads[NUM_PFLUSH_WORKER_PER_NODE];
+    int numa_node, i;
+
+    /* Wait for inter socket load balance to be done. */
+    pthread_barrier_wait(barrier);
+
+    /* Only one worker per NUMA node. */
+    if (worker_nr(wid) != 0) {
+        return;
+    }
+
+    numa_node = worker_numa_node(wid);
+
+    do_intra_socket_load_balance(per_socket_per_worker_loads, &per_socket_loads[numa_node],
+                                 NUM_PFLUSH_WORKER_PER_NODE);
+
+    for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+        per_worker_loads[worker_id(numa_node, i)] = per_socket_per_worker_loads[i];
+    }
+}
+
+/*
+ * Load balance worker
+ * I: per_socket_loads
+ * O: per_worker_loads
+ */
+static int load_balance_work(void *arg) {
+    struct pflush_work_desc *desc = arg;
+    struct load_balance_workset *ws = desc->workset;
+    int wid = desc->wid;
+
+    inter_socket_load_balance(ws->per_socket_loads, wid);
+
+    intra_socket_load_balance(ws->per_worker_loads, ws->per_socket_loads, &ws->barrier, wid);
+
+    return 0;
+}
+
+static int flush_work(void *arg) {
+    struct pflush_work_desc *desc = arg;
+    struct flush_workset *ws = desc->workset;
+    struct flush_load *load = &ws->per_worker_loads[desc->wid];
+    struct cluster *c;
+
+    list_for_each_entry(c, &load->cluster, list) {
+        pnode_run_batch(c->pnode, &c->pbatch_list);
+    }
+}
+
+static void init_stage(struct pflush_worksets *worksets) {
+
+}
+
+static void fetch_stage(struct pflush_worksets *worksets, logs_t **per_worker_logs) {
+    launch_workers(worksets, fetch_work, &worksets->fetch_ws);
+    *per_worker_logs = worksets->fetch_ws.per_worker_logs;
+}
+
+static void clustering_stage(struct pflush_worksets *worksets,
+                             struct flush_load **per_socket_loads, logs_t *per_worker_logs) {
+    worksets->clustering_ws.per_worker_logs = per_worker_logs;
+    launch_workers(worksets, clustering_work, &worksets->clustering_ws);
+    *per_socket_loads = worksets->clustering_ws.per_socket_loads;
+}
+
+static void load_balance_stage(struct pflush_worksets *worksets,
+                               struct flush_load **per_worker_loads, struct flush_load *per_socket_loads) {
+    worksets->load_balance_ws.per_socket_loads = per_socket_loads;
+    launch_workers(worksets, load_balance_work, &worksets->load_balance_ws);
+    *per_worker_loads = worksets->load_balance_ws.per_worker_loads;
+}
+
+static void flush_stage(struct pflush_worksets *worksets, struct flush_load *per_worker_loads) {
+    worksets->flush_ws.per_worker_loads = per_worker_loads;
+    launch_workers(worksets, flush_work, &worksets->flush_ws);
+}
+
+static void cleanup_stage(struct pflush_worksets *worksets) {
 
 }
 
@@ -417,179 +799,37 @@ static void load_balance(struct worker_load *loads) {
  * oplog_flush: perform a full log flush
  */
 void oplog_flush() {
-	struct log_layer *l_layer = LOG(bonsai);
-    struct dimm_log_region *region;
-	volatile struct oplog_blk* first_blks[NUM_CPU_PER_SOCKET];
-	volatile struct oplog_blk* curr_blks[NUM_CPU_PER_SOCKET];
-	volatile struct oplog_blk* curr_blk;
-	struct oplog_work* owork;
-	struct oplog_work* oworks[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
-	struct work_struct* work;
-    int i, j, cpu, cnt, total, node, cpu_idx;
-	int num_work, num_block, num_block_per_worker, num_busy_worker;
-    int empty = 1;
-    struct oplog_work empty_owork[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE] = { };
+    struct log_layer *l_layer = LOG(bonsai);
+    struct pflush_worksets ws;
+    logs_t *per_worker_logs;
+    struct flush_load *per_socket_loads, *per_worker_loads;
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 
 	atomic_set(&l_layer->checkpoint, 1);
 
-    for (node = 0; node < NUM_SOCKET; node++) {
-        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
-            empty_owork[node][i].layer = l_layer;
-            empty_owork[node][i].node = node;
-            empty_owork[node][i].id = i;
-        }
-    }
+    new_turn();
 
-    /************************************************
-     *   Per-node Fetch and Distribute Log Lists    *
-     ************************************************/
+    /* init work */
+    init_stage(&ws);
 
-    for (node = 0; node < NUM_SOCKET; node++) {
-        total = 0;
-        cnt = 0;
+    /* fetch all current-flip logs in NVM and LCB to DRAM buffer */
+    fetch_stage(&ws, &per_worker_logs);
 
-        /* 1. fetch and merge all log lists */
-        for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx++) {
-            cpu = node_to_cpu(node, cpu_idx);
-            region = &l_layer->region[cpu];
-            curr_blk = ACCESS_ONCE(region->curr_blk);
-            /* TODO: Non-full log blocks can not be flushed! */
-            if (curr_blk && region->first_blk != curr_blk) {
-                first_blks[total] = region->first_blk;
-                curr_blks[total] = curr_blk;
-                region->first_blk = curr_blk;
-                total++;
-            }
-        }
+    /* sort, merge, and clustering based on pnode */
+    clustering_stage(&ws, &per_socket_loads, per_worker_logs);
 
-        if (unlikely(!total)) {
-            for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
-                oworks[node][i] = &empty_owork[node][i];
-            }
-            continue;
-        } else {
-            empty = 0;
-        }
+    /* inter and intra socket load balance */
+    load_balance_stage(&ws, &per_worker_loads, per_socket_loads);
 
-        if (unlikely(atomic_read(&l_layer->exit))) {
-            goto out;
-        }
+    /* flush and sync */
+    flush_stage(&ws, per_worker_loads);
 
-        /* 2. merge all lps */
+    /* cleanup work */
+    cleanup_stage(&ws);
 
-        /* count number of log blocks */
-        num_block = 0;
-        for (i = 0; i < total; i++) {
-            for (curr_blk = first_blks[i];
-                 curr_blk != curr_blks[i];
-                 curr_blk = (struct oplog_blk *) LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]),
-                                                                        curr_blk->next)) {
-                num_block++;
-            }
-        }
-        num_block_per_worker = num_block / NUM_PFLUSH_WORKER_PER_NODE;
-        num_busy_worker = num_block % NUM_PFLUSH_WORKER_PER_NODE;
-        bonsai_print("%d log blocks to proceed, num_block_per_worker=%d, num_busy_worker=%d\n",
-                     num_block, num_block_per_worker, num_busy_worker);
-
-        /* distribute work to workers */
-        j = 0;
-        curr_blk = first_blks[j];
-
-        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
-            cnt = num_work = i < num_busy_worker ? (num_block_per_worker + 1) : num_block_per_worker;
-
-            if (unlikely(!cnt)) {
-                owork = &empty_owork[node][i];
-            } else {
-                owork = malloc(sizeof(struct oplog_work));
-                owork->count = 0;
-                owork->layer = l_layer;
-                INIT_LIST_HEAD(&owork->free_page_list);
-            }
-
-            while (cnt) {
-                owork->first_blks[owork->count] = curr_blk;
-                for (; curr_blk != curr_blks[j] && cnt;
-                       curr_blk = (struct oplog_blk *) LOG_REGION_OFF_TO_ADDR((&l_layer->region[curr_blk->cpu]),
-                                                                              curr_blk->next)) {
-                    cnt--;
-                }
-                owork->last_blks[owork->count++] = curr_blk;
-
-                if (curr_blk == curr_blks[j]) {
-                    curr_blk = first_blks[++j];
-                }
-            }
-
-            oworks[node][i] = owork;
-
-            bonsai_print("pflush thread <%d, %d> assigned %d blocks in %d regions.\n",
-                         node, i, num_work, owork->count);
-        }
-    }
-
-    if (unlikely(empty)) {
-        goto out;
-    }
-
-    /************************************************
-     *      Per-thread collect and sort lps        *
-     ************************************************/
-
-    for (node = 0; node < NUM_SOCKET; node++) {
-        for (cnt = 0; cnt < NUM_PFLUSH_WORKER_PER_NODE; cnt++) {
-            oworks[node][cnt]->node = node;
-            oworks[node][cnt]->id = cnt;
-            work = malloc(sizeof(struct work_struct));
-            INIT_LIST_HEAD(&work->list);
-            work->exec = worker_oplog_collect_and_sort;
-            work->exec_arg = (void *) (oworks[node][cnt]);
-            workqueue_add(&bonsai->pflush_workers[node][cnt]->t_wq, work);
-        }
-    }
-
-	wakeup_workers();
-
-	park_master();
-
-	if (unlikely(atomic_read(&l_layer->exit))) 
-		goto out;
-
-	/* 3. flush all lps */
-    for (node = 0; node < NUM_SOCKET; node++) {
-        for (cnt = 0; cnt < NUM_PFLUSH_WORKER_PER_NODE; cnt++) {
-            work = malloc(sizeof(struct work_struct));
-            INIT_LIST_HEAD(&work->list);
-            work->exec = worker_oplog_flush;
-            work->exec_arg = (void *) (oworks[node][cnt]);
-            workqueue_add(&bonsai->pflush_workers[node][cnt]->t_wq, work);
-        }
-    }
-
-	wakeup_workers();
-
-	park_master();
-
-	if (unlikely(atomic_read(&l_layer->exit))) 
-		goto out;
-
-	/* 4. free all pages */
-    for (node = 0; node < NUM_SOCKET; node++) {
-        for (i = 1; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
-            if (oworks[node][i] < &empty_owork[0][0] ||
-                oworks[node][i] > &empty_owork[NUM_SOCKET - 1][NUM_PFLUSH_WORKER_PER_NODE - 1]) {
-                free_pages(l_layer, &oworks[node][i]->free_page_list);
-                free(oworks[node][i]);
-            }
-        }
-    }
-
-out:
 	/* 5. finish */
-	l_layer->nflush ++;
+	l_layer->nflush++;
 	atomic_set(&l_layer->checkpoint, 0);
 
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
