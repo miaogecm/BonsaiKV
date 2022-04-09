@@ -355,11 +355,14 @@ done:
 }
 
 static unsigned pnode_find_(pnoent_t *ent, pnoid_t pnode, pkey_t key, uint8_t *fgprt, __le64 validmap) {
-    /* TODO: Bitmap too short!! (Only 16bits) */
-    __m128i x = _mm_set1_epi8((char) pkey_get_signature(key));
-    __m128i y = _mm_load_si128((const __m128i *) fgprt);
-    unsigned long cmp = _mm_movemask_epi8(_mm_cmpeq_epi8(x, y)) & validmap;
+    char key_fgprt = (char) pkey_get_signature(key);
+    __m256i x32 = _mm256_set1_epi8(key_fgprt), y32 = _mm256_load_si256((const __m256i *) fgprt);
+    __m64 x8 = _mm_set1_pi8(key_fgprt), y8 = (__m64) *(unsigned long *) (fgprt + 32);
+    unsigned long cmp;
     unsigned pos;
+    cmp = (unsigned long) _mm256_movemask_epi8(_mm256_cmpeq_epi8(x32, y32));
+    cmp |= (unsigned long) _mm_movemask_pi8(_mm_cmpeq_pi8(x8, y8)) << 32;
+    cmp &= validmap;
     for_each_set_bit(pos, &cmp, PNODE_FANOUT) {
         *ent = *pnode_ent(pnode, pos);
         if (likely(!pkey_compare(key, ent->k))) {
