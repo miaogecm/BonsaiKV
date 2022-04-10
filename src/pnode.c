@@ -24,8 +24,6 @@
 
 #define NOT_FOUND               (-1u)
 
-static unsigned global_epoch;
-
 struct oplog;
 
 typedef struct pnoent {
@@ -154,45 +152,44 @@ static mnode_t *pnode_meta(pnoid_t pno) {
     return pnode_get_blk(pno, 0);
 }
 
-static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node) {
+static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int dimm_idx) {
     struct data_layer *d_layer = DATA(bonsai);
-    int dimm_idx, dimm;
-    void *start;
-    for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
-        dimm = node_to_dimm(from_node, dimm_idx);
-        start = (void *) d_layer->region[dimm].start;
-        if (ptr >= start && ptr < start + DATA_REGION_SIZE) {
-            dimm = node_to_dimm(to_node, dimm_idx);
-            return (void *) d_layer->region[dimm].start + (ptr - start);
-        }
-    }
-    assert(0);
+    int src_dimm, dst_dimm;
+    src_dimm = node_to_dimm(from_node, dimm_idx);
+    dst_dimm = node_to_dimm(to_node, dimm_idx);
+    return (void *) d_layer->region[dst_dimm].start + (ptr - (void *) d_layer->region[src_dimm].start);
 }
 
-static inline pnoent_t *ent_fetch(pnoent_t *ent, int node) {
-    int my = get_numa_node(__this->t_cpu);
+static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
+    struct data_layer *d_layer = DATA(bonsai);
+
+    unsigned blknr = i / PNODE_NUM_ENT_BLK + 1, blkoff = i % PNODE_NUM_ENT_BLK;
+    int my = get_numa_node(__this->t_cpu), node = pnode_numa_node(pno);
+    int dimm_idx = pnode_permute(pno)[blknr];
+    union pnoid_u pnoid = { .id = pno };
+    unsigned epoch, validbit_idx;
     pnoent_t *local;
-    unsigned epoch;
+    pnoent_t *ent;
+
+    ent = pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
     if (node == my) {
         /* What a good day! */
         return ent;
     }
 
-    local = pnoptr_cvt_node(ent, my, node);
-    epoch = global_epoch;
-    if (epoch > local->epoch + 1) {
+    validbit_idx = pnoid.nr * (unsigned) PNODE_FANOUT + i;
+
+    local = pnoptr_cvt_node(ent, my, node, dimm_idx);
+    epoch = d_layer->epoch;
+    if (!test_bit(validbit_idx, d_layer->validmap[my]) || epoch > local->epoch + 1) {
         /* At lease one epoch in between. It's invalidated. */
         memcpy(local, ent, sizeof(pnoent_t));
         local->epoch = epoch;
+        __set_bit(validbit_idx, d_layer->validmap[my]);
     }
 
     return local;
-}
-
-static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
-    pnoent_t *ent = (pnoent_t *) pnode_get_blk(pno, i / PNODE_NUM_ENT_BLK + 1) + i % PNODE_NUM_ENT_BLK;
-    return ent_fetch(ent, pnode_numa_node(pno));
 }
 
 static pnoid_t alloc_pnode(int node) {

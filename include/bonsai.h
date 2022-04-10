@@ -31,10 +31,6 @@ typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
 typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
 typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 
-#define MPTABLE_ARENA_SIZE          (2 * 1024 * 1024 * 1024ul)  // 2GB
-
-#define NUM_MERGE_HASH_BUCKET		131072
-
 struct index_layer {
 	void *index_struct;
     void *pnode_index_struct[NUM_SOCKET];
@@ -79,7 +75,10 @@ struct data_layer {
     pnoid_t sentinel;
 
     /* Protect the pnode list. */
-    spinlock_t plist_lock;
+	spinlock_t plist_lock;
+
+	unsigned epoch;
+	unsigned long validmap[NUM_SOCKET][DATA_REGION_SIZE / sizeof(pentry_t) / BITS_PER_LONG];
 };
 
 #define REGION_FPATH_LEN	19

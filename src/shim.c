@@ -257,6 +257,22 @@ int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid) {
     pack_pptr(&pptr, inode, sentinel_pnoid);
     i_layer->insert(i_layer->index_struct, pkey_to_str(MIN_KEY).key, KEY_LEN, pptr);
 
+    inode->validmap = 1;
+    inode->flipmap = 0;
+    inode->pfence = 0;
+
+    inode->next = NULL_OFF;
+    inode->pno = sentinel_pnoid;
+
+    inode->fgprt[0] = pkey_get_signature(MIN_KEY);
+
+    inode->fence = MAX_KEY;
+
+    spin_lock_init(&inode->lock);
+    seqcount_init(&inode->seq);
+
+    inode->lps[0] = LP_PFENCE;
+
     layer->head = inode;
 
     return 0;
