@@ -75,6 +75,70 @@ typedef struct {
 		__ret;							\
 	})
 
+/*
+ * Atomic compare and exchange.  Compare OLD with MEM, if identical,
+ * store NEW in MEM.  Return the initial value in MEM.  Success is
+ * indicated by comparing RETURN with OLD.
+ */
+#define __raw_cmpxchg(ptr, old, new, size, lock)			\
+({									\
+	__typeof__(*(ptr)) __ret;					\
+	__typeof__(*(ptr)) __old = (old);				\
+	__typeof__(*(ptr)) __new = (new);				\
+	switch (size) {							\
+	case __X86_CASE_B:						\
+	{								\
+		volatile uint8_t *__ptr = (volatile uint8_t *)(ptr);		\
+		asm volatile(lock "cmpxchgb %2,%1"			\
+			     : "=a" (__ret), "+m" (*__ptr)		\
+			     : "q" (__new), "0" (__old)			\
+			     : "memory");				\
+		break;							\
+	}								\
+	case __X86_CASE_W:						\
+	{								\
+		volatile uint16_t *__ptr = (volatile uint16_t *)(ptr);		\
+		asm volatile(lock "cmpxchgw %2,%1"			\
+			     : "=a" (__ret), "+m" (*__ptr)		\
+			     : "r" (__new), "0" (__old)			\
+			     : "memory");				\
+		break;							\
+	}								\
+	case __X86_CASE_L:						\
+	{								\
+		volatile uint32_t *__ptr = (volatile uint32_t *)(ptr);		\
+		asm volatile(lock "cmpxchgl %2,%1"			\
+			     : "=a" (__ret), "+m" (*__ptr)		\
+			     : "r" (__new), "0" (__old)			\
+			     : "memory");				\
+		break;							\
+	}								\
+	case __X86_CASE_Q:						\
+	{								\
+		volatile uint64_t *__ptr = (volatile uint64_t *)(ptr);		\
+		asm volatile(lock "cmpxchgq %2,%1"			\
+			     : "=a" (__ret), "+m" (*__ptr)		\
+			     : "r" (__new), "0" (__old)			\
+			     : "memory");				\
+		break;							\
+	}								\
+	default: ;                      \
+	}								\
+	__ret;								\
+})
+
+#define __sync_cmpxchg(ptr, old, new, size)				\
+	__raw_cmpxchg((ptr), (old), (new), (size), "lock; ")
+
+#define __cmpxchg_local(ptr, old, new, size)				\
+	__raw_cmpxchg((ptr), (old), (new), (size), "")
+
+#define sync_cmpxchg(ptr, old, new)					\
+	__sync_cmpxchg(ptr, old, new, sizeof(*(ptr)))
+
+#define cmpxchg_local(ptr, old, new)					\
+	__cmpxchg_local(ptr, old, new, sizeof(*(ptr)))
+
 //#define __xadd(ptr, inc, lock)	__xchg_op((ptr), (inc), xadd, lock)
 //#define xadd(ptr, inc)		__xadd((ptr), (inc), LOCK_PREFIX)
 

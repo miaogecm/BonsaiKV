@@ -55,6 +55,13 @@ struct cpu_log_region_desc {
     struct oplog *lcb;
 
     seqcount_t seq;
+
+    enum {
+        WBS_ENABLE,
+        WBS_DELAY,
+        WBS_REQUEST
+    } wb_state;
+    int wb_done;
 };
 
 struct log_region_desc {

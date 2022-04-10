@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "bonsai.h"
 #include "oplog.h"
@@ -30,6 +32,8 @@
 
 #define OPLOG_TYPE(t)   ((t) & 2)
 #define OPLOG_FLIP(t)   ((t) & 1)
+
+#define WB_SIGNO        SIGUSR1
 
 #define CHECK_NLOG_INTERVAL     20
 
@@ -158,17 +162,73 @@ struct oplog *oplog_get(logid_t logid) {
     return oplog;
 }
 
-logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
+static void write_back(int cpu, int dimm_unlock) {
 	struct log_layer* layer = LOG(bonsai);
+    struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
+    struct cpu_log_region *region = local_desc->region;
+    uint32_t end = region->meta.end;
+    size_t len, c;
+    void *lcb;
+
+    lcb = local_desc->lcb;
+    len = local_desc->size;
+
+    while ((c = max(OPLOG_NUM_PER_CPU - end, len))) {
+        memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
+        end  = (end + c) % OPLOG_NUM_PER_CPU;
+        len -= c;
+        lcb += c;
+    }
+    memory_sfence();
+
+    if (dimm_unlock) {
+        pthread_mutex_unlock(local_desc->dimm_lock);
+    }
+
+    lcb = malloc(LCB_MAX_SIZE);
+
+    local_desc->size = 0;
+    call_rcu(RCU(bonsai), free, local_desc->lcb);
+
+    write_seqcount_begin(&local_desc->seq);
+    region->meta.end = end;
+    local_desc->lcb = lcb;
+    write_seqcount_end(&local_desc->seq);
+
+    bonsai_flush(&region->meta.end, sizeof(__le32), 1);
+}
+
+static void handle_wb(int signo) {
+    int cpu = __this->t_cpu;
+	struct log_layer *layer = LOG(bonsai);
+    struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
+
+    switch (local_desc->wb_state) {
+        case WBS_ENABLE:
+            write_back(cpu, 0);
+            local_desc->wb_done = 1;
+            break;
+
+        case WBS_DELAY:
+            local_desc->wb_state = WBS_REQUEST;
+            break;
+
+        default:
+            assert(0);
+    }
+}
+
+logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
+	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
     uint32_t end = region->meta.end;
     static __thread int last = 0;
 	struct oplog* log;
     union logid_u id;
-    size_t len, c;
-    int wb = 0;
-    void *lcb;
+
+    local_desc->wb_state = WBS_DELAY;
+    barrier();
 
     assert(local_desc->size < LCB_MAX_NR);
 
@@ -183,38 +243,16 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 
     if (unlikely(local_desc->size >= LCB_FULL_NR)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
-            wb = 1;
+            write_back(cpu, 1);
         } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {
-            pthread_mutex_lock(local_desc->dimm_lock);
-            wb = 1;
+            write_back(cpu, 0);
         }
+    }
 
-        if (wb) {
-            lcb = local_desc->lcb;
-            len = local_desc->size;
-
-            while ((c = max(OPLOG_NUM_PER_CPU - end, len))) {
-                memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
-                end  = (end + c) % OPLOG_NUM_PER_CPU;
-                len -= c;
-                lcb += c;
-            }
-            memory_sfence();
-
-            pthread_mutex_unlock(local_desc->dimm_lock);
-
-            lcb = malloc(LCB_MAX_SIZE);
-
-            local_desc->size = 0;
-            call_rcu(RCU(bonsai), free, local_desc->lcb);
-
-            write_seqcount_begin(&local_desc->seq);
-            region->meta.end = end;
-            local_desc->lcb = lcb;
-            write_seqcount_end(&local_desc->seq);
-
-            bonsai_flush(&region->meta.end, sizeof(__le32), 1);
-        }
+    if (cmpxchg_local(&local_desc->wb_state, WBS_DELAY, WBS_ENABLE) == WBS_REQUEST) {
+        write_back(cpu, 0);
+        local_desc->wb_state = WBS_ENABLE;
+        local_desc->wb_done = 1;
     }
 
     if (++last == CHECK_NLOG_INTERVAL) {
@@ -238,6 +276,14 @@ static inline int worker_numa_node(int wid) {
 
 static inline int worker_nr(int wid) {
     return wid % NUM_PFLUSH_WORKER_PER_NODE;
+}
+
+static inline struct thread_info *worker_thread_info(int wid) {
+    return bonsai->pflush_workers[worker_numa_node(wid)][worker_nr(wid)];
+}
+
+static inline int worker_cpu(int wid) {
+    return (int) worker_thread_info(wid)->t_cpu;
 }
 
 static inline void new_flip() {
@@ -269,6 +315,35 @@ static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, voi
 
 static size_t log_nr(struct cpu_log_snapshot *snap) {
     return (snap->region_end - snap->region_start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+}
+
+static void force_wb() {
+	struct log_layer *layer = LOG(bonsai);
+    struct cpu_log_region_desc *desc;
+    struct thread_info *ti;
+    int wid, ret;
+
+    for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
+        ti = worker_thread_info(wid);
+
+        desc = &layer->desc->descs[ti->t_cpu];
+        desc->wb_done = 0;
+
+        ret = pthread_kill(bonsai->tids[ti->t_id], WB_SIGNO);
+        if (unlikely(ret)) {
+            assert(0);
+        }
+    }
+
+    for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
+        ti = worker_thread_info(wid);
+
+        desc = &layer->desc->descs[ti->t_cpu];
+
+        while (!ACCESS_ONCE(desc->wb_done)) {
+            usleep(1000);
+        }
+    }
 }
 
 static void snapshot_cpu_log(struct cpu_log_snapshot *snap, int cpu) {
@@ -341,7 +416,7 @@ static int fetch_work(void *arg) {
     wnr = worker_nr(wid);
 
     for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
-        cpus[nr_cpu] = node_to_cpu(numa_node, i);
+        cpus[nr_cpu] = worker_cpu(worker_id(numa_node, i));
     }
 
     ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, cpus);
@@ -793,6 +868,9 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 1);
 
     new_flip();
+
+    /* Make sure that all logs in previous flip are written back to NVM. */
+    force_wb();
 
     /* init work */
     init_stage(&ws);
