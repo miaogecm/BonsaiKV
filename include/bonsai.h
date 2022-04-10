@@ -27,7 +27,7 @@ typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
-typedef void* (*remove_func_t)(void* index_struct, const void *key, size_t len);
+typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
 typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
 typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 

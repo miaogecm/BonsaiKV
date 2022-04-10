@@ -596,6 +596,14 @@ void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_l
     }
 }
 
+pkey_t pnode_get_lfence(pnoid_t pnode) {
+    return pnode_meta(pnode)->lfence;
+}
+
+void pnode_prefetch_meta(pnoid_t pnode) {
+    cache_prefetchr_high(pnode_meta(pnode));
+}
+
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
     mnode_t *mno = pnode_meta(pnode);
     uint8_t fgprt[PNODE_FANOUT];

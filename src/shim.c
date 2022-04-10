@@ -105,8 +105,6 @@ void do_smo() {
     struct inode *victim;
     struct smo_log log;
     int cpu, min_cpu;
-    void *key, *pptr;
-    pnoid_t pno;
 
     while (1) {
         min_ts = ULONG_MAX;
@@ -126,14 +124,7 @@ void do_smo() {
 
         kfifo_get(&s_layer->fifo[min_cpu], &log);
 
-        key = pkey_to_str(log.k).key;
-        if (likely(log.v)) {
-            i_layer->insert(i_layer->index_struct, key, KEY_LEN, log.v);
-        } else {
-            pptr = i_layer->remove(i_layer->index_struct, key, KEY_LEN);
-            unpack_pptr(&victim, &pno, pptr);
-            /* TODO: Lazy free @victim */
-        }
+        i_layer->insert(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN, log.v);
     }
 }
 
@@ -167,8 +158,8 @@ retry:
 
 static inline inode_t *inode_seek(pkey_t key, int w) {
     struct index_layer *i_layer = INDEX(bonsai);
-    struct pnode *pnode;
     inode_t *inode;
+    pnoid_t pnode;
     void *pptr;
 
     pptr = i_layer->lookup(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN);
@@ -180,8 +171,7 @@ static inline inode_t *inode_seek(pkey_t key, int w) {
         inode_prefetch(cache_prefetchr_high, inode);
     }
 
-    /* TODO: Implement pnode prefetch. */
-    (void) pnode;
+    pnode_prefetch_meta(pnode);
 
     return inode;
 }
@@ -197,7 +187,11 @@ static inline void inode_unlock(inode_t *inode) {
 static inline int inode_crab_and_lock(inode_t **inode, pkey_t key) {
     inode_t *target;
     inode_lock(*inode);
-    /* TODO: Handle delected inode. */
+    if (unlikely(!(*inode)->validmap)) {
+        /* It's deleted. */
+        inode_unlock(*inode);
+        return -EAGAIN;
+    }
     while (pkey_compare(key, (*inode)->fence) >= 0) {
         target = inode_off2ptr((*inode)->next);
         inode_lock(target);
@@ -269,9 +263,9 @@ int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid) {
     return 0;
 }
 
-static inline pkey_t lp_get_key(lp_t lp) {
+static inline pkey_t lp_get_key(lp_t lp, pnoid_t pno) {
     if (lp == LP_PFENCE) {
-        /* TODO: LP_PFENCE */
+        return pnode_get_lfence(pno);
     } else {
         return oplog_get(lp)->o_kv.k;
     }
@@ -322,7 +316,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
     /* Collect all the lps. */
     for_each_set_bit(pos, &validmap, INODE_FANOUT) {
         lp = &lps[cnt++];
-        lp->key = lp_get_key(inode->lps[pos]);
+        lp->key = lp_get_key(inode->lps[pos], inode->pno);
         lp->pos = pos;
     }
 
@@ -398,7 +392,7 @@ static unsigned inode_find_(lp_t *lp, inode_t *inode, pkey_t key, uint8_t *fgprt
     unsigned pos;
     for_each_set_bit(pos, &cmp, INODE_FANOUT) {
         *lp = ACCESS_ONCE(inode->lps[pos]);
-        if (likely(!pkey_compare(key, lp_get_key(*lp)))) {
+        if (likely(!pkey_compare(key, lp_get_key(*lp, inode->pno)))) {
             return pos;
         }
     }
@@ -535,6 +529,7 @@ pnoid_t shim_pnode_of(pkey_t key) {
 }
 
 static inline int inode_remove_old(log_state_t *lst, inode_t *prev, inode_t *inode, pkey_t fence) {
+    struct index_layer *i_layer = INDEX(bonsai);
     unsigned long validmap;
 
     /* Remove unused. */
@@ -556,7 +551,9 @@ static inline int inode_remove_old(log_state_t *lst, inode_t *prev, inode_t *ino
         prev->fence = inode->fence;
         write_seqcount_end(&prev->seq);
 
-        smo_append(fence, NULL);
+        i_layer->remove(i_layer->index_struct, pkey_to_str(fence).key, KEY_LEN);
+
+        call_rcu(RCU(bonsai), free, inode);
 
         return -ENOENT;
     }
