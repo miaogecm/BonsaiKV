@@ -10,7 +10,9 @@ extern "C" {
 #include "rwlock.h"
 #include "list.h"
 #include "common.h"
+#include "region.h"
 #include "hwconfig.h"
+#include "log_layer.h"
 
 typedef uint32_t pnoid_t;
 

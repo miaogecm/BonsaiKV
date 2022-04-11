@@ -8,7 +8,7 @@ extern "C" {
 #include "kfifo.h"
 #include "data_layer.h"
 
-#define INODE_POOL_SIZE                         (2 * 1024 * 1024 * 1024ul)
+#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
