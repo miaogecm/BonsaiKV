@@ -16,6 +16,22 @@ typedef uint32_t pnoid_t;
 
 #define PNOID_NULL              (-1u)
 
+struct data_layer {
+	struct data_region region[NUM_DIMM];
+
+    pnoid_t free_list;
+
+    pnoid_t tofree_head, tofree_tail;
+
+    pnoid_t sentinel;
+
+    /* Protect the pnode list. */
+	spinlock_t plist_lock;
+
+	unsigned epoch;
+	uint16_t epoch_table[NUM_SOCKET][DATA_REGION_SIZE / sizeof(pentry_t)];
+};
+
 typedef struct {
     enum {
         PBO_NONE = 0,
@@ -143,6 +159,8 @@ static inline int pnode_color(pnoid_t pno) {
     return pnode_numa_node(pno);
 }
 
+pnoid_t pnode_sentinel_init();
+
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
 void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list);
 
@@ -160,6 +178,11 @@ static inline void pnode_split(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut) {
 static inline void pnode_recolor(pnoid_t *pnode, int c) {
     pnode_split_and_recolor(pnode, NULL, NULL, c, c);
 }
+
+struct data_layer;
+
+int data_layer_init(struct data_layer *layer);
+void data_layer_deinit(struct data_layer* layer);
 
 #ifdef __cplusplus
 }

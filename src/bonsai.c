@@ -18,9 +18,8 @@
 
 #include "bonsai.h"
 #include "hwconfig.h"
-#include "shim_old.h"
-#include "pnode.h"
-#include "epoch.h"
+#include "index_layer.h"
+#include "data_layer.h"
 #include "cpu.h"
 
 struct bonsai_info* bonsai;
@@ -30,90 +29,6 @@ int cpu_used[NUM_CPU] = { 0 };
 
 extern void* index_struct(void* index_struct);
 extern void kv_print(void* index_struct);
-
-static void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init, 
-				insert_func_t insert, update_func_t update, remove_func_t remove,
-				lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
-    int node;
-
-    layer->index_struct = init();
-
-    for (node = 0; node < NUM_SOCKET; node++) {
-        layer->pnode_index_struct[node] = init();
-    }
-
-	layer->insert = insert;
-    layer->update = update;
-	layer->remove = remove;
-	layer->lookup = lookup;
-	layer->scan = scan;
-	layer->destory = destroy;
-
-	bonsai_print("index_layer_init: %s\n", index_name);
-}
-
-static void index_layer_deinit(struct index_layer* layer) {
-	layer->destory(layer->index_struct);
-
-	bonsai_print("index_layer_deinit\n");
-}
-
-static int log_layer_init(struct log_layer* layer) {
-	int i, err = 0;
-
-	layer->nflush = 0;
-	atomic_set(&layer->exit, 0);
-	atomic_set(&layer->force_flush, 0);
-	atomic_set(&layer->checkpoint, 0);
-	atomic_set(&layer->epoch_passed, 0);
-    for (i = 0; i < NUM_CPU; i++) {
-        atomic_set(&layer->nlogs[i].cnt, 0);
-    }
-	err = log_region_init(layer, bonsai->desc);
-	if (err)
-		goto out;
-
-    for (i = 0; i < NUM_SOCKET; i++) {
-        pthread_barrier_init(&layer->barrier[i], NULL, NUM_PFLUSH_WORKER_PER_NODE);
-    }
-
-	bonsai_print("log_layer_init\n");
-
-out:
-	return err;
-}
-
-static void log_layer_deinit(struct log_layer* layer) {
-	log_region_deinit(layer);
-
-	bonsai_print("log_layer_deinit\n");
-}
-
-static int data_layer_init(struct data_layer* layer) {
-	int ret;
-
-	ret = data_region_init(layer);
-	if (ret)
-		goto out;
-
-    layer->sentinel = NULL;
-
-	bonsai_print("data_layer_init\n");
-
-out:
-	return ret;
-}
-
-static void data_layer_deinit(struct data_layer* layer) {
-	data_region_deinit(layer);
-
-	bonsai_print("data_layer_deinit\n");
-}
-
-void index_layer_dump() {
-	struct index_layer* i_layer = INDEX(bonsai);
-	kv_print(i_layer->index_struct);
-}
 
 #ifdef LONG_KEY
 pkey_t bonsai_make_key(const void *key, size_t len) {
@@ -127,15 +42,13 @@ void bonsai_mark_cpu(int cpu) {
 
 int bonsai_insert(pkey_t key, pval_t value) {
 	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-    struct oplog* log;
-    log = oplog_insert(key, value, OP_INSERT, cpu);
-	return shim_upsert(key, &log->o_kv);
+    logid_t log = oplog_insert(key, value, OP_INSERT, cpu);
+    log_state_t snap;
+    oplog_snapshot_lst(&snap);
+	return shim_upsert(&snap, key, log);
 }
 
 int bonsai_remove(pkey_t key) {
-	int cpu = __this->t_cpu, numa_node = get_numa_node(cpu);
-    oplog_insert(key, 0, OP_REMOVE, cpu);
-	return shim_remove(key);
 }
 
 int bonsai_lookup(pkey_t key, pval_t *val) {
@@ -143,17 +56,6 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
 }
 
 int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
-	struct mptable *table;
-	struct index_layer* i_layer = INDEX(bonsai);
-	int arr_size = 0;
-
-	// table = (struct mptable*)i_layer->lookup(i_layer->index_struct, low);
-
-	// assert(table);
-
-	//arr_size = mptable_scan(table, low, high, val_arr);
-	
-	return arr_size;
 }
 
 void bonsai_barrier() {
@@ -189,6 +91,7 @@ void bonsai_deinit() {
 int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
                 remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
 	int error = 0, fd, node;
+    pnoid_t sentinel;
 	char *addr;
 
 	if ((fd = open(bonsai_fpath, O_CREAT|O_RDWR, 0666)) < 0) {
@@ -219,29 +122,23 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		index_layer_init(index_name, &bonsai->i_layer, init, 
 						 insert, update, remove, lookup, scan, destory);
 
-		/* 3. initialize log layer */
+		/* 2. initialize log layer */
         error = log_layer_init(&bonsai->l_layer);
 		if (error)
 			goto out;
 
-		/* 4. initialize data layer */
+		/* 3. initialize data layer */
         error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
 
-		/* 2. initialize shim layer */
-        error = shim_layer_init(&bonsai->s_layer);
-        if (error)
-            goto out;
-
-		/* 5. initialize self */
+		/* 4. initialize self */
 		INIT_LIST_HEAD(&bonsai->thread_list);
 		bonsai_self_thread_init();
 		
-		/* 6. initialize sentinel nodes */
-        for (node = 0; node < NUM_SOCKET; node++) {
-            sentinel_node_init(node);
-        }
+		/* 5. initialize sentinel nodes */
+        sentinel = pnode_sentinel_init();
+        shim_sentinel_init(sentinel);
 
 		bonsai->desc->init = 1;
     } else {

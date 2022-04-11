@@ -15,71 +15,13 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "spinlock.h"
-#include "oplog.h"
+#include "log_layer.h"
 #include "arch.h"
 #include "bitmap.h"
 #include "rwlock.h"
-#include "shim.h"
+#include "index_layer.h"
 #include "cpu.h"
 #include "rcu.h"
-
-typedef void* (*init_func_t)(void);
-typedef void (*destory_func_t)(void*);
-typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
-typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
-typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
-typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
-typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
-
-struct index_layer {
-	void *index_struct;
-    void *pnode_index_struct[NUM_SOCKET];
-
-	insert_func_t insert;
-    update_func_t update;
-	remove_func_t remove;
-	lookup_func_t lookup;
-	scan_func_t   scan;
-
-	destory_func_t destory;
-};
-
-struct log_layer {
-	unsigned int nflush; /* how many flushes */
-	atomic_t exit; /* thread exit */
-    atomic_t force_flush; /* force flush all logs */
-
-    atomic_t epoch_passed;
-	atomic_t checkpoint;
-
-    struct {
-        atomic_t cnt;
-        char padding[CACHELINE_SIZE];
-    } nlogs[NUM_CPU];
-	
-	int pmem_fd[NUM_SOCKET]; /* memory-mapped fd */
-	char* pmem_addr[NUM_SOCKET]; /* memory-mapped address */
-
-	struct log_region_desc *desc;
-
-    log_state_t lst;
-};
-
-struct data_layer {
-	struct data_region region[NUM_DIMM];
-
-    pnoid_t free_list;
-
-    pnoid_t tofree_head, tofree_tail;
-
-    pnoid_t sentinel;
-
-    /* Protect the pnode list. */
-	spinlock_t plist_lock;
-
-	unsigned epoch;
-	unsigned long validmap[NUM_SOCKET][DATA_REGION_SIZE / sizeof(pentry_t) / BITS_PER_LONG];
-};
 
 #define REGION_FPATH_LEN	19
 #define OBJPOOL_FPATH_LEN	20

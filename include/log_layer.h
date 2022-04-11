@@ -27,6 +27,25 @@ typedef struct {
 
 typedef uint32_t logid_t;
 
+struct log_layer {
+	unsigned int nflush; /* how many flushes */
+	atomic_t exit; /* thread exit */
+    atomic_t force_flush; /* force flush all logs */
+
+    atomic_t epoch_passed;
+	atomic_t checkpoint;
+
+    struct {
+        atomic_t cnt;
+        char padding[CACHELINE_SIZE];
+    } nlogs[NUM_CPU];
+
+	struct log_region_desc *desc;
+    struct dimm_log_region *dimm_regions[NUM_DIMM];
+
+    log_state_t lst;
+};
+
 /* 48B/32B */
 struct oplog {
     pentry_t o_kv;    /* key-value pair */
@@ -39,8 +58,8 @@ struct cpu_log_region_meta {
 } __packed;
 
 struct cpu_log_region {
-    struct cpu_log_region_meta meta;
     struct oplog logs[OPLOG_NUM_PER_CPU];
+    struct cpu_log_region_meta meta;
 } __packed;
 
 struct dimm_log_region {
@@ -80,11 +99,12 @@ extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu);
 
 extern void oplog_flush();
 
-extern struct oplog* log_layer_search_key(int cpu, pkey_t key);
-
 extern void list_sort(void *priv, struct list_head *head,
 		int (*cmp)(void *priv, struct list_head *a,
 			struct list_head *b));
+
+int log_layer_init(struct log_layer* layer);
+void log_layer_deinit(struct log_layer* layer);
 
 #ifdef __cplusplus
 }

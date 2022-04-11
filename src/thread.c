@@ -17,9 +17,8 @@
 #include "atomic.h"
 #include "common.h"
 #include "bonsai.h"
-#include "oplog.h"
-#include "shim_old.h"
-#include "epoch.h"
+#include "log_layer.h"
+#include "index_layer.h"
 
 __thread struct thread_info* __this = NULL;
 
@@ -113,27 +112,6 @@ static void wakeup_all() {
 	pthread_mutex_unlock(&work_mutex);
 }
 
-void stop_signal_handler(int signo) {
-	bonsai_print("thread[%d] stop\n", __this->t_id);
-	
-	__this->t_state = S_INTERRUPTED;
-	sleep(60);
-}
-
-static int thread_register_stop_signal() {
-	struct sigaction sa;
-	int err = 0;
-
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	sa.sa_handler = stop_signal_handler;
-	if (sigaction(SIGUSR1, &sa, NULL) == -1) {
-		err = -ESIGNO;
-	}
-
-	return err;
-}
-
 static void wait_pflush_thread() {
 	int states[NUM_PFLUSH_THREAD] = {0};
 	int i, num_sleep = 0;
@@ -200,9 +178,6 @@ static void pflush_worker(struct thread_info* this) {
 
 	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", 
 			__this->t_id, __this->t_pid, get_cpu());
-
-	thread_block_alarm_signal();
-	thread_register_stop_signal();
 	
 	while (!atomic_read(&layer->exit)) {
 		__this->t_state = S_SLEEPING;
@@ -259,9 +234,6 @@ static void pflush_master(struct thread_info* this) {
 	
 	bonsai_print("pflush thread[%d] pid[%d] start on cpu[%d]\n", 
 		__this->t_id, __this->t_pid, get_cpu());
-
-	thread_block_alarm_signal();
-	thread_register_stop_signal();
 
 	master_wait_workers(this);
 
@@ -350,9 +322,6 @@ void bonsai_self_thread_init() {
 
 	__this = bonsai->self;
 
-	thread_register_alarm_signal();
-	thread_register_stop_signal();
-
 	list_add(&__this->list, &bonsai->thread_list);
 
 	bonsai_print("self thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
@@ -360,8 +329,6 @@ void bonsai_self_thread_init() {
 
 void bonsai_self_thread_exit() {
 	struct thread_info* thread = bonsai->self;
-
-    thread_block_alarm_signal();
 
 	list_del(&thread->list);
 	
@@ -381,8 +348,6 @@ int bonsai_user_thread_init() {
     list_add(&thread->list, &bonsai->thread_list);
 
 	__this = thread;
-
-	thread_register_stop_signal();
 
 	bonsai_print("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
 

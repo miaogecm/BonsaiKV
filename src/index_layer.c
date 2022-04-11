@@ -17,9 +17,9 @@
 #include "bonsai.h"
 #include "atomic.h"
 #include "seqlock.h"
-#include "pnode.h"
+#include "data_layer.h"
 #include "arch.h"
-#include "shim.h"
+#include "index_layer.h"
 #include "ordo.h"
 #include "cpu.h"
 
@@ -62,7 +62,7 @@ struct pptr {
     };
 } __packed;
 
-static void init_shim_pool(struct inode_pool *pool) {
+static void init_inode_pool(struct inode_pool *pool) {
     void *start = memalign(PAGE_SIZE, INODE_POOL_SIZE);
     inode_t *cur;
     for (cur = start; cur != start + INODE_POOL_SIZE; cur++) {
@@ -232,10 +232,11 @@ static inline void inode_free(inode_t *inode) {
     } while (!cmpxchg2(&pool->freelist, head, inode));
 }
 
-int shim_layer_init(struct shim_layer *layer) {
+static int shim_layer_init() {
+    struct shim_layer *layer = SHIM(bonsai);
     int cpu;
 
-    init_shim_pool(layer->pool);
+    init_inode_pool(layer->pool);
     layer->head = NULL;
 
     atomic_set(&layer->exit, 0);
@@ -247,8 +248,9 @@ int shim_layer_init(struct shim_layer *layer) {
     return 0;
 }
 
-int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid) {
+int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     struct index_layer *i_layer = INDEX(bonsai);
+    struct shim_layer *s_layer = SHIM(bonsai);
     inode_t *inode;
     void *pptr;
 
@@ -273,7 +275,7 @@ int shim_sentinel_init(struct shim_layer *layer, pnoid_t sentinel_pnoid) {
 
     inode->lps[0] = LP_PFENCE;
 
-    layer->head = inode;
+    s_layer->head = inode;
 
     return 0;
 }
@@ -658,4 +660,33 @@ no_split:
     inode_unlock(inode);
 
     return 0;
+}
+
+void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init,
+                      insert_func_t insert, update_func_t update, remove_func_t remove,
+				      lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
+    int node;
+
+    layer->index_struct = init();
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        layer->pnode_index_struct[node] = init();
+    }
+
+	layer->insert = insert;
+    layer->update = update;
+	layer->remove = remove;
+	layer->lookup = lookup;
+	layer->scan = scan;
+	layer->destory = destroy;
+
+    shim_layer_init();
+
+	bonsai_print("index_layer_init: %s\n", index_name);
+}
+
+void index_layer_deinit(struct index_layer* layer) {
+	layer->destory(layer->index_struct);
+
+	bonsai_print("index_layer_deinit\n");
 }

@@ -15,8 +15,7 @@ extern "C" {
 #define DATA_REGION_SIZE	1 * 1024 * 1024 * 1024UL      /* 1 GB */
 
 struct data_region {
-	PMEMobjpool* pop;
-	unsigned long start; /* memory-mapped address */
+	void *start; /* memory-mapped address */
 };
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)(addr) & PAGE_MASK)
@@ -28,7 +27,7 @@ struct log_layer;
 struct data_layer;
 struct bonsai_desc;
 
-extern int log_region_init(struct log_layer* layer, struct bonsai_desc* desc);
+extern int log_region_init(struct log_layer* layer);
 extern void log_region_deinit(struct log_layer* layer);
 
 extern int data_region_init(struct data_layer *layer);

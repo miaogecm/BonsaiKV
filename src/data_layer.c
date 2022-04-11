@@ -9,9 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
+#include <sys/time.h>
 
-#include "pnode.h"
-#include "oplog.h"
+#include "data_layer.h"
+#include "log_layer.h"
 #include "bonsai.h"
 #include "arch.h"
 #include "bitmap.h"
@@ -19,18 +21,16 @@
 #define PNODE_FANOUT            40
 #define PNODE_INTERLEAVING_SIZE 256
 
-#define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pnoent_t) / PNODE_INTERLEAVING_SIZE)
+#define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pentry_t) / PNODE_INTERLEAVING_SIZE)
 #define PNODE_NUM_BLK           (PNODE_NUM_ENT_BLK + 1)
 
 #define NOT_FOUND               (-1u)
 
-struct oplog;
+#define PNODE_NUM               (DATA_REGION_SIZE / NUM_DIMM / PNODE_INTERLEAVING_SIZE)
 
-typedef struct pnoent {
-    pkey_t      k;
-    __le64      v : 48;
-    uint16_t    epoch;
-} __attribute__((packed)) pnoent_t;
+#define EPOCH_INTERVAL_US       10000
+
+struct oplog;
 
 typedef struct mnode {
     /* cacheline 0 */
@@ -45,7 +45,7 @@ typedef struct mnode {
 } mnode_t;
 
 typedef struct dnode {
-    pnoent_t     ents[PNODE_INTERLEAVING_SIZE / sizeof(pnoent_t)];
+    pentry_t     ents[PNODE_INTERLEAVING_SIZE / sizeof(pentry_t)];
 } dnode_t;
 
 #define PNODE_NUM_PERMUTE       64
@@ -141,7 +141,7 @@ static inline int *pnode_permute(pnoid_t pno) {
 
 static inline void *pnode_dimm_addr(pnoid_t pno, int dimm_idx) {
     int node = pnode_numa_node(pno), dimm = node_to_dimm(node, dimm_idx);
-    return (void *) DATA(bonsai)->region[dimm].start + pnode_off(pno);
+    return DATA(bonsai)->region[dimm].start + pnode_off(pno);
 }
 
 static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
@@ -157,19 +157,19 @@ static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int d
     int src_dimm, dst_dimm;
     src_dimm = node_to_dimm(from_node, dimm_idx);
     dst_dimm = node_to_dimm(to_node, dimm_idx);
-    return (void *) d_layer->region[dst_dimm].start + (ptr - (void *) d_layer->region[src_dimm].start);
+    return d_layer->region[dst_dimm].start + (ptr - (void *) d_layer->region[src_dimm].start);
 }
 
-static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
+static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     struct data_layer *d_layer = DATA(bonsai);
 
     unsigned blknr = i / PNODE_NUM_ENT_BLK + 1, blkoff = i % PNODE_NUM_ENT_BLK;
     int my = get_numa_node(__this->t_cpu), node = pnode_numa_node(pno);
     int dimm_idx = pnode_permute(pno)[blknr];
     union pnoid_u pnoid = { .id = pno };
-    unsigned epoch, validbit_idx;
-    pnoent_t *local;
-    pnoent_t *ent;
+    pentry_t *local, *ent;
+    uint16_t *e, old_e;
+    unsigned epoch;
 
     ent = pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
@@ -178,15 +178,20 @@ static pnoent_t *pnode_ent(pnoid_t pno, unsigned i) {
         return ent;
     }
 
-    validbit_idx = pnoid.nr * (unsigned) PNODE_FANOUT + i;
+    epoch = d_layer->epoch;
 
     local = pnoptr_cvt_node(ent, my, node, dimm_idx);
-    epoch = d_layer->epoch;
-    if (!test_bit(validbit_idx, d_layer->validmap[my]) || epoch > local->epoch + 1) {
+    e = &d_layer->epoch_table[my][pnoid.nr * (unsigned) PNODE_FANOUT + i];
+    old_e = *e;
+
+    if (unlikely(epoch > old_e + 1)) {
         /* At lease one epoch in between. It's invalidated. */
-        memcpy(local, ent, sizeof(pnoent_t));
-        local->epoch = epoch;
-        __set_bit(validbit_idx, d_layer->validmap[my]);
+        memcpy(local, ent, sizeof(pentry_t));
+        barrier();
+    }
+
+    if (unlikely(epoch != old_e)) {
+        *e = epoch;
     }
 
     return local;
@@ -219,7 +224,7 @@ static void delay_free_pnode(pnoid_t pnode) {
 }
 
 static int ent_compare(const void *p, const void *q) {
-    const pnoent_t *a = p, *b = q;
+    const pentry_t *a = p, *b = q;
     return pkey_compare(a->k, b->k);
 }
 
@@ -244,7 +249,7 @@ static void gen_fgprt(pnoid_t pnode) {
     }
 }
 
-static void pnode_init_from_arr(pnoid_t pnode, const pnoent_t *ents, unsigned n) {
+static void pnode_init_from_arr(pnoid_t pnode, const pentry_t *ents, unsigned n) {
     unsigned i;
     pnode_meta(pnode)->validmap = (1ul << n) - 1;
     for (i = 0; i < n; i++) {
@@ -253,7 +258,7 @@ static void pnode_init_from_arr(pnoid_t pnode, const pnoent_t *ents, unsigned n)
     gen_fgprt(pnode);
 }
 
-static void arr_init_from_pnode(pnoent_t *ents, pnoid_t pnode, unsigned *n) {
+static void arr_init_from_pnode(pentry_t *ents, pnoid_t pnode, unsigned *n) {
     unsigned long validmap = pnode_meta(pnode)->validmap;
     unsigned pos, cnt = 0;
 
@@ -289,7 +294,7 @@ static void pnode_copy(pnoid_t dst, pnoid_t src) {
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc) {
     pnoid_t original = *pnode, l, r = PNOID_NULL;
     struct data_layer *layer = DATA(bonsai);
-    pnoent_t ents[PNODE_FANOUT], *ent;
+    pentry_t ents[PNODE_FANOUT], *ent;
     mnode_t *mno, *lmno, *rmno;
     unsigned pos, cnt = 0;
     int cmp;
@@ -351,7 +356,7 @@ done:
     delay_free_pnode(original);
 }
 
-static unsigned pnode_find_(pnoent_t *ent, pnoid_t pnode, pkey_t key, uint8_t *fgprt, __le64 validmap) {
+static unsigned pnode_find_(pentry_t *ent, pnoid_t pnode, pkey_t key, uint8_t *fgprt, __le64 validmap) {
     char key_fgprt = (char) pkey_get_signature(key);
     __m256i x32 = _mm256_set1_epi8(key_fgprt), y32 = _mm256_load_si256((const __m256i *) fgprt);
     __m64 x8 = _mm_set1_pi8(key_fgprt), y8 = (__m64) *(unsigned long *) (fgprt + 32);
@@ -371,7 +376,7 @@ static unsigned pnode_find_(pnoent_t *ent, pnoid_t pnode, pkey_t key, uint8_t *f
 
 static inline unsigned pnode_find(pnoid_t pnode, pkey_t key) {
     mnode_t *mno = pnode_meta(pnode);
-    pnoent_t ent;
+    pentry_t ent;
     return pnode_find_(&ent, pnode, key, mno->fgprt, mno->validmap);
 }
 
@@ -379,7 +384,7 @@ static void flush_ents(pnoid_t pnode, unsigned long changemap) {
     unsigned pos;
     changemap = (changemap | (changemap >> 1)) & 0x5555555555555555;
     for_each_set_bit(pos, &changemap, PNODE_FANOUT) {
-        bonsai_flush(pnode_ent(pnode, pos), sizeof(pnoent_t), 0);
+        bonsai_flush(pnode_ent(pnode, pos), sizeof(pentry_t), 0);
     }
 }
 
@@ -442,7 +447,7 @@ static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
     pbatch_cursor_t cursor;
     pbatch_op_t *op;
     unsigned pos;
-    pnoent_t *e;
+    pentry_t *e;
 
     for (pbatch_cursor_init(&cursor, pbatch_list); !pbatch_cursor_is_end(&cursor); pbatch_cursor_inc(&cursor)) {
         op = pbatch_cursor_get(&cursor);
@@ -475,8 +480,8 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
     pnoid_t head, tail, next, prev = PNOID_NULL;
     shim_sync_pfence_t *pfences, *pfence;
     mnode_t *head_mno, *tail_mno, *mno;
-    pnoent_t merged[PNODE_FANOUT], *m;
-    pnoent_t ents[PNODE_FANOUT], *ent;
+    pentry_t merged[PNODE_FANOUT], *m;
+    pentry_t ents[PNODE_FANOUT], *ent;
     int node = pnode_numa_node(pnode);
     pbatch_cursor_t cursor;
     unsigned cnt, mcnt, i;
@@ -494,7 +499,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
             if (!op || (ent < ents + cnt && pkey_compare(ent->k, op->key) < 0)) {
                 *m++ = *ent++;
             } else {
-                *m++ = (pnoent_t) { op->key, op->val, 0 };
+                *m++ = (pentry_t) { op->key, op->val, 0 };
                 do {
                     pbatch_cursor_inc(&cursor);
                     op = pbatch_cursor_get(&cursor);
@@ -605,7 +610,7 @@ int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
     mnode_t *mno = pnode_meta(pnode);
     uint8_t fgprt[PNODE_FANOUT];
     unsigned long validmap;
-    pnoent_t ent;
+    pentry_t ent;
     int ret = 0;
 
     validmap = mno->validmap;
@@ -634,4 +639,82 @@ void pnode_recycle() {
 
     pnode_meta(d_layer->tofree_tail)->prev = d_layer->free_list;
     d_layer->free_list = d_layer->tofree_head;
+}
+
+static void init_pnode_pool(struct data_layer *layer) {
+    pnoid_t cur;
+    for (cur = 0; cur < PNODE_NUM; cur++) {
+        pnode_meta(cur)->prev = cur + 1 < PNODE_NUM ? cur + 1 : PNOID_NULL;
+    }
+    layer->free_list = 0;
+    layer->tofree_head = layer->tofree_tail = PNOID_NULL;
+}
+
+static void timer_handler(int sig) {
+    struct data_layer *d_layer = DATA(bonsai);
+    d_layer->epoch++;
+}
+
+static int register_epoch_timer() {
+	struct itimerval value;
+	struct sigaction sa;
+	int ret = 0;
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = timer_handler;
+	if (sigaction(SIGALRM, &sa, NULL) == -1) {
+		perror("sigaction\n");
+        goto out;
+	}
+
+	value.it_interval.tv_sec = 0;
+	value.it_interval.tv_usec = EPOCH_INTERVAL_US;
+    value.it_value = value.it_interval;
+
+    ret = setitimer(ITIMER_REAL, &value, NULL);
+	if (ret) {
+		perror("setitimer\n");
+        goto out;
+	}
+
+out:
+	return ret;
+}
+
+int data_layer_init(struct data_layer *layer) {
+    int ret;
+
+    ret = data_region_init(layer);
+    if (unlikely(ret)) {
+        goto out;
+    }
+
+    init_pnode_pool(layer);
+
+    layer->epoch = 0;
+    memset(layer->epoch_table, 0, sizeof(layer->epoch_table));
+
+    spin_lock_init(&layer->plist_lock);
+
+    layer->sentinel = PNOID_NULL;
+
+out:
+    return ret;
+}
+
+void data_layer_deinit(struct data_layer* layer) {
+	data_region_deinit(layer);
+
+	bonsai_print("data_layer_deinit\n");
+}
+
+pnoid_t pnode_sentinel_init() {
+    pnoid_t pno = alloc_pnode(0);
+    mnode_t *mno = pnode_meta(pno);
+    mno->validmap = 0;
+    mno->prev = mno->next = PNOID_NULL;
+    mno->lfence = MIN_KEY;
+    mno->rfence = MAX_KEY;
+    return pno;
 }

@@ -13,15 +13,15 @@
 #include <unistd.h>
 
 #include "bonsai.h"
-#include "oplog.h"
+#include "log_layer.h"
 #include "ordo.h"
 #include "arch.h"
 #include "cpu.h"
 #include "region.h"
 #include "common.h"
 #include "thread.h"
-#include "pnode.h"
-#include "shim.h"
+#include "data_layer.h"
+#include "index_layer.h"
 #include "rcu.h"
 
 #define LCB_FULL_SIZE   3072
@@ -167,8 +167,8 @@ static void write_back(int cpu, int dimm_unlock) {
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
     uint32_t end = region->meta.end;
+    struct oplog *lcb;
     size_t len, c;
-    void *lcb;
 
     lcb = local_desc->lcb;
     len = local_desc->size;
@@ -185,7 +185,7 @@ static void write_back(int cpu, int dimm_unlock) {
         pthread_mutex_unlock(local_desc->dimm_lock);
     }
 
-    lcb = malloc(LCB_MAX_SIZE);
+    lcb = malloc(LCB_MAX_SIZE * sizeof(*lcb));
 
     local_desc->size = 0;
     call_rcu(RCU(bonsai), free, local_desc->lcb);
@@ -427,7 +427,7 @@ static int fetch_work(void *arg) {
 /* Inline the sort function to reduce overhead caused by frequently making indirect call to cmp. */
 #define num_cmp(x, y)           ((x) == (y) ? 0 : ((x) < (y) ? -1 : 1))
 #define sort_cmp(a, b, arg)     (pkey_compare(((struct oplog *) (a))->o_kv.k, ((struct oplog *) (b))->o_kv.k) \
-                                 ? : num_cmp(((struct oplog *) (a))->o_ts, ((struct oplog *) (b))->o_ts))
+                                 ? : num_cmp(((struct oplog *) (a))->o_stamp, ((struct oplog *) (b))->o_stamp))
 #include "sort.h"
 
 static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, int wid) {
@@ -894,4 +894,56 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 0);
 
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
+}
+
+int log_layer_init(struct log_layer* layer) {
+	int i, ret = 0, node, dimm_idx, cpu_idx, dimm, cpu;
+    struct cpu_log_region_desc *desc;
+    pthread_mutex_t *dimm_lock;
+
+	layer->nflush = 0;
+	atomic_set(&layer->exit, 0);
+	atomic_set(&layer->force_flush, 0);
+	atomic_set(&layer->checkpoint, 0);
+	atomic_set(&layer->epoch_passed, 0);
+    for (i = 0; i < NUM_CPU; i++) {
+        atomic_set(&layer->nlogs[i].cnt, 0);
+    }
+
+    ret = log_region_init(layer);
+	if (ret)
+		goto out;
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        cpu_idx = 0;
+
+        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
+            dimm = node_to_dimm(node, dimm_idx);
+
+            dimm_lock = malloc(sizeof(pthread_mutex_t));
+
+            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
+                cpu = node_to_cpu(node, cpu_idx);
+
+                desc = &layer->desc->descs[cpu];
+                desc->region = &layer->dimm_regions[dimm]->regions[i];
+                desc->size = 0;
+                desc->lcb = malloc(LCB_MAX_SIZE * sizeof(*desc->lcb));
+                desc->wb_state = WBS_ENABLE;
+                desc->dimm_lock = dimm_lock;
+                seqcount_init(&desc->seq);
+            }
+        }
+    }
+
+	bonsai_print("log_layer_init\n");
+
+out:
+	return ret;
+}
+
+void log_layer_deinit(struct log_layer* layer) {
+	log_region_deinit(layer);
+
+	bonsai_print("log_layer_deinit\n");
 }
