@@ -859,9 +859,11 @@ static void cleanup_stage(struct pflush_worksets *worksets) {
  */
 void oplog_flush() {
     struct log_layer *l_layer = LOG(bonsai);
+
+    struct flush_load *per_socket_loads, *per_worker_loads;
     struct pflush_worksets ws;
     logs_t *per_worker_logs;
-    struct flush_load *per_socket_loads, *per_worker_loads;
+    unsigned since;
 
 	bonsai_print("thread[%d]: start oplog checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 
@@ -869,22 +871,31 @@ void oplog_flush() {
 
     new_flip();
 
+    begin_invalidate_unref_entries(&since);
+
     /* Make sure that all logs in previous flip are written back to NVM. */
     force_wb();
 
     /* init work */
+    bonsai_print("oplog_flush: init stage");
     init_stage(&ws);
 
     /* fetch all current-flip logs in NVM to DRAM buffer */
+    bonsai_print("oplog_flush: fetch stage");
     fetch_stage(&ws, &per_worker_logs);
 
     /* sort, merge, and clustering based on pnode */
+    bonsai_print("oplog_flush: clustering stage");
     clustering_stage(&ws, &per_socket_loads, per_worker_logs);
 
     /* inter and intra socket load balance */
+    bonsai_print("oplog_flush: load balance stage");
     load_balance_stage(&ws, &per_worker_loads, per_socket_loads);
 
+    end_invalidate_unref_entries(&since);
+
     /* flush and sync */
+    bonsai_print("oplog_flush: flush stage");
     flush_stage(&ws, per_worker_loads);
 
     /* cleanup work */

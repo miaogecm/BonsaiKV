@@ -29,7 +29,7 @@ struct data_layer {
 	spinlock_t plist_lock;
 
 	unsigned epoch;
-	uint16_t epoch_table[NUM_SOCKET][DATA_REGION_SIZE / sizeof(pentry_t)];
+    unsigned *epoch_table[NUM_SOCKET];
 };
 
 typedef struct {
@@ -178,6 +178,9 @@ static inline void pnode_split(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut) {
 static inline void pnode_recolor(pnoid_t *pnode, int c) {
     pnode_split_and_recolor(pnode, NULL, NULL, c, c);
 }
+
+void begin_invalidate_unref_entries(unsigned *since);
+void end_invalidate_unref_entries(const unsigned *since);
 
 struct data_layer;
 

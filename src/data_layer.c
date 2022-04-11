@@ -10,6 +10,8 @@
 #include <string.h>
 #include <assert.h>
 #include <signal.h>
+#include <unistd.h>
+#include <numa.h>
 #include <sys/time.h>
 
 #include "data_layer.h"
@@ -167,9 +169,8 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     int my = get_numa_node(__this->t_cpu), node = pnode_numa_node(pno);
     int dimm_idx = pnode_permute(pno)[blknr];
     union pnoid_u pnoid = { .id = pno };
+    unsigned epoch, *e, old_e;
     pentry_t *local, *ent;
-    uint16_t *e, old_e;
-    unsigned epoch;
 
     ent = pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
@@ -682,8 +683,22 @@ out:
 	return ret;
 }
 
+void begin_invalidate_unref_entries(unsigned *since) {
+    struct data_layer *layer = DATA(bonsai);
+    *since = layer->epoch;
+}
+
+void end_invalidate_unref_entries(const unsigned *since) {
+    struct data_layer *layer = DATA(bonsai);
+    while (ACCESS_ONCE(layer->epoch) <= *since + 2) {
+        usleep(1000);
+    }
+}
+
 int data_layer_init(struct data_layer *layer) {
-    int ret;
+    size_t size = (DATA_REGION_SIZE / sizeof(pentry_t)) * sizeof(unsigned);
+    int numa_node, ret;
+    unsigned *tab;
 
     ret = data_region_init(layer);
     if (unlikely(ret)) {
@@ -692,12 +707,18 @@ int data_layer_init(struct data_layer *layer) {
 
     init_pnode_pool(layer);
 
-    layer->epoch = 0;
-    memset(layer->epoch_table, 0, sizeof(layer->epoch_table));
+    layer->epoch = 2;
+    for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {
+        tab = numa_alloc_onnode(size, numa_node);
+        memset(tab, 0, size);
+        layer->epoch_table[numa_node] = tab;
+    }
 
     spin_lock_init(&layer->plist_lock);
 
     layer->sentinel = PNOID_NULL;
+
+    register_epoch_timer();
 
 out:
     return ret;
