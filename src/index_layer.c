@@ -669,10 +669,6 @@ void index_layer_init(char* index_name, struct index_layer* layer, init_func_t i
 
     layer->index_struct = init();
 
-    for (node = 0; node < NUM_SOCKET; node++) {
-        layer->pnode_index_struct[node] = init();
-    }
-
 	layer->insert = insert;
     layer->update = update;
 	layer->remove = remove;
