@@ -907,6 +907,22 @@ void oplog_flush() {
 	bonsai_print("thread[%d]: finish log checkpoint [%d]\n", __this->t_id, l_layer->nflush);
 }
 
+static int register_wb_signal() {
+	struct sigaction sa;
+	int ret = 0;
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = handle_wb;
+	if (sigaction(WB_SIGNO, &sa, NULL) == -1) {
+		perror("sigaction\n");
+        goto out;
+	}
+
+out:
+	return ret;
+}
+
 int log_layer_init(struct log_layer* layer) {
 	int i, ret = 0, node, dimm_idx, cpu_idx, dimm, cpu;
     struct cpu_log_region_desc *desc;
@@ -946,6 +962,8 @@ int log_layer_init(struct log_layer* layer) {
             }
         }
     }
+
+    register_wb_signal();
 
 	bonsai_print("log_layer_init\n");
 
