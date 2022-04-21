@@ -75,8 +75,8 @@ static void* load_thread_fun(void* arg) {
         load_warehouse();
     }
     
-    st = 1.0 * id / num_threads * num_w;
-    ed = 1.0 * (id + 1) / num_threads * num_w;
+    st = 1.0 * id / num_threads * (num_w + 1);
+    ed = 1.0 * (id + 1) / num_threads * (num_w + 1);
     for (i = st; i < ed; i++) {
         load_stock(i);
         load_district(i);
@@ -183,6 +183,7 @@ extern void tpcc_destroy() {
 }
 
 extern void tpcc_set_env(int __num_w, int __num_works, int __num_cpu) {
+    assert(__num_w > 1);
     num_w = __num_w;
     num_works = __num_works;
     num_cpu = __num_cpu;
@@ -194,6 +195,7 @@ extern void tpcc_load(int __num_threads) {
     num_threads = __num_threads;
     bind_to_cpu(0);
 
+    pthread_barrier_init(&barrier, NULL, num_threads);
     pthread_create(&load_thread_parent, NULL, load_thread_parent_fun, NULL);
     pthread_setname_np(load_thread_parent, "load_thread_parent");
     pthread_join(load_thread_parent, NULL);
@@ -205,6 +207,7 @@ extern void tpcc_bench(int __num_threads) {
     num_threads = __num_threads;
     bind_to_cpu(0);
 
+    pthread_barrier_init(&barrier, NULL, num_threads);
     pthread_create(&bench_thread_parent, NULL, bench_thread_parent_fun, NULL);
     pthread_setname_np(bench_thread_parent, "bench_thread_parent");
     pthread_join(bench_thread_parent, NULL);

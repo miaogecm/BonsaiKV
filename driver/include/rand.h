@@ -45,12 +45,12 @@ static inline void get_rand_str(char* str, u32 min_len, u32 max_len) {
 
     for (i = 0; i < len; i++) {
         x = get_rand(0, 61);
-        if (x <= 10) {
+        if (x < 10) {
             str[i] = '0' + x;
-        } else if (x <= 36) {
-            str[i] = 'A' + x - 11;
+        } else if (x < 36) {
+            str[i] = 'A' + x - 10;
         } else {
-            str[i] = 'a' + x - 37;
+            str[i] = 'a' + x - 36;
         }
     }
     str[len] = '\0';
@@ -87,13 +87,13 @@ static inline void get_rand_int_str(char* str, u32 min_len, u32 max_len) {
 #define get_i_id()      (get_nurand(I_ID_A, 1, NUM_I, I_ID_C))
 #define get_c_id()      (get_nurand(C_ID_A, 1, NUM_C, C_ID_C))
 
-const char part_name[10][6] = {"Bar", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING"};
+static const char part_name[10][6] = {"Bar", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING"};
 
 static inline void get_name(char* last_name, int id) {
-    last_name[0] = '\n';
+    last_name[0] = '\0';
     strcat(last_name, part_name[id / 100]);
     strcat(last_name, part_name[(id / 10) % 10]);
-    strcat(last_name, part_name[id % 100]);
+    strcat(last_name, part_name[id % 10]);
 }
 
 static inline void get_laod_name(char* last_name) {

@@ -7,7 +7,8 @@
 
 #define tpcc_lookup(kv_type, key, val) \
         ({void* __ptr = tpcc.lookup(tpcc_kv, &key, sizeof(key)); \
-        memcpy(val, __ptr, sizeof(struct kv_type##_v));})
+        assert(1); \
+        if (__ptr) memcpy(val, __ptr, sizeof(struct kv_type##_v));})
 
 #define tpcc_insert(kv_type, key, val) \
         tpcc.insert(tpcc_kv, &key, sizeof(key), &val, sizeof(val))
@@ -15,8 +16,8 @@
 #define tpcc_update(kv_type, key, val) \
         tpcc.update(tpcc_kv, &key, sizeof(key), &val, sizeof(val))
 
-#define tpcc_scan(kv_type, low, high, kv_arr) \
-        tpcc.scan(tpcc_kv, &low, &high, sizeof(low), kv_arr)
+#define tpcc_scan(kv_type, low, high, k_arr, v_arr) \
+        tpcc.scan(tpcc_kv, &low, &high, sizeof(low), k_arr, v_arr)
 
 #else 
 

@@ -15,7 +15,7 @@ typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, co
 typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value, size_t v_len);
 typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
 typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
-typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high, size_t len, size_t* arr);
+typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high, size_t len, size_t* k_arr, size_t* v_arr);
 
 struct tpcc {
 #ifdef ALL_IN_ONE

@@ -221,7 +221,7 @@ struct customer_info {
 #define set_h_k(h, _t_id, _h_pk)					h.id = E_H; h.thread_id = _t_id; h.h_pk = _h_pk
 #define set_no_k(no, _w_id, _d_id, _o_id) 			no.id = E_NO; no.no_w_id = _w_id; no.no_d_id = _d_id; no.no_o_id = _o_id
 #define set_o_k(o, _w_id, _d_id, _o_id)				o.id = E_O; o.o_w_id = _w_id; o.o_d_id = _d_id; o.o_id = _o_id
-#define set_ol_k(ol, _w_id, _d_id, _o_id, _n)		ol.id = E_NO; ol.ol_w_id = _w_id; ol.ol_d_id = _d_id; ol.ol_o_id = _o_id; ol.ol_number = _n
+#define set_ol_k(ol, _w_id, _d_id, _o_id, _n)		ol.id = E_OL; ol.ol_w_id = _w_id; ol.ol_d_id = _d_id; ol.ol_o_id = _o_id; ol.ol_number = _n
 #define set_i_k(i, _i_id)							i.id = E_I; i.i_id = _i_id
 #define set_s_k(s, _w_id, _i_id)					s.id = E_S; s.s_w_id = _w_id; s.s_i_id = _i_id
 #define set_c_i_k(ci, _w_id, _d_id, _c_l, _c_f)     ci.id = E_CI; ci.c_w_id = _w_id; ci.c_d_id = _d_id; \

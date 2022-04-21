@@ -12,7 +12,7 @@ OBJ_FILES = $(addprefix $(OBJS_DIR)/, $(patsubst %.c, %.o, $(notdir $(SRC_FILES)
 
 CFLAGS += -I$(INC_DIR)
 CFLAGS += -g3
-CFLAGS += -O2
+CFLAGS += -O0
 CFLAGS += -Wall
 
 LDFLAGS += -lpthread
@@ -21,7 +21,7 @@ all: sample.out
 
 sample.out: $(SMP_DIR)/main.c libtpcc.a
 	sudo ln -sf $(PROJ_DIR)/libtpcc.a /usr/lib/libtpcc.a
-	$(CC) $< $(CFLAGS) $(LDFLAGS) -ltpcc -o $@
+	$(CC) $< $(CFLAGS) -ltpcc $(LDFLAGS) -o $@
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.c $(OBJS_DIR)
 	$(CC) $< $(CFLAGS) -c -o $@
@@ -34,6 +34,6 @@ libtpcc.a: $(OBJ_FILES)
 	$(Q)$(AR) cru $@ $^
 
 clean:
-	$(Q)rm -f libbonsai.a
+	$(Q)rm -f libtpcc.a
 	$(Q)rm -rf $(OBJS_DIR)
 	

@@ -27,6 +27,7 @@
 typedef struct sl_entry {
     char * key;
     char * value;
+    int k_len;
     int height;
     struct sl_entry * next[MAX_SKIPLIST_HEIGHT];
 } sl_entry;
@@ -38,8 +39,8 @@ typedef struct sl_entry {
 // when you no longer need them.
 sl_entry * sl_init(); // Allocates a new list and return its head
 void sl_destroy(sl_entry * head); // Frees the resources used by a list
-char * sl_get(sl_entry * head, char * key); // Returns a key's value
-void sl_set(sl_entry * head, char * key, char * value); // Sets a key's value
-int sl_scan(sl_entry * head, char * low, char * high, size_t* arr);
-void sl_unset(sl_entry * head, char * key); // Removes a key, value pair
+char * sl_get(sl_entry * head, char * key, size_t len); // Returns a key's value
+void sl_set(sl_entry * head, char * key, char * value, size_t len, size_t v_len); // Sets a key's value
+int sl_scan(sl_entry * head, char * low, char * high, size_t* k_arr, size_t* v_arr, size_t len);
+void sl_unset(sl_entry * head, char * key, size_t len); // Removes a key, value pair
 #endif
