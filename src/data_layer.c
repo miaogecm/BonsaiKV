@@ -1,9 +1,10 @@
 /*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
  *
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
+ * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -122,7 +123,7 @@ int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK] = {
 union pnoid_u {
     struct {
         uint32_t numa_node      : 3;
-        uint32_t meta_blk_nr    : 29;
+        uint32_t blk_nr         : 29;
     };
     pnoid_t id;
 };
@@ -134,7 +135,7 @@ int pnode_numa_node(pnoid_t pno) {
 
 static inline unsigned long pnode_off(pnoid_t pno) {
     union pnoid_u u = { .id = pno };
-    return u.meta_blk_nr * (unsigned long) PNODE_INTERLEAVING_SIZE;
+    return u.blk_nr * (unsigned long) PNODE_INTERLEAVING_SIZE;
 }
 
 static inline int *pnode_permute(pnoid_t pno) {
@@ -182,7 +183,7 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     epoch = d_layer->epoch;
 
     local = pnoptr_cvt_node(ent, my, node, dimm_idx);
-    e = &d_layer->epoch_table[my][pnoid.meta_blk_nr * (unsigned) PNODE_FANOUT + i];
+    e = &d_layer->epoch_table[my][pnoid.blk_nr * (unsigned) PNODE_FANOUT + i];
     old_e = *e;
 
     if (unlikely(epoch > old_e + 1)) {
