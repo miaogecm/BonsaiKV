@@ -1,11 +1,10 @@
 /*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
  *
  * Hohai University
  *
- * Shim Layer: Unified Indexing
- *
  * Author: Miao Cai, mcai@hhu.edu.cn
+ * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
 #include <stdlib.h>

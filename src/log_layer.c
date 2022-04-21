@@ -1,9 +1,10 @@
 /*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
  *
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
+ * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -579,7 +580,7 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
     free(logs[wid].logs);
 }
 
-static void inter_worker_clustering(struct flush_load *per_socket_loads,
+static void inter_worker_cluster(struct flush_load *per_socket_loads,
                                     struct flush_load per_worker_per_socket_loads[][NUM_SOCKET],
                                     pthread_barrier_t *barrier, int wid) {
     struct flush_load *load, *load_per_worker;
@@ -587,7 +588,7 @@ static void inter_worker_clustering(struct flush_load *per_socket_loads,
     struct cluster *prev, *curr;
     int numa_node, i;
 
-    /* Wait for all local clustering to be done. */
+    /* Wait for all local cluster to be done. */
     pthread_barrier_wait(barrier);
 
     /* Only one worker per NUMA node. */
@@ -626,11 +627,11 @@ static void inter_worker_clustering(struct flush_load *per_socket_loads,
 }
 
 /*
- * Clustering worker
+ * Cluster worker
  * I: per_worker_logs
  * O: per_socket_loads
  */
-static int clustering_work(void *arg) {
+static int cluster_work(void *arg) {
     struct pflush_work_desc *desc = arg;
     struct clustering_workset *ws = desc->workset;
     int wid = desc->wid;
@@ -641,8 +642,8 @@ static int clustering_work(void *arg) {
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
 
-    /* Do global inter-worker clustering. (per-worker per-socket loads -> per-socket loads) */
-    inter_worker_clustering(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
+    /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
+    inter_worker_cluster(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
 
     return 0;
 }
@@ -829,10 +830,10 @@ static void fetch_stage(struct pflush_worksets *worksets, logs_t **per_worker_lo
     *per_worker_logs = worksets->fetch_ws.per_worker_logs;
 }
 
-static void clustering_stage(struct pflush_worksets *worksets,
+static void cluster_stage(struct pflush_worksets *worksets,
                              struct flush_load **per_socket_loads, logs_t *per_worker_logs) {
     worksets->clustering_ws.per_worker_logs = per_worker_logs;
-    launch_workers(worksets, clustering_work, &worksets->clustering_ws);
+    launch_workers(worksets, cluster_work, &worksets->clustering_ws);
     *per_socket_loads = worksets->clustering_ws.per_socket_loads;
 }
 
@@ -886,7 +887,7 @@ void oplog_flush() {
 
     /* sort, merge, and clustering based on pnode */
     bonsai_print("oplog_flush: clustering stage");
-    clustering_stage(&ws, &per_socket_loads, per_worker_logs);
+    cluster_stage(&ws, &per_socket_loads, per_worker_logs);
 
     /* inter and intra socket load balance */
     bonsai_print("oplog_flush: load balance stage");

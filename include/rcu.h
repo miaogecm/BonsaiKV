@@ -1,13 +1,3 @@
-/*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
- *
- * Hohai University
- *
- * A QSBR(Quiescent State Based Reclamation) RCU Implementation
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- */
-
 #ifndef BONSAI_RCU_H
 #define BONSAI_RCU_H
 

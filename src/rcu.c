@@ -1,13 +1,13 @@
 /*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
  *
  * Hohai University
  *
- * A QSBR(Quiescent State Based Reclamation) RCU Implementation
- *
  * Author: Miao Cai, mcai@hhu.edu.cn
+ * 				 Junru Shen, gnu_emacs@hhu.edu.cn
+ * 
+ * A QSBR(Quiescent State Based Reclamation) RCU Implementation
  */
-
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
