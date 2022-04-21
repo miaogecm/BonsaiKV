@@ -25,7 +25,7 @@ struct warehouse_v {
 	char    w_street_1[20];
 	char    w_street_2[20];
 	char    w_city[20];
-	char    w_state[2];
+	char    w_state[3];
 	char    w_zip[9];
 	double  w_tax;
 	double  w_ytd;
@@ -45,7 +45,7 @@ struct district_v {
 	char 	d_street_1[20];
 	char 	d_street_2[20];
 	char 	d_city[20];
-	char 	d_state[2];
+	char 	d_state[3];
 	char 	d_zip[9];
 	double 	d_tax;
 	double 	d_ytd;
@@ -64,16 +64,16 @@ struct customer_k {
 };
 struct customer_v {
 	char 	c_first[16];
-	char 	c_middle[2];
+	char 	c_middle[3];
 	char 	c_last[16];
 	char 	c_street_1[20];
 	char 	c_street_2[20];
 	char 	c_city[20];
-	char 	c_state[2];
+	char 	c_state[3];
 	char 	c_zip[9];
 	char 	c_phone[16];
 	u64 	c_since;
-	char 	c_credit[2];
+	char 	c_credit[3];
 	double 	c_credit_lim;
 	double 	c_discount;
 	double 	c_balance;
@@ -138,15 +138,6 @@ struct order {
 	struct order_v v;
 };
 
-// struct order_wdc {
-//    struct key {
-//       	u32 	o_w_id;
-//       	u32 	o_d_id;
-//       	u32 	o_c_id;
-//       	u32 	o_id;
-//    }k;
-// };
-
 struct orderline_k {
 	int 	id;
 	u32 	ol_w_id;
@@ -169,7 +160,7 @@ struct orderline {
 
 struct item_k {
 	int 	id;
-	u32 	_i_id;
+	u32 	i_id;
 };
 struct item_v {
 	u32 	i_im_id;
@@ -233,9 +224,9 @@ struct customer_info {
 #define set_ol_k(ol, _w_id, _d_id, _o_id, _n)		ol.id = E_NO; ol.ol_w_id = _w_id; ol.ol_d_id = _d_id; ol.ol_o_id = _o_id; ol.ol_number = _n
 #define set_i_k(i, _i_id)							i.id = E_I; i.i_id = _i_id
 #define set_s_k(s, _w_id, _i_id)					s.id = E_S; s.s_w_id = _w_id; s.s_i_id = _i_id
-#define set_c_i_k(ci, w_id, d_id, c_l, c_f)     	ci.id = E_CI; ci.c_w_id = _w_id; ci.c_d_id = _d_id; \
-													strcpy(&ci.c_last, _c_l); strcpy(&ci.c_first, _c_f)
-#define set_w_v(w, _name, s1, _s2, _ct, _st, _zp, _tx, _ytd) \
+#define set_c_i_k(ci, _w_id, _d_id, _c_l, _c_f)     ci.id = E_CI; ci.c_w_id = _w_id; ci.c_d_id = _d_id; \
+													strcpy(ci.c_last, _c_l); strcpy(ci.c_first, _c_f)
+#define set_w_v(w, _name, _s1, _s2, _ct, _st, _zp, _tx, _ytd) \
 		strcpy(w.w_name, _name);	\
 		strcpy(w.w_street_1, _s1);	\
 		strcpy(w.w_street_2, _s2);	\
@@ -254,7 +245,7 @@ struct customer_info {
 		d.d_tax = _tx; \
 		d.d_ytd = _ytd; \
 		d.d_next_o_id = _o_id
-#define set_c_v(c, _fr, _md, _ls, _s1, _s2, _ct, _st, _zp, _ph, _sc, _cr, _crl, _ds, _bl, _ytdp, _pc, _dc, _dt) \
+#define set_c_v(c, _fr, _md, _ls, _s1, _s2, _ct, _st, _zp, _ph, _sc, _cr, _crl, _ds, _bl, _ytdp, _pc, _dc, _data) \
 		strcpy(c.c_first, _fr);	\
 		strcpy(c.c_middle, _md);	\
 		strcpy(c.c_last, _ls);	\
@@ -269,22 +260,22 @@ struct customer_info {
 		c.c_credit_lim = _crl; \
 		c.c_discount = _ds; \
 		c.c_balance = _bl; \
-		c.c_ytd_payment = _tydp; \
+		c.c_ytd_payment = _ytdp; \
 		c.c_payment_cnt = _pc; \
 		c.c_delivery_cnt = _dc; \
-		strcpy(c.c_data, _dt)
-#define set_h_v(h, _c_id, _c_d_id, _c_w_id, _d_id, _w_id, _dt, _amt, _dt) \
+		strcpy(c.c_data, _data)
+#define set_h_v(h, _c_id, _c_d_id, _c_w_id, _d_id, _w_id, _date, _amt, _data) \
 		h.h_c_id = _c_id; \
 		h.h_c_d_id = _c_d_id; \
 		h.h_c_w_id = _c_w_id; \
 		h.h_d_id = _d_id; \
 		h.h_w_id = _w_id; \
-		h.h_date = _dt; \
+		h.h_date = _date; \
 		h.h_amount = _amt; \
-		strcpy(h.h_data, _dt)
+		strcpy(h.h_data, _data)
 #define set_no_v(no) while(0)
 #define set_o_v(o, _c_id, _ent_d, _car_id, _ol_cnt, _all_lcl) \
-		o.c_id = _c_id; \
+		o.o_c_id = _c_id; \
 		o.o_entry_d = _ent_d; \
 		o.o_carrier_id = _car_id; \
 		o.o_ol_cnt = _ol_cnt; \
@@ -296,27 +287,27 @@ struct customer_info {
 		ol.ol_quantity = _qty; \
 		ol.ol_amount = _amt; \
 		strcpy(ol.ol_dist_info, _dist_info)
-#define set_i_v(i, _im_id, _name, _pr, _dt) \
+#define set_i_v(i, _im_id, _name, _pr, _data) \
 		i.i_im_id = _im_id; \
 		strcpy(i.i_name, _name); \
 		i.i_price = _pr; \
-		strcpy(i.i_data, _dt)
-#define set_s_v(s, _qty, _d1, _d2, _d3, _d4, _d5, _d6, _d7, _d8, _d9, _d10, _ytd, _odc, _rmtc, _dt) \
+		strcpy(i.i_data, _data)
+#define set_s_v(s, _qty, _d_arr, _ytd, _odc, _rmtc, _data) \
 		s.s_quantity = _qty; \
-		strcpy(s.s_dist_01, _d1); \
-		strcpy(s.s_dist_02, _d2); \
-		strcpy(s.s_dist_03, _d3); \
-		strcpy(s.s_dist_04, _d4); \
-		strcpy(s.s_dist_05, _d5); \
-		strcpy(s.s_dist_06, _d6); \
-		strcpy(s.s_dist_07, _d7); \
-		strcpy(s.s_dist_08, _d8); \
-		strcpy(s.s_dist_09, _d9); \
-		strcpy(s.s_dist_10, _d10); \
+		strcpy(s.s_dist_01, _d_arr[0]); \
+		strcpy(s.s_dist_02, _d_arr[1]); \
+		strcpy(s.s_dist_03, _d_arr[2]); \
+		strcpy(s.s_dist_04, _d_arr[3]); \
+		strcpy(s.s_dist_05, _d_arr[4]); \
+		strcpy(s.s_dist_06, _d_arr[5]); \
+		strcpy(s.s_dist_07, _d_arr[6]); \
+		strcpy(s.s_dist_08, _d_arr[7]); \
+		strcpy(s.s_dist_09, _d_arr[8]); \
+		strcpy(s.s_dist_10, _d_arr[9]); \
 		s.s_ytd = _ytd; \
 		s.s_order_cnt = _odc; \
 		s.s_remote_cnt = _rmtc; \
-		s.s_data = _dt
+		strcpy(s.s_data, _data)
 #define set_c_i_v(ci, _c_id) \
 		ci.c_id = _c_id
 

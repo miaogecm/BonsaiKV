@@ -7,19 +7,21 @@ INC_DIR 	:= $(PROJ_DIR)/include
 SRC_DIR		:= $(PROJ_DIR)/src
 OBJS_DIR 	:= $(PROJ_DIR)/.objs
 SMP_DIR		:= $(PROJ_DIR)/sample
+SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+OBJ_FILES = $(addprefix $(OBJS_DIR)/, $(patsubst %.c, %.o, $(notdir $(SRC_FILES))))
 
 CFLAGS += -I$(INC_DIR)
 CFLAGS += -g3
-CFLAGS += -Wall
 CFLAGS += -O2
+CFLAGS += -Wall
 
-LDFLAGS += 
+LDFLAGS += -lpthread
 
-all: libtpcc.a sample
+all: sample.out
 
-sample: $(SMP_DIR)/main.c libtpcc.a
+sample.out: $(SMP_DIR)/main.c libtpcc.a
 	sudo ln -sf $(PROJ_DIR)/libtpcc.a /usr/lib/libtpcc.a
-	$(CC) $< $(CFLAGS) -ltpcc -o $@
+	$(CC) $< $(CFLAGS) $(LDFLAGS) -ltpcc -o $@
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.c $(OBJS_DIR)
 	$(CC) $< $(CFLAGS) -c -o $@
@@ -27,7 +29,7 @@ $(OBJS_DIR)/%.o: $(SRC_DIR)/%.c $(OBJS_DIR)
 $(OBJS_DIR):
 	$(Q)mkdir -p $(OBJS_DIR)
 
-libtpcc.a: $(OBJS_DIR)/*.o
+libtpcc.a: $(OBJ_FILES)
 	$(Q)$(RM) -f $@
 	$(Q)$(AR) cru $@ $^
 

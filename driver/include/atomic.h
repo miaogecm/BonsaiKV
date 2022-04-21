@@ -30,6 +30,9 @@ typedef struct {
 #define __X86_CASE_L	4
 #define __X86_CASE_Q	8
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+
 static inline void memory_mfence() {
     __asm__ __volatile__("mfence" : : : "memory");
 }

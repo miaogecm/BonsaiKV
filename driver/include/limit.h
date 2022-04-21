@@ -2,7 +2,8 @@
 #define LIMITS_H
 
 /* CASUAL */
-#define NUM_W       10
+// #define NUM_W       10
+extern int num_w;
 #define MAX_OL_S    10
 
 /* fixed */
@@ -35,8 +36,8 @@
 #define MAX_O_OL    15 
 #define MIN_CR      1
 #define MAX_CR      10
-#define MIN_THRS    10
-#define MAX_THRS    20
+#define MIN_TH      10
+#define MAX_TH      20
 #define MIN_AMOUNT  1
 #define MAX_AMOUNT  5000
 

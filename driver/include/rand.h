@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <assert.h>
 
 #include "limit.h"
 #include "types.h"
@@ -14,6 +15,7 @@ static void rand_init() {
 
 /* rand u32 in [a, b] */
 static inline u32 get_rand(u32 a, u32 b) {
+    assert(a <= b);
     return rand() % (b - a + 1) + a;
 }
 
@@ -54,6 +56,17 @@ static inline void get_rand_str(char* str, u32 min_len, u32 max_len) {
     str[len] = '\0';
 }
 
+static inline void get_rand_int_str(char* str, u32 min_len, u32 max_len) {
+    u32 len = get_rand(min_len, max_len - 1);
+    int i, x;
+
+    for (i = 0; i < len; i++) {
+        x = get_rand(0, 10);
+        str[i] = '0' + x;
+    }
+    str[len] = '\0';
+}
+
 #define I_ID_A  8191
 #define C_ID_A  1023
 
@@ -64,17 +77,17 @@ static inline void get_rand_str(char* str, u32 min_len, u32 max_len) {
 #define LAST_NAME_LOAD_C    200
 #define LAST_NAME_RUN_C     100
 
-#define get_w_id()      (get_rand(1, NUM_W))
+#define get_w_id()      (get_rand(1, num_w))
 #define get_d_id()      (get_rand(1, NUM_D))
 #define get_ol_cnt()    (get_rand(MIN_O_OL, MAX_O_OL))
 #define get_qlty()      (get_rand(MIN_OL_S, MAX_OL_S))
 #define get_carrier()   (get_rand(MIN_CR, MAX_CR))
-#define get_thrs()      (get_rand(MIN_THRS, MAX_THRS))
+#define get_th()        (get_rand(MIN_TH, MAX_TH))
 
 #define get_i_id()      (get_nurand(I_ID_A, 1, NUM_I, I_ID_C))
 #define get_c_id()      (get_nurand(C_ID_A, 1, NUM_C, C_ID_C))
 
-const char part_name[6] = {"Bar", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING"};
+const char part_name[10][6] = {"Bar", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING"};
 
 static inline void get_name(char* last_name, int id) {
     last_name[0] = '\n';
