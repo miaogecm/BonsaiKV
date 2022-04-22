@@ -1,8 +1,8 @@
-## Bonsai: a High-performance Scalable Persistent Key-Value Store on DRAM-NVM Systems with Multi-Layer Storage
+## Bonsai: A Fast, Scalable, Persistent Key-Value Store on DRAM-NVM Systems
 
 ### Introduction
 
-Bonsai is a transparent, scalable, NUMA-aware persistent data store for DRAM index structures. It consists of three layers: *index layer*, *log layer*, and *data layer* to separate data indexing from persistent storage. The index layer provides transparent data persistence support for legacy in-DRAM data structures. The log layer utilizes epoch-based batch log persistence technique to support low-cost data insert/remove. The data layer provides NUMA-aware data management as well as support fast range query.
+Bonsai is a fast, scalable, persistent data store for DRAM-NVM systems. It consists of three layers: *index layer*, *log layer*, and *data layer*. The index layer provides unified collaborated indexing. The log layer support decouple log-structured framework. The data layer offers scalable data management.
 
 ### How to run Bansai
 

@@ -375,8 +375,6 @@ static INLINE int stm_wbetl_commit(stm_tx_t *tx)
     	return 0;
   	}
 
-	persist_write_set(tx, t);
-
 #if 0
   	/* Install new versions, drop locks and set new timestamp */
   	w = tx->w_set.entries;
@@ -392,6 +390,8 @@ static INLINE int stm_wbetl_commit(stm_tx_t *tx)
     	}
   	}
 #endif
+
+  persist_write_set(tx, t);
 
 end:
   	return 1;
