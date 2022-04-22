@@ -40,19 +40,22 @@ static void __new_order(u32 w_id, u32 d_id, u32 c_id, u32 ol_size,
     int i;
 
     set_w_k(__w.k, w_id);
-    tpcc_lookup(warehouse, __w.k, &__w.v);
-    w_tax = __w.v.w_tax;
+    if(tpcc_lookup(warehouse, __w.k, &__w.v)) {
+        w_tax = __w.v.w_tax;
+    }
     set_c_k(__c.k, w_id, d_id, c_id);
-    tpcc_lookup(customer, __c.k, &__c.v);
-    c_discount = __c.v.c_discount;
+    if(tpcc_lookup(customer, __c.k, &__c.v)) {
+        c_discount = __c.v.c_discount;
+    }
 
     spin_lock(district_lock);
     set_d_k(__d.k, w_id, d_id);
-    tpcc_lookup(district, __d.k, &__d.v);
-    d_tax = __d.v.d_tax;
-    __d.v.d_next_o_id++;
-    tpcc_update(district, __d.k, __d.v);
-    o_id = __d.v.d_next_o_id;
+    if(tpcc_lookup(district, __d.k, &__d.v)) {
+        d_tax = __d.v.d_tax;
+        __d.v.d_next_o_id++;
+        tpcc_update(district, __d.k, __d.v);
+        o_id = __d.v.d_next_o_id;
+    }
     spin_unlock(district_lock);
 
     all_local = 1;
@@ -71,56 +74,59 @@ static void __new_order(u32 w_id, u32 d_id, u32 c_id, u32 ol_size,
     
     for (i = 0; i < ol_size; i++) {
         set_i_k(__i.k, i_arr[i]);
-        tpcc_lookup(item, __i.k, &__i.v);
-        i_price = __i.v.i_price;
+        if(tpcc_lookup(item, __i.k, &__i.v)) {
+            i_price = __i.v.i_price;
+        }
         set_s_k(__s.k, w_id, i_arr[i]);
-        tpcc_lookup(stock, __s.k, &__s.v);
-        switch(d_id) {
-            case 1:
-               strcpy(s_dist, __s.v.s_dist_01);
-               break;
-            case 2:
-               strcpy(s_dist, __s.v.s_dist_02);
-               break;
-            case 3:
-               strcpy(s_dist, __s.v.s_dist_03);
-               break;
-            case 4:
-               strcpy(s_dist, __s.v.s_dist_04);
-               break;
-            case 5:
-               strcpy(s_dist, __s.v.s_dist_05);
-               break;
-            case 6:
-               strcpy(s_dist, __s.v.s_dist_06);
-               break;
-            case 7:
-               strcpy(s_dist, __s.v.s_dist_07);
-               break;
-            case 8:
-               strcpy(s_dist, __s.v.s_dist_08);
-               break;
-            case 9:
-               strcpy(s_dist, __s.v.s_dist_09);
-               break;
-            case 10:
-               strcpy(s_dist, __s.v.s_dist_10);
-               break;
+        if(tpcc_lookup(stock, __s.k, &__s.v)) {
+            switch(d_id) {
+                case 1:
+                strcpy(s_dist, __s.v.s_dist_01);
+                break;
+                case 2:
+                strcpy(s_dist, __s.v.s_dist_02);
+                break;
+                case 3:
+                strcpy(s_dist, __s.v.s_dist_03);
+                break;
+                case 4:
+                strcpy(s_dist, __s.v.s_dist_04);
+                break;
+                case 5:
+                strcpy(s_dist, __s.v.s_dist_05);
+                break;
+                case 6:
+                strcpy(s_dist, __s.v.s_dist_06);
+                break;
+                case 7:
+                strcpy(s_dist, __s.v.s_dist_07);
+                break;
+                case 8:
+                strcpy(s_dist, __s.v.s_dist_08);
+                break;
+                case 9:
+                strcpy(s_dist, __s.v.s_dist_09);
+                break;
+                case 10:
+                strcpy(s_dist, __s.v.s_dist_10);
+                break;
+            }
         }
 
         spin_lock(stock_lock);
         set_s_k(__s.k, w_arr[i], i_arr[i]);
-        tpcc_lookup(stock, __s.k, &__s.v);
-        s_quantity = (s_quantity >= q_arr[i] + 10) ? s_quantity - q_arr[i] : s_quantity + 91 - q_arr[i];
-        if (w_arr[i] != w_id) __s.v.s_remote_cnt++;
-        __s.v.s_order_cnt++;
-        __s.v.s_ytd += q_arr[i];
-        tpcc_update(stock, __s.k, __s.v);
+        if(tpcc_lookup(stock, __s.k, &__s.v)) {
+            s_quantity = (s_quantity >= q_arr[i] + 10) ? s_quantity - q_arr[i] : s_quantity + 91 - q_arr[i];
+            if (w_arr[i] != w_id) __s.v.s_remote_cnt++;
+            __s.v.s_order_cnt++;
+            __s.v.s_ytd += q_arr[i];
+            tpcc_update(stock, __s.k, __s.v);
+        }
         spin_unlock(stock_lock);
 
         ol_amount = q_arr[i] * i_price * (1.0 + w_tax + d_tax) * (1.0 - c_discount);
         set_ol_k(__ol.k, w_id, d_id, o_id, i);
-        set_ol_v(__ol.v, i_arr[i], w_arr[i], 0, q_arr[i], ol_amount, s_dist);
+        set_ol_v(__ol.v, i_arr[i], w_arr[i], get_timestamp(), q_arr[i], ol_amount, s_dist);
         tpcc_insert(orderline, __ol.k, __ol.v);
     }
 }
@@ -150,7 +156,7 @@ void new_order(u32 w_id) {
     __new_order(w_id, d_id, c_id, ol_cnt, w_arr, i_arr, q_arr);
 }
 
-static void __payment_by_c_id(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_id, u32 c_id, double h_amount) {
+static void __payment_by_c_id(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_id, u32 c_id, double h_amount, u64 h_date) {
     struct warehouse __w;
     struct district __d;
     struct customer __c;
@@ -188,14 +194,15 @@ static void __payment_by_c_id(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_
 
     spin_lock(warehouse_lock);
     set_w_k(__w.k, w_id);
-    tpcc_lookup(warehouse, __w.k, &__w.v);
-    strcpy(w_name, __w.v.w_name);
-    strcpy(w_street_1, __w.v.w_street_1);
-    strcpy(w_street_2, __w.v.w_street_2);
-    strcpy(w_city, __w.v.w_city);
-    strcpy(w_state, __w.v.w_state);
-    strcpy(w_zip, __w.v.w_zip);
-    w_ytd = __w.v.w_ytd;
+    if(tpcc_lookup(warehouse, __w.k, &__w.v)) {
+        strcpy(w_name, __w.v.w_name);
+        strcpy(w_street_1, __w.v.w_street_1);
+        strcpy(w_street_2, __w.v.w_street_2);
+        strcpy(w_city, __w.v.w_city);
+        strcpy(w_state, __w.v.w_state);
+        strcpy(w_zip, __w.v.w_zip);
+        w_ytd = __w.v.w_ytd;
+    }
 
     __w.v.w_ytd += h_amount;
     tpcc_update(warehouse, __w.k, __w.v);
@@ -203,41 +210,42 @@ static void __payment_by_c_id(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_
     
     spin_lock(district_lock);
     set_d_k(__d.k, w_id, d_id);
-    tpcc_lookup(district, __d.k, &__d.v);
-    strcpy(d_name, __d.v.d_name);
-    strcpy(d_street_1, __d.v.d_street_1);
-    strcpy(d_street_2, __d.v.d_street_2);
-    strcpy(d_city, __d.v.d_city);
-    strcpy(d_state, __d.v.d_state);
-    strcpy(d_zip, __d.v.d_zip);
-    d_ytd = __d.v.d_ytd;
-
-    __d.v.d_ytd += h_amount;
-    tpcc_update(district, __d.k, __d.v);
+    if(tpcc_lookup(district, __d.k, &__d.v)) {
+        strcpy(d_name, __d.v.d_name);
+        strcpy(d_street_1, __d.v.d_street_1);
+        strcpy(d_street_2, __d.v.d_street_2);
+        strcpy(d_city, __d.v.d_city);
+        strcpy(d_state, __d.v.d_state);
+        strcpy(d_zip, __d.v.d_zip);
+        d_ytd = __d.v.d_ytd;
+        __d.v.d_ytd += h_amount;
+        tpcc_update(district, __d.k, __d.v);
+    }
     spin_unlock(district_lock);
 
     spin_lock(customer_lock);
     set_c_k(__c.k, w_id, c_d_id, c_id);
-    tpcc_lookup(customer, __c.k, &__c.v);
-    strcpy(c_data, __c.v.c_data);
-    strcpy(c_credit, __c.v.c_credit);
-    c_balance = __c.v.c_balance;
-    c_ytd_payment = __c.v.c_ytd_payment;
-    c_payment_cnt = __c.v.c_payment_cnt;
+    if(tpcc_lookup(customer, __c.k, &__c.v)) {
+        strcpy(c_data, __c.v.c_data);
+        strcpy(c_credit, __c.v.c_credit);
+        c_balance = __c.v.c_balance;
+        c_ytd_payment = __c.v.c_ytd_payment;
+        c_payment_cnt = __c.v.c_payment_cnt;
 
-    c_new_balance = c_balance - h_amount;
-    c_new_ytd_payment = c_ytd_payment + h_amount;
-    c_new_payment_cnt = c_payment_cnt + 1;
+        c_new_balance = c_balance - h_amount;
+        c_new_ytd_payment = c_ytd_payment + h_amount;
+        c_new_payment_cnt = c_payment_cnt + 1;
 
-    if (strcmp(c_credit, "BC") == 0) {
-        snprintf(c_new_data, 500, "| %4d %2d %4d %2d %4d $%7.2f %lu %s%s %s", 
-                c_id, c_d_id, c_w_id, d_id, w_id, h_amount, 0ul, w_name, d_name, c_data);
-        strcpy(__c.v.c_data, c_new_data);
+        if (strcmp(c_credit, "BC") == 0) {
+            snprintf(c_new_data, 500, "| %4d %2d %4d %2d %4d $%7.2f %lu %s%s %s", 
+                    c_id, c_d_id, c_w_id, d_id, w_id, h_amount, 0ul, w_name, d_name, c_data);
+            strcpy(__c.v.c_data, c_new_data);
+        }
+        __c.v.c_balance = c_new_balance;
+        __c.v.c_ytd_payment = c_new_ytd_payment;
+        __c.v.c_payment_cnt = c_new_payment_cnt;
+        tpcc_update(customer, __c.k, __c.v);
     }
-    __c.v.c_balance = c_new_balance;
-    __c.v.c_ytd_payment = c_new_ytd_payment;
-    __c.v.c_payment_cnt = c_new_payment_cnt;
-    tpcc_update(customer, __c.k, __c.v);
     spin_unlock(customer_lock);
     
     strcpy(h_new_data, w_name);
@@ -245,23 +253,24 @@ static void __payment_by_c_id(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_
     strcat(h_new_data, d_name);
     h_pk = atomic_add_return(1, &tpcc.h_pk[t_id]);
     set_h_k(__h.k, t_id, h_pk);
-    set_h_v(__h.v, c_id, c_d_id, c_w_id, d_id, w_id, 0, h_amount, h_new_data);
+    set_h_v(__h.v, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, h_new_data);
     tpcc_insert(history, __h.k, __h.v);
 }
 
-static void __payment_by_name(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_id, char* c_last, double h_amount) {
+static void __payment_by_name(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_id, char* c_last, double h_amount, u64 h_date) {
     struct customer_info __ci1, __ci2;
     
     u32 c_id;
-    size_t k_arr[10003], v_arr[10003];
+    size_t k_arr[100000], v_arr[100000];
     int arr_size;
 
     set_c_i_k(__ci1.k, w_id, d_id, c_last, "");
     set_c_i_k(__ci2.k, w_id, d_id, c_last, "~");
     arr_size = tpcc_scan(customer_info, __ci1.k, __ci2.k, k_arr, v_arr);
-    c_id = ((struct customer_info_v*) v_arr[arr_size / 2])->c_id;
-
-    __payment_by_c_id(t_id, w_id, d_id, c_w_id, c_d_id, c_id, h_amount);
+    if (arr_size) {
+        c_id = ((struct customer_info_v*) v_arr[arr_size / 2])->c_id;
+        __payment_by_c_id(t_id, w_id, d_id, c_w_id, c_d_id, c_id, h_amount, h_date);
+    }
 }
 
 void payment(u32 t_id, u32 w_id) {
@@ -269,6 +278,7 @@ void payment(u32 t_id, u32 w_id) {
     u32 c_w_id;
     u32 c_d_id;
     double h_amount;
+    u64 h_date;
     u32 c_id;
     char c_last[16];
 
@@ -280,23 +290,24 @@ void payment(u32 t_id, u32 w_id) {
         c_d_id = get_d_id();
     }
     h_amount = get_rand_lf(MIN_AMOUNT, MAX_AMOUNT);
+    h_date = get_timestamp();
 
     if (get_rand(1, 100) <= USE_C_ID_PR) {
         c_id = get_c_id();
-        __payment_by_c_id(t_id, w_id, d_id, c_w_id, c_d_id, c_id, h_amount);
+        __payment_by_c_id(t_id, w_id, d_id, c_w_id, c_d_id, c_id, h_amount, h_date);
     } else {
         get_run_name(c_last);
-        // __payment_by_name(t_id, w_id, d_id, c_w_id, c_d_id, c_last, h_amount);
+        __payment_by_name(t_id, w_id, d_id, c_w_id, c_d_id, c_last, h_amount, h_date);
     }
 }
 
-static void __delivery(u32 w_id, u32 carrier_id) {
+static void __delivery(u32 w_id, u32 carrier_id, u64 d_date) {
     struct neworder __no1, __no2;
     struct order __o;
     struct orderline __ol;
     struct customer __c;
 
-    size_t k_arr[10009], v_arr[10009];
+    size_t k_arr[100000], v_arr[100000];
     int arr_size;
     u32 d_id, o_id;
     u32 ol_cnt, c_id;
@@ -328,19 +339,21 @@ static void __delivery(u32 w_id, u32 carrier_id) {
                     for (i = 1; i <= ol_cnt; i++) {
                         spin_lock(orderline_lock);
                         set_ol_k(__ol.k, w_id, d_id, o_id, i);
-                        tpcc_lookup(orderline, __ol.k, &__ol.v);
-                        ol_tot += __ol.v.ol_amount;
-                        __ol.v.ol_delivery_d = 0;
-                        tpcc_update(orderline, __ol.k, __ol.v);
+                        if(tpcc_lookup(orderline, __ol.k, &__ol.v)) {
+                            ol_tot += __ol.v.ol_amount;
+                            __ol.v.ol_delivery_d = d_date;
+                            tpcc_update(orderline, __ol.k, __ol.v);
+                        }
                         spin_unlock(orderline_lock);
                     }
 
                     spin_lock(customer_lock);
                     set_c_k(__c.k, w_id, d_id, c_id);
-                    tpcc_lookup(customer, __c.k, &__c.v);
-                    __c.v.c_balance += ol_tot;
-                    __c.v.c_delivery_cnt++;
-                    tpcc_update(customer, __c.k, __c.v);
+                    if(tpcc_lookup(customer, __c.k, &__c.v)) {
+                        __c.v.c_balance += ol_tot;
+                        __c.v.c_delivery_cnt++;
+                        tpcc_update(customer, __c.k, __c.v);
+                    }
                     spin_unlock(customer_lock);
                 }
             } 
@@ -351,7 +364,7 @@ static void __delivery(u32 w_id, u32 carrier_id) {
 
 void delivery(u32 w_id) {
     u32 carrier_id = get_carrier();
-    __delivery(w_id, carrier_id);
+    __delivery(w_id, carrier_id, get_timestamp());
 }
 
 static void __stock_level(u32 w_id, u32 d_id, u32 threshold) {
@@ -360,15 +373,16 @@ static void __stock_level(u32 w_id, u32 d_id, u32 threshold) {
     struct orderline __ol1, __ol2;
 
     u32 o_id;
-    size_t k_arr[10009], v_arr[10009];
+    size_t k_arr[100000], v_arr[100000];
     u32 i_id;
     int arr_size;
     int i;
     u32 count = 0;
 
     set_d_k(__d.k, w_id, d_id);
-    tpcc_lookup(district, __d.k, &__d.v);
-    o_id = __d.v.d_next_o_id;
+    if(tpcc_lookup(district, __d.k, &__d.v)) {
+        o_id = __d.v.d_next_o_id;
+    }
     
     set_ol_k(__ol1.k, w_id, d_id, o_id - 20, 0);
     set_ol_k(__ol2.k, w_id, d_id, o_id - 1, UINT32_MAX);
@@ -377,8 +391,9 @@ static void __stock_level(u32 w_id, u32 d_id, u32 threshold) {
     for (i = 0; i < arr_size; i++) {
         i_id = ((struct orderline_v*) v_arr[i])->ol_i_id;
         set_s_k(__s.k, w_id, i_id);
-        tpcc_lookup(stock, __s.k, &__s.v);
-        if (__s.v.s_quantity < threshold) count++;
+        if(tpcc_lookup(stock, __s.k, &__s.v)) {
+            if (__s.v.s_quantity < threshold) count++;
+        }
     }
 }
 
@@ -393,7 +408,7 @@ static void __order_status_by_c_id(u32 w_id, u32 d_id, u32 c_id) {
     struct order __o1, __o2;
     struct orderline __ol1, __ol2;
 
-    size_t k_arr[10009], v_arr[10009];
+    size_t k_arr[100000], v_arr[100000];
     int arr_size;
 
     char c_first[16];
@@ -412,33 +427,35 @@ static void __order_status_by_c_id(u32 w_id, u32 d_id, u32 c_id) {
     double ol_amount;
 
     set_c_k(__c.k, w_id, d_id, c_id);
-    tpcc_lookup(customer, __c.k, &__c.v);
-    strcpy(c_first, __c.v.c_first);
-    strcpy(c_middle, __c.v.c_middle);
-    strcpy(c_last, __c.v.c_last);
-    c_balance = __c.v.c_balance;
-
+    if(tpcc_lookup(customer, __c.k, &__c.v)) {
+        strcpy(c_first, __c.v.c_first);
+        strcpy(c_middle, __c.v.c_middle);
+        strcpy(c_last, __c.v.c_last);
+        c_balance = __c.v.c_balance;
+    }
     set_o_k(__o1.k, w_id, d_id, 0);
     set_o_k(__o2.k, w_id, d_id, UINT32_MAX);
     arr_size = tpcc_scan(order, __o1.k, __o2.k, k_arr, v_arr);
-    o_id = ((struct order_k*) k_arr[arr_size - 1])->o_id;
-    assert(arr_size <= NUM_O);
-    
-    __o1.k.o_id = o_id;
-    tpcc_lookup(order, __o1.k, &__o1.v);
-    o_ent_d = __o1.v.o_entry_d;
-    o_car_id = __o1.v.o_carrier_id;
-
-    set_ol_k(__ol1.k, w_id, d_id, o_id, 0);
-    set_ol_k(__ol2.k, w_id, d_id, o_id, UINT32_MAX);
-    arr_size = tpcc_scan(orderline, __ol1.k, __ol2.k, k_arr, v_arr);
     if (arr_size) {
-        memcpy(&__ol1.v, (void*) v_arr[0], sizeof(__ol1.v));
-        ol_i_id = __ol1.v.ol_i_id;
-        ol_supply_w_id = __ol1.v.ol_supply_w_id;
-        ol_delivery_d = __ol1.v.ol_delivery_d;
-        ol_quantity = __ol1.v.ol_quantity;
-        ol_amount = __ol1.v.ol_amount;
+        o_id = ((struct order_k*) k_arr[arr_size - 1])->o_id;
+        
+        __o1.k.o_id = o_id;
+        if(tpcc_lookup(order, __o1.k, &__o1.v)) {
+            o_ent_d = __o1.v.o_entry_d;
+            o_car_id = __o1.v.o_carrier_id;
+        }
+
+        set_ol_k(__ol1.k, w_id, d_id, o_id, 0);
+        set_ol_k(__ol2.k, w_id, d_id, o_id, UINT32_MAX);
+        arr_size = tpcc_scan(orderline, __ol1.k, __ol2.k, k_arr, v_arr);
+        if (arr_size) {
+            memcpy(&__ol1.v, (void*) v_arr[0], sizeof(__ol1.v));
+            ol_i_id = __ol1.v.ol_i_id;
+            ol_supply_w_id = __ol1.v.ol_supply_w_id;
+            ol_delivery_d = __ol1.v.ol_delivery_d;
+            ol_quantity = __ol1.v.ol_quantity;
+            ol_amount = __ol1.v.ol_amount;
+        }
     }
 }
 
@@ -446,15 +463,16 @@ static void __order_status_by_name(u32 w_id, u32 d_id, char* c_last) {
     struct customer_info __ci1, __ci2;
     
     u32 c_id;
-    size_t k_arr[10003], v_arr[10003];
+    size_t k_arr[100000], v_arr[100000];
     int arr_size;
 
     set_c_i_k(__ci1.k, w_id, d_id, c_last, "");
     set_c_i_k(__ci2.k, w_id, d_id, c_last, "~");
     arr_size = tpcc_scan(customer_info, __ci1.k, __ci2.k, k_arr, v_arr);
-    c_id = ((struct customer_info_v*) v_arr[arr_size / 2])->c_id;
-
-    __order_status_by_c_id(w_id, d_id, c_id);
+    if (arr_size) {
+        c_id = ((struct customer_info_v*) v_arr[arr_size / 2])->c_id;
+        __order_status_by_c_id(w_id, d_id, c_id);
+    }
 }
 
 void order_status(u32 w_id) {
@@ -466,7 +484,7 @@ void order_status(u32 w_id) {
         __order_status_by_c_id(w_id, d_id, c_id);
     } else {
         get_run_name(c_last);
-        // __order_status_by_name(w_id, d_id, c_last);
+        __order_status_by_name(w_id, d_id, c_last);
     }
 }
 
@@ -596,7 +614,7 @@ void load_customer(u32 t_id, u32 w_id, u32 d_id) {
         h_pk = atomic_add_return(1, &tpcc.h_pk[t_id]);
         set_h_k(__h.k, t_id, h_pk);
         get_rand_str(h_data, 12, 24);
-        set_h_v(__h.v, i, d_id, w_id, d_id, w_id, 0, 10, h_data);
+        set_h_v(__h.v, i, d_id, w_id, d_id, w_id, get_timestamp(), 10, h_data);
         tpcc_insert(history, __h.k, __h.v);
     }
 }
@@ -634,7 +652,7 @@ void load_order(u32 w_id, u32 d_id) {
             i_id = get_rand(1, NUM_I);
             set_ol_k(__ol.k, w_id, d_id, i, j);
             get_rand_str(dist_info, 23, 24);
-            set_ol_v(__ol.v, get_rand(1, NUM_I), w_id, 0, 5, ol_amount, dist_info);
+            set_ol_v(__ol.v, get_rand(1, NUM_I), w_id, get_timestamp(), 5, ol_amount, dist_info);
             tpcc_insert(orderline, __ol.k, __ol.v);
         }
     }
@@ -685,7 +703,5 @@ void load_stock(u32 w_id) {
         tpcc_insert(stock, __s.k, __s.v);
     }
 }
-
-// TODO: define TIMESTAMP(datetime) & delivery_d
-// FIXME: 10001 -> NUM_C; 10009->NUM_O
-// TODO: lookup when find none
+//TODO: correctness verification
+//FIXME: scan problem

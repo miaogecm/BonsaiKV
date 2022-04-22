@@ -5,7 +5,7 @@
 #include <time.h>
 #include <stdio.h>
 
-static inline k_cmp(sl_entry * entry, void* key, int len) {
+static inline int k_cmp(sl_entry * entry, void* key, int len) {
     if (entry->k_len != len) {
         if (entry->k_len > len) 
             return 1;
