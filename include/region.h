@@ -15,7 +15,8 @@ extern "C" {
 #define DATA_REGION_SIZE	25769803776UL  /* 24 GB, 805306368 entries */
 
 struct data_region {
-	void *start; /* memory-mapped address */
+	int d_fd; /* file descriptor */
+	void* d_start; /* memory-mapped address */
 };
 
 #define LOG_PAGE_DESC(addr)	(struct log_page_desc*)((unsigned long)(addr) & PAGE_MASK)

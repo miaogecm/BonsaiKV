@@ -26,6 +26,7 @@ extern "C" {
 
 struct log_layer;
 struct oplog_blk;
+struct stm_tx;
 
 enum {
 	WORKER_SLEEP = 0,
@@ -65,7 +66,8 @@ struct thread_info {
 	volatile int 			t_state;
 	unsigned int 			t_cpu;
 	volatile unsigned long 	t_epoch;
-    void* 					t_data;
+	struct stm_tx* 		t_stm;
+  void* 						t_data;
 	struct work_struct*		t_work;
 	struct workqueue_struct t_wq;
 	struct list_head		list;

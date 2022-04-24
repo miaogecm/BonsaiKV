@@ -1,5 +1,5 @@
 /*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
+ * Bonsai: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
  *
  * Hohai University
  *

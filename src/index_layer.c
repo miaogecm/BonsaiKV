@@ -668,12 +668,12 @@ void index_layer_init(char* index_name, struct index_layer* layer, init_func_t i
 
     layer->index_struct = init();
 
-	layer->insert = insert;
-    layer->update = update;
-	layer->remove = remove;
-	layer->lookup = lookup;
-	layer->scan = scan;
-	layer->destory = destroy;
+	layer->insert       = insert;
+    layer->update       = update;
+	layer->remove       = remove;
+	layer->lookup       = lookup;
+	layer->scan         = scan;
+	layer->destory      = destroy;
 
     shim_layer_init();
 

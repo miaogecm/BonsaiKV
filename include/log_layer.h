@@ -42,6 +42,7 @@ struct log_layer {
 
 	struct log_region_desc *desc;
     struct dimm_log_region *dimm_regions[NUM_DIMM];
+    int dimm_region_fd[NUM_DIMM];
 
     log_state_t lst;
 };

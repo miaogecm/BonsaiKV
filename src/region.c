@@ -84,6 +84,7 @@ int log_region_init(struct log_layer *layer) {
     	}
 
 		layer->dimm_regions[dimm] = vaddr;
+		layer->dimm_region_fd[dimm] = fd;
 
 		bonsai_print("log_region_init dimm[%d] region: [%016lx, %016lx]\n",
                      dimm, (unsigned long) vaddr, (unsigned long) vaddr + size_per_dimm);
@@ -98,21 +99,21 @@ void log_region_deinit(struct log_layer* layer) {
 	int dimm;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-        /* TODO: close fd. */
 		munmap(layer->dimm_regions[dimm], size_per_dimm);
+		close(layer->dimm_region_fd[dimm]);
 	}
 }
 
 int data_region_init(struct data_layer *layer) {
-    size_t size_per_dimm = DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET;
+  size_t size_per_dimm = DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET;
 	struct data_region *region;
 	int dimm, fd, ret = 0;
     void *vaddr;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-		region = &layer->region[dimm];
+			region = &layer->region[dimm];
 
-		/* create a pmem file */
+			/* create a pmem file */
     	if ((fd = open(data_region_fpath[dimm], O_CREAT | O_RDWR, 0666)) < 0) {
             ret = errno;
         	perror("open");
@@ -134,7 +135,8 @@ int data_region_init(struct data_layer *layer) {
         	goto out;
     	}
 
-		region->start = vaddr;
+		region->d_fd = fd;
+		region->d_start = vaddr;
 
 		bonsai_print("data_region_init dimm[%d] region: [%016lx, %016lx]\n",
                      dimm, (unsigned long) vaddr, (unsigned long) vaddr + size_per_dimm);
@@ -150,8 +152,8 @@ void data_region_deinit(struct data_layer *layer) {
 	int dimm;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-        /* TODO: close fd. */
-		region = &layer->region[dimm];
-        munmap(region->start, size_per_dimm);
+			region = &layer->region[dimm];
+      munmap(region->d_start, size_per_dimm);
+			close(region->d_fd);
 	}
 }
