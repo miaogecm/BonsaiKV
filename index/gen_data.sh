@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
-export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
+export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
+#export index_microbench_dir='/home/gky/Desktop/index-microbench-master'
 
 #long_key="-DLONG_KEY"
 

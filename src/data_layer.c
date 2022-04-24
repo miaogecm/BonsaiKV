@@ -144,7 +144,7 @@ static inline int *pnode_permute(pnoid_t pno) {
 
 static inline void *pnode_dimm_addr(pnoid_t pno, int dimm_idx) {
     int node = pnode_numa_node(pno), dimm = node_to_dimm(node, dimm_idx);
-    return DATA(bonsai)->region[dimm].start + pnode_off(pno);
+    return DATA(bonsai)->region[dimm].d_start + pnode_off(pno);
 }
 
 static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
@@ -160,7 +160,7 @@ static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int d
     int src_dimm, dst_dimm;
     src_dimm = node_to_dimm(from_node, dimm_idx);
     dst_dimm = node_to_dimm(to_node, dimm_idx);
-    return d_layer->region[dst_dimm].start + (ptr - (void *) d_layer->region[src_dimm].start);
+    return d_layer->region[dst_dimm].d_start + (ptr - (void *) d_layer->region[src_dimm].d_start);
 }
 
 static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {

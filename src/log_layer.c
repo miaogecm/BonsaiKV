@@ -945,7 +945,7 @@ int log_layer_init(struct log_layer* layer) {
     for (node = 0; node < NUM_SOCKET; node++) {
         cpu_idx = 0;
 
-        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
+        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx ++) {
             dimm = node_to_dimm(node, dimm_idx);
 
             dimm_lock = malloc(sizeof(pthread_mutex_t));
