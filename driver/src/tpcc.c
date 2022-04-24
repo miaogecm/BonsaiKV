@@ -132,13 +132,13 @@ static void* bench_thread_fun(void* arg) {
     }
 
     interval = end_measure();
-    printf("load[%d] finished in %.3lf seconds\n", id, interval);
+    printf("work[%d] finished in %.3lf seconds\n", id, interval);
 
     pthread_barrier_wait(&barrier);
 
     if (id == 0) {
         interval = end_measure();
-        printf("LOAD: %.3lf seconds elapsed\n", interval);
+        printf("WORK: %.3lf seconds elapsed\n", interval);
     }
     return NULL;
 }
