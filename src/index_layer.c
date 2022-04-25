@@ -63,11 +63,12 @@ struct pptr {
 
 static void init_inode_pool(struct inode_pool *pool) {
     void *start = memalign(PAGE_SIZE, INODE_POOL_SIZE);
-    inode_t *cur;
-    for (cur = start; cur != start + INODE_POOL_SIZE; cur++) {
-        cur->next = cur + 1 - (inode_t *) start;
+    inode_t *curr;
+    for (curr = start; curr != start + INODE_POOL_SIZE; curr++) {
+        curr->next = curr + 1 - (inode_t *) start;
     }
-    cur[-1].next = NULL_OFF;
+	curr = start;
+    curr[TOTAL_INODE - 1].next = NULL_OFF;
     pool->start = pool->freelist = start;
 }
 
@@ -75,14 +76,14 @@ static inline uint32_t inode_ptr2off(inode_t *inode) {
     if (unlikely(!inode)) {
         return NULL_OFF;
     }
-    return inode - (inode_t *) SHIM(bonsai)->pool->start;
+    return inode - (inode_t *) SHIM(bonsai)->pool.start;
 }
 
 static inline inode_t *inode_off2ptr(uint32_t off) {
     if (unlikely(off == NULL_OFF)) {
         return NULL;
     }
-    return (inode_t *) SHIM(bonsai)->pool->start + off;
+    return (inode_t *) SHIM(bonsai)->pool.start + off;
 }
 
 static inline void pack_pptr(void **pptr, inode_t *inode, pnoid_t pnode) {
@@ -210,7 +211,7 @@ static inline void inode_crab(inode_t **inode, pkey_t key) {
 
 static inline inode_t *inode_alloc() {
     struct shim_layer *s_layer = SHIM(bonsai);
-    struct inode_pool *pool = s_layer->pool;
+    struct inode_pool *pool = &s_layer->pool;
     inode_t *get;
 
     do {
@@ -222,7 +223,7 @@ static inline inode_t *inode_alloc() {
 
 static inline void inode_free(inode_t *inode) {
     struct shim_layer *s_layer = SHIM(bonsai);
-    struct inode_pool *pool = s_layer->pool;
+    struct inode_pool *pool = &s_layer->pool;
     inode_t *head;
 
     do {
@@ -234,16 +235,18 @@ static inline void inode_free(inode_t *inode) {
 static int shim_layer_init() {
     struct shim_layer *layer = SHIM(bonsai);
     int cpu;
-
-    init_inode_pool(layer->pool);
+	
+    init_inode_pool(&layer->pool);
     layer->head = NULL;
-
+	
     atomic_set(&layer->exit, 0);
 
     for (cpu = 0; cpu < NUM_CPU; cpu++) {
         INIT_KFIFO(layer->fifo[cpu]);
     }
-
+	
+	bonsai_print("shim_layer_init\n");
+	
     return 0;
 }
 

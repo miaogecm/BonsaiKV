@@ -5,14 +5,14 @@
 extern "C" {
 #endif
 
-#define NUM_CPU                 48
-#define NUM_DIMM                12
-#define NUM_SOCKET              2
+#define NUM_CPU                 12
+#define NUM_DIMM                6
+#define NUM_SOCKET              1
 #define NUM_CPU_PER_SOCKET      (NUM_CPU / NUM_SOCKET)
 #define NUM_DIMM_PER_SOCKET     (NUM_DIMM / NUM_SOCKET)
 
 static inline int node_to_cpu(int node, int cpu_idx) {
-    return NUM_SOCKET * cpu_idx + node;
+    return NUM_SOCKET * node + cpu_idx;
 }
 
 static inline int node_to_dimm(int node, int dimm_idx) {

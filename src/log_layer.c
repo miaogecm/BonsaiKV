@@ -25,7 +25,8 @@
 #include "index_layer.h"
 #include "rcu.h"
 
-#define LCB_FULL_SIZE   3072
+//#define LCB_FULL_SIZE   3072
+#define LCB_FULL_SIZE	1536
 #define LCB_MAX_SIZE    (LCB_FULL_SIZE * 2)
 
 #define LCB_FULL_NR     (LCB_FULL_SIZE / sizeof(struct oplog))
@@ -925,7 +926,7 @@ out:
 }
 
 int log_layer_init(struct log_layer* layer) {
-	int i, ret = 0, node, dimm_idx, cpu_idx, dimm, cpu;
+	int i, ret = 0, node, dimm_idx, dimm, cpu;
     struct cpu_log_region_desc *desc;
     pthread_mutex_t *dimm_lock;
 
@@ -942,17 +943,15 @@ int log_layer_init(struct log_layer* layer) {
 	if (ret)
 		goto out;
 
-    for (node = 0; node < NUM_SOCKET; node++) {
-        cpu_idx = 0;
+	layer->desc = (struct log_region_desc*)malloc(sizeof(struct log_region_desc));
 
+    for (node = 0, cpu = 0; node < NUM_SOCKET; node++) {
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx ++) {
             dimm = node_to_dimm(node, dimm_idx);
 
             dimm_lock = malloc(sizeof(pthread_mutex_t));
 
-            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
-                cpu = node_to_cpu(node, cpu_idx);
-
+            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu++) {
                 desc = &layer->desc->descs[cpu];
                 desc->region = &layer->dimm_regions[dimm]->regions[i];
                 desc->size = 0;

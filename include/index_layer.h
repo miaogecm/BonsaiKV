@@ -8,9 +8,13 @@ extern "C" {
 #include "kfifo.h"
 #include "data_layer.h"
 
-#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
+//#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
+#define INODE_POOL_SIZE                         (1 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
+#define INODE_SIZE								(2 * 64)
+#define TOTAL_INODE								INODE_POOL_SIZE / INODE_SIZE
 
-#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
+//#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
+#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       512
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
@@ -56,7 +60,7 @@ struct shim_layer {
     DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
 
     struct inode      *head;
-    struct inode_pool *pool;
+    struct inode_pool pool;
 };
 
 int shim_sentinel_init(pnoid_t sentinel_pnoid);

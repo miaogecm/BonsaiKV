@@ -1,13 +1,3 @@
-/*
- * Bonsai: Transparent, Scalable, NUMA-aware Persistent Data Store
- *
- * Hohai University
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- *
- * Benchmark helpers
- */
-
 #ifndef INDEX_BENCH_H
 #define INDEX_BENCH_H
 

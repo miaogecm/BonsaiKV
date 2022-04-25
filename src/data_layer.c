@@ -42,7 +42,11 @@ typedef struct mnode {
     char         padding[16];
 
     /* cacheline 1 */
-    pnoid_t      prev, next;
+    pnoid_t      next; /* pnode list next */
+	union {
+		pnoid_t prev; /* pnode list prev */
+		pnoid_t	node; /* free list next */
+	} u;
     /* [lfence, rfence) */
     pkey_t       lfence, rfence;
 } mnode_t;
@@ -122,8 +126,8 @@ int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK] = {
 
 union pnoid_u {
     struct {
-        uint32_t numa_node      : 3;
         uint32_t blk_nr         : 29;
+		uint32_t numa_node      : 3;
     };
     pnoid_t id;
 };
@@ -205,7 +209,7 @@ static pnoid_t alloc_pnode(int node) {
 
     do {
         id.id = ACCESS_ONCE(d_layer->free_list);
-    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->prev));
+    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->u.node));
     id.numa_node = node;
 
     return id.id;
@@ -217,7 +221,7 @@ static void delay_free_pnode(pnoid_t pnode) {
     pnoid_t head;
 
     do {
-        mno->prev = head = ACCESS_ONCE(d_layer->tofree_head);
+        mno->u.node = head = ACCESS_ONCE(d_layer->tofree_head);
     } while (!cmpxchg2(&d_layer->tofree_head, head, pnode));
 
     if (head == PNOID_NULL) {
@@ -348,8 +352,8 @@ done:
     persistent_barrier();
 
     /* Link @l to the pnode list. */
-    if (likely(lmno->prev)) {
-        pnode_meta(lmno->prev)->next = l;
+    if (likely(lmno->u.prev)) {
+        pnode_meta(lmno->u.prev)->next = l;
     } else {
         layer->sentinel = l;
     }
@@ -519,7 +523,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
             mno = pnode_meta(prev);
             tail_mno->lfence = mno->rfence = m[0].k;
             mno->next = tail;
-            tail_mno->prev = prev;
+            tail_mno->u.prev = prev;
             pnode_persist(prev, 0);
         }
 
@@ -546,7 +550,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
     /* TODO: Fine-grained locking */
     spin_lock(&d_layer->plist_lock);
 
-    head_mno->prev = prev = mno->prev;
+    head_mno->u.prev = prev = mno->u.prev;
     tail_mno->next = next = mno->next;
     bonsai_flush(&tail_mno->next, sizeof(pnoid_t), 1);
 
@@ -561,7 +565,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
 
     if (likely(next != PNOID_NULL)) {
         mno = pnode_meta(next);
-        mno->prev = tail;
+        mno->u.prev = tail;
     }
 
     spin_unlock(&d_layer->plist_lock);
@@ -639,14 +643,16 @@ void pnode_recycle() {
         return;
     }
 
-    pnode_meta(d_layer->tofree_tail)->prev = d_layer->free_list;
+    pnode_meta(d_layer->tofree_tail)->u.prev = d_layer->free_list;
     d_layer->free_list = d_layer->tofree_head;
 }
 
 static void init_pnode_pool(struct data_layer *layer) {
     pnoid_t cur;
+	int node, num_node_per_socket = PNODE_NUM / NUM_SOCKET;
+
     for (cur = 0; cur < PNODE_NUM; cur++) {
-        pnode_meta(cur)->prev = cur + 1 < PNODE_NUM ? cur + 1 : PNOID_NULL;
+        pnode_meta(cur)->u.node = cur + 1 < PNODE_NUM ? cur + 1 : PNOID_NULL;
     }
     layer->free_list = 0;
     layer->tofree_head = layer->tofree_tail = PNOID_NULL;
@@ -705,9 +711,9 @@ int data_layer_init(struct data_layer *layer) {
     if (unlikely(ret)) {
         goto out;
     }
-
+	
     init_pnode_pool(layer);
-
+	
     layer->epoch = 2;
     for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {
         tab = numa_alloc_onnode(size, numa_node);
@@ -720,6 +726,8 @@ int data_layer_init(struct data_layer *layer) {
     layer->sentinel = PNOID_NULL;
 
     register_epoch_timer();
+
+	bonsai_print("data_layer_init\n");
 
 out:
     return ret;
@@ -735,7 +743,7 @@ pnoid_t pnode_sentinel_init() {
     pnoid_t pno = alloc_pnode(0);
     mnode_t *mno = pnode_meta(pno);
     mno->validmap = 0;
-    mno->prev = mno->next = PNOID_NULL;
+    mno->u.prev = mno->next = PNOID_NULL;
     mno->lfence = MIN_KEY;
     mno->rfence = MAX_KEY;
     return pno;

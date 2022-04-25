@@ -13,7 +13,7 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 
-#define NUM_USER_THREAD		1
+#define NUM_USER_THREAD		4
 
 #define NUM_PFLUSH_WORKER_PER_NODE	2
 #define NUM_PFLUSH_WORKER           (NUM_PFLUSH_WORKER_PER_NODE * NUM_SOCKET)

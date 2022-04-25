@@ -5,7 +5,7 @@ export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-
 
 #long_key="-DLONG_KEY"
 
-count=1000000
+count=1000
 
 cd ${index_microbench_dir}
 rm -rf ./workloads
@@ -44,5 +44,5 @@ else
 fi
 echo "// END kvdata header" >> data/kvdata.h\
 
-rm ./data/load.h
-rm ./data/op.h
+#rm ./data/load.h
+#rm ./data/op.h

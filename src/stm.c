@@ -41,6 +41,21 @@ static NOINLINE void stm_allocate_rs_entries(stm_tx_t *tx, int extend);
 static NOINLINE void stm_allocate_ws_entries(stm_tx_t *tx, int extend);
 static INLINE r_entry_t* stm_has_read(stm_tx_t *tx, volatile stm_word_t *lock);
 
+#define PRINT_DEBUG
+
+static INLINE void*
+malloc_aligned(size_t size)
+{
+  void *memptr;
+  if (unlikely(posix_memalign(&memptr, CACHELINE_SIZE, size)))
+    memptr = NULL;
+  if (unlikely(memptr == NULL)) {
+    fprintf(stderr, "Error allocating aligned memory\n");
+    exit(1);
+  }
+  return memptr;
+}
+
 /*
  * stm_wbetl_validate - validate all read entries of @tx,
  * if the entry is locked, check the lock owner, otherwise
@@ -138,7 +153,7 @@ static INLINE stm_word_t stm_wbetl_read_invisible(stm_tx_t *tx, volatile stm_wor
 
   	assert(IS_ACTIVE(tx->status));
 
-	PRINT_DEBUG2("==> stm_wbetl_read_invisible(t=%p[%lu-%lu],a=%p)\n", tx, (unsigned long)tx->start, (unsigned long)tx->end, addr);
+	PRINT_DEBUG("==> stm_wbetl_read_invisible(t=%p[%lu-%lu],a=%p)\n", tx, (unsigned long)tx->start, (unsigned long)tx->end, addr);
 
   	/* Get reference to lock */
   	lock = GET_LOCK(addr);
@@ -242,7 +257,7 @@ static INLINE w_entry_t * stm_wbetl_write(stm_tx_t *tx, volatile stm_word_t *add
   w_entry_t *w;
   w_entry_t *prev = NULL;
 
-  PRINT_DEBUG2("==> stm_wbetl_write(t=%p[%lu-%lu],a=%p,d=%p-%lu,m=0x%lx)\n",
+  PRINT_DEBUG("==> stm_wbetl_write(t=%p[%lu-%lu],a=%p,d=%p-%lu,m=0x%lx)\n",
                tx, (unsigned long)tx->start, (unsigned long)tx->end, addr, (void *)value, (unsigned long)value, (unsigned long)mask);
 
   /* Get reference to lock */
@@ -488,10 +503,10 @@ static NOINLINE void stm_allocate_rs_entries(stm_tx_t *tx, int extend)
   if (extend) {
     /* Extend read set */
     tx->r_set.size *= 2;
-    tx->r_set.entries = (r_entry_t *)xrealloc(tx->r_set.entries, tx->r_set.size * sizeof(r_entry_t));
+    tx->r_set.entries = (r_entry_t *)realloc(tx->r_set.entries, tx->r_set.size * sizeof(r_entry_t));
   } else {
     /* Allocate read set */
-    tx->r_set.entries = (r_entry_t *)xmalloc_aligned(tx->r_set.size * sizeof(r_entry_t));
+    tx->r_set.entries = (r_entry_t *)malloc_aligned(tx->r_set.size * sizeof(r_entry_t));
   }
 }
 
@@ -507,10 +522,10 @@ static NOINLINE void stm_allocate_ws_entries(stm_tx_t *tx, int extend)
     /* Extend write set */
     /* Transaction must be inactive for WRITE_THROUGH or WRITE_BACK_ETL */
     tx->w_set.size *= 2;
-    tx->w_set.entries = (w_entry_t *)xrealloc(tx->w_set.entries, tx->w_set.size * sizeof(w_entry_t));
+    tx->w_set.entries = (w_entry_t *)realloc(tx->w_set.entries, tx->w_set.size * sizeof(w_entry_t));
   } else {
     /* Allocate write set */
-    tx->w_set.entries = (w_entry_t *)xmalloc_aligned(tx->w_set.size * sizeof(w_entry_t));
+    tx->w_set.entries = (w_entry_t *)malloc_aligned(tx->w_set.size * sizeof(w_entry_t));
   }
   /* Ensure that memory is aligned. */
   assert((((stm_word_t)tx->w_set.entries) & OWNED_MASK) == 0);
@@ -637,7 +652,7 @@ void stm_store2(stm_tx_t* stx, volatile stm_word_t *addr, stm_word_t value, stm_
 stm_tx_t* stm_init_thread(void)
 {
   /* Allocate descriptor */
-  stm_tx_t* tx = (stm_tx_t *)xmalloc_aligned(sizeof(stm_tx_t));
+  stm_tx_t* tx = (stm_tx_t *)malloc_aligned(sizeof(stm_tx_t));
   
   /* Set attribute */
   tx->attr = (stm_tx_attr_t)0;
@@ -676,8 +691,8 @@ void stm_exit_thread(stm_tx_t* tx)
 
   //stm_quiesce_exit_thread(tx);
 
-  xfree(tx->r_set.entries);
-  xfree(tx->w_set.entries);
+  free(tx->r_set.entries);
+  free(tx->w_set.entries);
   free(tx);
 }
 

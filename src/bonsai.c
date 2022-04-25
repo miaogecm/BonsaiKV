@@ -115,23 +115,23 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		goto out;
 	}
 
-  bonsai = malloc(sizeof(struct bonsai_info));
+  	bonsai = malloc(sizeof(struct bonsai_info));
 
 	bonsai->fd = fd;
 	bonsai->desc = (struct bonsai_desc*)addr;
 
-  if (!bonsai->desc->init) {
+  	if (!bonsai->desc->init) {
 		/* 1. initialize index layer */
 		index_layer_init(index_name, &bonsai->i_layer, init, 
 						 insert, update, remove, lookup, scan, destory);
 
 		/* 2. initialize log layer */
-    error = log_layer_init(&bonsai->l_layer);
+    	error = log_layer_init(&bonsai->l_layer);
 		if (error)
 			goto out;
 
 		/* 3. initialize data layer */
-    error = data_layer_init(&bonsai->d_layer);
+    	error = data_layer_init(&bonsai->d_layer);
 		if (error)
 			goto out;
 
@@ -140,13 +140,13 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		bonsai_self_thread_init();
 		
 		/* 5. initialize sentinel nodes */
-    sentinel = pnode_sentinel_init();
-    shim_sentinel_init(sentinel);
+    	sentinel = pnode_sentinel_init();
+    	shim_sentinel_init(sentinel);
 
 		bonsai->desc->init = 1;
-  } else {
-      bonsai_recover();
-  }
+  	} else {
+      	bonsai_recover();
+  	}
 
 	bonsai->desc->epoch = 0;
 
