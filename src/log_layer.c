@@ -243,7 +243,8 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-    if (unlikely(local_desc->size >= LCB_FULL_NR && local_desc->size % 4 == 0)) {
+    if (unlikely(local_desc->size >= LCB_FULL_NR 
+			&& local_desc->size % 4 == 0)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
             write_back(cpu, 1);
         } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {

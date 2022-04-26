@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <assert.h>
 #include "common.h"
 
 /*
@@ -141,13 +142,14 @@ static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
 	long long t1, t2, t3, t4;
 	unsigned char *from, *to;
 	
-    assert(len % 64 == 0);
+    assert(len % CACHELINE_SIZE == 0);
 
 	from = src;
 	to = dst;
-	i = len / 64;
+	i = len / CACHELINE_SIZE;
 
     while (i--) {
+		/*
         __asm__ __volatile__("  mov (%4), %0\n"
                              "  mov 8(%4), %1\n"
                              "  mov 16(%4), %2\n"
@@ -164,12 +166,14 @@ static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
                              "  movnti %1, 40(%5)\n"
                              "  movnti %2, 48(%5)\n"
                              "  movnti %3, 56(%5)\n":"=r"(t1), "=r"(t2),
-                             "=r"(t3), "=r"(t4)
+                             "	=r"(t3), "=r"(t4)
                              : "r"(from), "r"(to)
                              : "memory");
 
-		from += 64;
-		to += 64;
+		*/
+		memcpy(dst, src, len);
+		from += CACHELINE_SIZE;
+		to += CACHELINE_SIZE;
 	}
 
     if (fence) {

@@ -59,8 +59,8 @@ struct cpu_log_region_meta {
 } __packed;
 
 struct cpu_log_region {
+	struct cpu_log_region_meta meta; ____cacheline_aligned 
     struct oplog logs[OPLOG_NUM_PER_CPU];
-    struct cpu_log_region_meta meta;
 } __packed;
 
 struct dimm_log_region {

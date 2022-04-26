@@ -77,7 +77,7 @@ int log_region_init(struct log_layer *layer) {
     	}
 
     	/* memory map it, a page for metadata */
-    	if ((vaddr = mmap(NULL, size_per_dimm + PAGE_SIZE,
+    	if ((vaddr = mmap(NULL, size_per_dimm,
                           PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
             ret = errno;
        		perror("mmap");

@@ -200,18 +200,14 @@ static inline int inode_crab_and_lock(inode_t **inode, pkey_t key) {
     return 0;
 }
 
-static inline void inode_crab(inode_t **inode, pkey_t key) {
-    inode_t *target = NULL;
-    while (pkey_compare(key, (*inode)->fence) >= 0) {
-        target = inode_off2ptr((*inode)->next);
+static inline void inode_split_lock(inode_t **inode, pkey_t key) {
+    inode_t *rsibling = inode_off2ptr((*inode)->next);
+    if (pkey_compare(key, (*inode)->fence) >= 0) {
         inode_unlock(*inode);
-        *inode = target;
-		return;
-    }
-
-	/* right inode has been locked in inode_split */
-	if (target)
-		inode_unlock(target);
+        *inode = rsibling;
+    } else {
+		inode_unlock(rsibling);
+	}
 }
 
 static inline inode_t *inode_alloc() {
@@ -457,7 +453,7 @@ relookup:
             /* Inode full, need to split. */
             ret = inode_split(inode, NULL);
             assert(ret);
-            inode_crab(&inode, key);
+            inode_split_lock(&inode, key);
 
             validmap = inode->validmap;
             pos = find_first_zero_bit(&validmap, INODE_FANOUT);

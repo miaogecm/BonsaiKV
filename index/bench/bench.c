@@ -117,7 +117,7 @@ static void do_load(long id) {
     int repeat = 1;
     pkey_t __key;
 
-	printf("user thread[%ld] do load\n", id);
+	//printf("user thread[%ld] do load\n", id);
 
     start_measure();
 
@@ -133,8 +133,6 @@ static void do_load(long id) {
                 __key = load_arr[i][0];
 #endif
                 ret = bonsai_insert(__key, load_arr[i][1]);
-
-				printf("user thread[%ld] %ld\n", id, i);
             } else {
                 ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
@@ -142,7 +140,7 @@ static void do_load(long id) {
         }
     }
     interval = end_measure();
-    printf("load finished in %.3lf seconds\n", interval);
+    printf("user thread[%ld] load finished in %.3lf seconds\n", id, interval);
 
     // char c[] = "1234567a";
     // for (i = 0; i < 10; i++) {
