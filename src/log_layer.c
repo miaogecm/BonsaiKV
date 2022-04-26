@@ -205,6 +205,8 @@ static void handle_wb(int signo) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
 
+	printf("thread[%d] receive signal\n", __this->t_id);
+
     switch (local_desc->wb_state) {
         case WBS_ENABLE:
             write_back(cpu, 0);
@@ -336,6 +338,8 @@ static void force_wb() {
         if (unlikely(ret)) {
             assert(0);
         }
+
+		printf("send signal to thread [%u]\n", ti->t_id);
     }
 
     for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
