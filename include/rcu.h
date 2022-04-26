@@ -5,6 +5,7 @@
 #include "atomic.h"
 
 #define RCU_MAX_THREAD_NUM      64
+#define RCU_MAX_OP              10000
 
 typedef struct {
     /*

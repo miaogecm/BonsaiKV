@@ -22,6 +22,7 @@
 #include "index_layer.h"
 #include "data_layer.h"
 #include "cpu.h"
+#include "rcu.h"
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/node0/bonsai";
@@ -37,6 +38,8 @@ pkey_t bonsai_make_key(const void *key, size_t len) {
 }
 #endif
 
+extern __thread int rcu_op_count;
+
 void bonsai_mark_cpu(int cpu) {
     mark_cpu(cpu);
 }
@@ -45,16 +48,32 @@ int bonsai_insert(pkey_t key, pval_t value) {
   	logid_t log = oplog_insert(key, value, OP_INSERT, __this->t_cpu);
   	log_state_t snap;
   	oplog_snapshot_lst(&snap);
+		int ret;
 
-	return shim_upsert(&snap, key, log);
+		ret = shim_upsert(&snap, key, log);
+
+		if (rcu_op_count ++ > RCU_MAX_OP) {
+			rcu_op_count = 0;
+			rcu_quiescent(RCU(bonsai));
+		}
+
+		return ret;
 }
 
 int bonsai_remove(pkey_t key) {
-	logid_t log = oplog_insert(key, 0, OP_REMOVE, __this->t_cpu);
-	log_state_t snap;
+		logid_t log = oplog_insert(key, 0, OP_REMOVE, __this->t_cpu);
+		log_state_t snap;
   	oplog_snapshot_lst(&snap);
+		int ret;
 
-	return shim_upsert(&snap, key, log);
+		ret = shim_upsert(&snap, key, log);
+
+		if (rcu_op_count ++ > RCU_MAX_OP) {
+			rcu_op_count = 0;
+			rcu_quiescent(RCU(bonsai));
+		}
+
+		return ret;
 }
 
 int bonsai_lookup(pkey_t key, pval_t *val) {

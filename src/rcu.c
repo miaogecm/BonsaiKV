@@ -6,7 +6,7 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  * 
- * A QSBR(Quiescent State Based Reclamation) RCU Implementation
+ * A QSBR (Quiescent State Based Reclamation) based Safe Memory Reclamation Implementation
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -17,6 +17,7 @@
 #define THR_MASK(tid)       (1ul << (tid))
 
 static __thread int my_tid;
+__thread int rcu_op_count = 0;
 
 void fb_set_tid(int tid) {
     my_tid = tid;

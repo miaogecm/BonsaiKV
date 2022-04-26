@@ -360,6 +360,13 @@ int bonsai_user_thread_init() {
   list_add(&thread->list, &bonsai->thread_list);
 	spin_unlock(&bonsai->list_lock);
 
+	/* software transactional memory */
+	stm_init_thread();
+
+	/* quiescent state based reclamation */
+	fb_set_tid(thread->t_id);
+	rcu_thread_online(RCU(bonsai));
+
 	__this = thread;
 
 	bonsai_print("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
@@ -375,6 +382,8 @@ void bonsai_user_thread_exit() {
 	spin_unlock(&bonsai->list_lock);
 
 	stm_exit_thread(thread->t_stm);
+	
+	rcu_thread_offline(RCU(bonsai));
 
 	free(thread);
 }
