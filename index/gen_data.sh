@@ -5,7 +5,7 @@ export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-
 
 #long_key="-DLONG_KEY"
 
-count=1000
+count=1000000
 
 cd ${index_microbench_dir}
 rm -rf ./workloads

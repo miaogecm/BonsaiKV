@@ -13,8 +13,7 @@ extern "C" {
 #define INODE_SIZE								(2 * 64)
 #define TOTAL_INODE								INODE_POOL_SIZE / INODE_SIZE
 
-//#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
-#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       512
+#define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);

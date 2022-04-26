@@ -57,7 +57,8 @@ static char* data_region_fpath[NUM_DIMM] = {
 
 int log_region_init(struct log_layer *layer) {
     size_t size_per_dimm = sizeof(struct dimm_log_region);
-	int dimm, fd, ret = 0;
+	size_t size_per_cpu_log_region = size_per_dimm / NUM_CPU_PER_LOG_DIMM;
+	int dimm, cpu, fd, ret = 0;
     void *vaddr;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
@@ -75,8 +76,8 @@ int log_region_init(struct log_layer *layer) {
         	goto out;
     	}
 
-    	/* memory map it */
-    	if ((vaddr = mmap(NULL, size_per_dimm,
+    	/* memory map it, a page for metadata */
+    	if ((vaddr = mmap(NULL, size_per_dimm + PAGE_SIZE,
                           PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
             ret = errno;
        		perror("mmap");
@@ -85,6 +86,11 @@ int log_region_init(struct log_layer *layer) {
 
 		layer->dimm_regions[dimm] = vaddr;
 		layer->dimm_region_fd[dimm] = fd;
+
+		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu ++) {
+			layer->dimm_regions[dimm]->regions[cpu].meta.start = 
+				layer->dimm_regions[dimm]->regions[cpu].meta.end = 0;
+		}
 
 		bonsai_print("log_region_init dimm[%d] region: [%016lx, %016lx]\n",
                      dimm, (unsigned long) vaddr, (unsigned long) vaddr + size_per_dimm);

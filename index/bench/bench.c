@@ -34,7 +34,7 @@ pkey_t a[N];
 #define NUM_THREAD	4
 #endif
 
-#define NUM_CPU		8
+#define NUM_CPU		12
 
 static void           *index_struct;
 static init_func_t    fn_init;
@@ -117,6 +117,8 @@ static void do_load(long id) {
     int repeat = 1;
     pkey_t __key;
 
+	printf("user thread[%ld] do load\n", id);
+
     start_measure();
 
     st = 1.0 * id / NUM_THREAD * N;
@@ -131,6 +133,8 @@ static void do_load(long id) {
                 __key = load_arr[i][0];
 #endif
                 ret = bonsai_insert(__key, load_arr[i][1]);
+
+				printf("user thread[%ld] %ld\n", id, i);
             } else {
                 ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }

@@ -4,7 +4,7 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
- * 				 Junru Shen, gnu_emacs@hhu.edu.cn
+ * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -201,12 +201,17 @@ static inline int inode_crab_and_lock(inode_t **inode, pkey_t key) {
 }
 
 static inline void inode_crab(inode_t **inode, pkey_t key) {
-    inode_t *target;
+    inode_t *target = NULL;
     while (pkey_compare(key, (*inode)->fence) >= 0) {
         target = inode_off2ptr((*inode)->next);
         inode_unlock(*inode);
         *inode = target;
+		return;
     }
+
+	/* right inode has been locked in inode_split */
+	if (target)
+		inode_unlock(target);
 }
 
 static inline inode_t *inode_alloc() {
@@ -380,7 +385,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
     seqcount_init(&right->seq);
     memcpy(right->lps, inode->lps, sizeof(inode->lps));
     memcpy(right->fgprt, inode->fgprt, sizeof(inode->fgprt));
-    inode_lock(right);
+	inode_lock(right);
 
     /* Set pfence. */
     if (inode->pfence == NOT_FOUND || test_bit(inode->pfence, &lmask)) {

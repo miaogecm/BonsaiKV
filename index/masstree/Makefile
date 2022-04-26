@@ -24,4 +24,4 @@ bench.o: $(BENCH_SRCS)
 
 clean:
 	$(Q)rm -f $(TARGETS)
-	$(Q)rm -f bench.o index.o
+	$(Q)rm -f bench.o index.o tree.o

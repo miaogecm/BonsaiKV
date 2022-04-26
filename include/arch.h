@@ -140,7 +140,7 @@ static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
 	size_t i;
 	long long t1, t2, t3, t4;
 	unsigned char *from, *to;
-
+	
     assert(len % 64 == 0);
 
 	from = src;

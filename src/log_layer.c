@@ -175,7 +175,7 @@ static void write_back(int cpu, int dimm_unlock) {
     lcb = local_desc->lcb;
     len = local_desc->size;
 
-    while ((c = max(OPLOG_NUM_PER_CPU - end, len))) {
+    while ((c = min(OPLOG_NUM_PER_CPU - end, len))) {
         memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
         end  = (end + c) % OPLOG_NUM_PER_CPU;
         len -= c;
@@ -243,7 +243,7 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-    if (unlikely(local_desc->size >= LCB_FULL_NR)) {
+    if (unlikely(local_desc->size >= LCB_FULL_NR && local_desc->size % 4 == 0)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
             write_back(cpu, 1);
         } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {
@@ -952,7 +952,7 @@ int log_layer_init(struct log_layer* layer) {
             dimm_lock = malloc(sizeof(pthread_mutex_t));
 
             for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu++) {
-                desc = &layer->desc->descs[cpu];
+                desc = &layer->desc->descs[cpu];				
                 desc->region = &layer->dimm_regions[dimm]->regions[i];
                 desc->size = 0;
                 desc->lcb = malloc(LCB_MAX_SIZE * sizeof(*desc->lcb));
@@ -972,6 +972,16 @@ out:
 }
 
 void log_layer_deinit(struct log_layer* layer) {
+	struct cpu_log_region_desc *desc;
+	int node, cpu;
+
+	for (node = 0; node < NUM_SOCKET; node++) {
+		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu++) {
+			desc = &layer->desc->descs[cpu];
+			free(desc->lcb);
+		}
+	}
+	
 	log_region_deinit(layer);
 
 	bonsai_print("log_layer_deinit\n");
