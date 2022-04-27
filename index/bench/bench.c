@@ -266,7 +266,7 @@ void* thread_fun(void* arg) {
     bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 
     if (in_bonsai) {
-        bonsai_user_thread_init();
+        bonsai_user_thread_init(tids[id]);
     }
 
     pthread_barrier_wait(&barrier);

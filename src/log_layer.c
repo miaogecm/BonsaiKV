@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #include "bonsai.h"
 #include "log_layer.h"
@@ -205,8 +206,6 @@ static void handle_wb(int signo) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
 
-	printf("thread[%d] receive signal\n", __this->t_id);
-
     switch (local_desc->wb_state) {
         case WBS_ENABLE:
             write_back(cpu, 0);
@@ -326,24 +325,22 @@ static void force_wb() {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *desc;
     struct thread_info *ti;
-    int wid, ret;
+    int i, ret = 0;
 
-    for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
-        ti = worker_thread_info(wid);
+	for (i = 0; i < NUM_USER_THREAD; i++) {
+		ti = bonsai->user_threads[i];
 
-        desc = &layer->desc->descs[ti->t_cpu];
-        desc->wb_done = 0;
+		desc = &layer->desc->descs[ti->t_cpu];
+		desc->wb_done = 0;
 
-        ret = pthread_kill(bonsai->tids[ti->t_id], WB_SIGNO);
-        if (unlikely(ret)) {
+		ret = pthread_kill(bonsai->tids[ti->t_id], WB_SIGNO);
+		if (unlikely(ret)) {
             assert(0);
         }
+	}
 
-		printf("send signal to thread [%u]\n", ti->t_id);
-    }
-
-    for (wid = 0; wid < NUM_PFLUSH_WORKER; wid++) {
-        ti = worker_thread_info(wid);
+    for (i = 0; i < NUM_USER_THREAD; i++) {
+        ti = bonsai->user_threads[i];
 
         desc = &layer->desc->descs[ti->t_cpu];
 
@@ -423,6 +420,7 @@ static int fetch_work(void *arg) {
     wnr = worker_nr(wid);
 
     for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
+		printf("fetch work %d\n", worker_id(numa_node, i));
         cpus[nr_cpu] = worker_cpu(worker_id(numa_node, i));
     }
 
@@ -884,25 +882,25 @@ void oplog_flush() {
     force_wb();
 
     /* init work */
-    bonsai_print("oplog_flush: init stage");
+    bonsai_print("oplog_flush: init stage\n");
     init_stage(&ws);
 
     /* fetch all current-flip logs in NVM to DRAM buffer */
-    bonsai_print("oplog_flush: fetch stage");
+    bonsai_print("oplog_flush: fetch stage\n");
     fetch_stage(&ws, &per_worker_logs);
 
     /* sort, merge, and clustering based on pnode */
-    bonsai_print("oplog_flush: clustering stage");
+    bonsai_print("oplog_flush: clustering stage\n");
     cluster_stage(&ws, &per_socket_loads, per_worker_logs);
 
     /* inter and intra socket load balance */
-    bonsai_print("oplog_flush: load balance stage");
+    bonsai_print("oplog_flush: load balance stage\n");
     load_balance_stage(&ws, &per_worker_loads, per_socket_loads);
 
     end_invalidate_unref_entries(&since);
 
     /* flush and sync */
-    bonsai_print("oplog_flush: flush stage");
+    bonsai_print("oplog_flush: flush stage\n");
     flush_stage(&ws, per_worker_loads);
 
     /* cleanup work */

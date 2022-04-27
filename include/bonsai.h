@@ -50,12 +50,13 @@ struct bonsai_info {
 	struct list_head	thread_list;
 	spinlock_t          list_lock;
 
-	pthread_t 			tids[NUM_PFLUSH_THREAD + 1];
+	pthread_t 			tids[1 + NUM_PFLUSH_THREAD + NUM_SMO_THREAD + NUM_USER_THREAD];
 
 	/* pflushd */
 	struct thread_info *pflush_threads[0];
 	struct thread_info *pflush_master;
 	struct thread_info *pflush_workers[NUM_SOCKET][NUM_PFLUSH_WORKER_PER_NODE];
+	struct thread_info *user_threads[NUM_USER_THREAD];
 
     /* smo */
 	struct thread_info *smo;

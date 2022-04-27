@@ -7,19 +7,20 @@ extern "C" {
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 
 #include "hwconfig.h"
 #include "list.h"
 #include "common.h"
 
-#define NUM_USER_THREAD		4
+#define NUM_USER_THREAD				4
 
 #define NUM_PFLUSH_WORKER_PER_NODE	2
 #define NUM_PFLUSH_WORKER           (NUM_PFLUSH_WORKER_PER_NODE * NUM_SOCKET)
 #define NUM_PFLUSH_THREAD           (NUM_PFLUSH_WORKER + 1)
 
-#define NUM_THREAD			(NUM_USER_THREAD + NUM_PFLUSH_THREAD + 1)
+#define NUM_SMO_THREAD				1
 
 #define CHKPT_TIME_INTERVAL		700000
 #define CHKPT_NLOG_INTERVAL		10000
@@ -84,13 +85,15 @@ static inline void workqueue_del(struct work_struct* work) {
 	free(work);
 }
 
+#define gettid() ((pid_t)syscall(SYS_gettid))
+
 extern void bonsai_self_thread_init();
 extern void bonsai_self_thread_exit();
 
 extern int bonsai_pflushd_thread_init();
 extern int bonsai_pflushd_thread_exit();
 
-extern int bonsai_user_thread_init();
+extern int bonsai_user_thread_init(pthread_t tid);
 extern void bonsai_user_thread_exit();
 
 extern void wakeup_master();
