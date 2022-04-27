@@ -90,7 +90,7 @@ struct fetch_workset {
 };
 
 struct clustering_workset {
-    /* The input of the clustering work. Collected logs for each worker. */
+    /* The input of the cluster work. Collected logs for each worker. */
     logs_t *per_worker_logs;
 
     struct flush_load per_worker_per_socket_loads[NUM_PFLUSH_WORKER][NUM_SOCKET];
@@ -298,7 +298,7 @@ static inline void new_flip() {
 }
 
 static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, void *workset) {
-    struct work_struct works[NUM_PFLUSH_WORKER], *work;
+    struct work_struct *work;
     struct pflush_work_desc *desc;
     int wid;
 
@@ -306,7 +306,7 @@ static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, voi
         desc = &worksets->desc_ws.desc[wid];
         desc->workset = workset;
 
-        work = &works[wid];
+        work = malloc(sizeof(struct work_struct));
         INIT_LIST_HEAD(&work->list);
         work->exec = fn;
         work->exec_arg = desc;
@@ -420,8 +420,7 @@ static int fetch_work(void *arg) {
     wnr = worker_nr(wid);
 
     for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
-		printf("fetch work %d\n", worker_id(numa_node, i));
-        cpus[nr_cpu] = worker_cpu(worker_id(numa_node, i));
+        cpus[nr_cpu] = node_to_cpu(numa_node, i);	
     }
 
     ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, cpus);
@@ -441,6 +440,8 @@ static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, 
 
     data = logs[wid].logs;
     cnt = logs[wid].cnt;
+
+	printf("sort %d logs, %016lx\n", cnt, data);
 
     do_qsort(data, cnt, sizeof(struct oplog), NULL);
 
@@ -825,6 +826,17 @@ static void cleanup_logs(const uint32_t *new_region_starts) {
 }
 
 static void init_stage(struct pflush_worksets *worksets) {
+	struct pflush_work_desc* desc;
+	struct thread_info* thread;
+	int i, t = 0;
+
+	for (i = 0; i < NUM_PFLUSH_WORKER; i ++) {
+		thread = bonsai->pflush_workers[worker_numa_node(i)][worker_nr(i)];
+		desc = &worksets->desc_ws.desc[t];
+		desc->wid = t++;
+		desc->cpu = thread->t_cpu;
+	}
+	
     pthread_barrier_init(&worksets->clustering_ws.barrier, NULL, NUM_PFLUSH_WORKER);
     pthread_barrier_init(&worksets->load_balance_ws.barrier, NULL, NUM_PFLUSH_WORKER);
 }
@@ -889,12 +901,12 @@ void oplog_flush() {
     bonsai_print("oplog_flush: fetch stage\n");
     fetch_stage(&ws, &per_worker_logs);
 
-    /* sort, merge, and clustering based on pnode */
-    bonsai_print("oplog_flush: clustering stage\n");
+    /* sort, merge, and cluster based on pnode */
+    bonsai_print("oplog_flush: cluster stage\n");
     cluster_stage(&ws, &per_socket_loads, per_worker_logs);
 
     /* inter and intra socket load balance */
-    bonsai_print("oplog_flush: load balance stage\n");
+    bonsai_print("oplog_flush: balance stage\n");
     load_balance_stage(&ws, &per_worker_loads, per_socket_loads);
 
     end_invalidate_unref_entries(&since);
