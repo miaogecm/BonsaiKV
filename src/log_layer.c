@@ -373,11 +373,8 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
     cur = snap->region_start;
     end = snap->region_end;
 
-	printf("flip: %d\n", target_flip);
-
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
-		printf("<%lu, %lu>\n", plog->o_kv.k.key, plog->o_kv.v);
 		if (unlikely(OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
@@ -398,8 +395,10 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     for (i = 0; i < nr_cpu; i++) {
         snapshot_cpu_log(&snapshots[i], cpus[i]);
         fetched.cnt += (int) log_nr(&snapshots[i]);
-		printf("fetch cpu[%d] nlog %d\n", snapshots[i].cpu, (int) log_nr(&snapshots[i]));
 	}
+
+	if (unlikely(!fetched.cnt))
+		usleep(100);
 
     log = fetched.logs = malloc(sizeof(*log) * fetched.cnt);
 
@@ -446,15 +445,14 @@ static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, 
     data = logs[wid].logs;
     cnt = logs[wid].cnt;
 
-	printf("sort %d logs, %016lx\n", cnt, data);
-
     do_qsort(data, cnt, sizeof(struct oplog), NULL);
 
+	if (unlikely(!cnt))
+		usleep(200);
+	
 	for (phase = 0; phase < n; phase++) {
         /* Wait for the last phase to be done. */
 	    pthread_barrier_wait(barrier);
-
-        bonsai_print("[pflush worker %d] collaboratively_sort_logs: phase %d\n", wid, phase);
 
         /* Am I the left half in this phase? */
         left = wid % 2 == phase % 2;
@@ -553,8 +551,10 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
     struct oplog *log = logs[wid].logs;
     pbatch_op_t *ops;
 
+	bonsai_print("[pflush worker %d] merge %d logs\n", wid, total);
+
     if (unlikely(!total)) {
-        return;
+		return;
     }
 
     for (i = 0; i < NUM_SOCKET; i++) {
@@ -585,9 +585,7 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
         }
     }
 
-    pthread_barrier_wait(barrier);
-
-    free(logs[wid].logs);
+	free(logs[wid].logs);
 }
 
 static void inter_worker_cluster(struct flush_load *per_socket_loads,
@@ -648,12 +646,18 @@ static int cluster_work(void *arg) {
 
     /* Sort them collaboratively. */
     collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
+
+	bonsai_print("[pflush worker %d] collaboratively_sort_logs\n", wid);
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
 
+	bonsai_print("[pflush worker %d] merge_and_cluster_logs\n", wid);
+
     /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
     inter_worker_cluster(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
+
+	bonsai_print("[pflush worker %d] inter_worker_cluster\n", wid);
 
     return 0;
 }
