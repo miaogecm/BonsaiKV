@@ -618,9 +618,10 @@ static void inter_worker_cluster(struct flush_load *per_socket_loads,
 
         addon = &load_per_worker->cluster;
 
-        if (likely(!list_empty(target))) {
+        if (likely(!list_empty(target) && !list_empty(addon))) {
             prev = list_last_entry(target, struct cluster, list);
             curr = list_first_entry(addon, struct cluster, list);
+			printf("prev %016lx curr %016lx addon %016lx --> %016lx\n", prev, curr, addon, addon->next);
             if (prev->pnode == curr->pnode) {
                 pbatch_list_merge(&prev->pbatch_list, &curr->pbatch_list);
                 list_del(&curr->list);
