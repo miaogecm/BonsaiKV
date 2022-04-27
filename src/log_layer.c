@@ -292,7 +292,8 @@ static inline int worker_cpu(int wid) {
 
 static inline void new_flip() {
     rcu_t *rcu = RCU(bonsai);
-    xadd(&LOG(bonsai)->lst.flip, 1);
+	xadd(&LOG(bonsai)->lst.flip, ACCESS_ONCE(LOG(bonsai)->lst.flip) ? -1 : 1);
+	
     /* Wait for all the user threads to observe the latest flip. */
     rcu_synchronize(rcu, rcu_now(rcu));
 }
@@ -364,20 +365,23 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[snap->cpu];
     struct cpu_log_region *region = local_desc->region;
-    int target_flip = ~layer->lst.flip;
+    int target_flip = !layer->lst.flip;
     struct oplog *plog, *log;
     uint32_t cur, end;
+	size_t size = sizeof(*log);
 
     cur = snap->region_start;
     end = snap->region_end;
 
+	printf("flip: %d\n", target_flip);
+
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
-        if (unlikely(OPLOG_FLIP(plog->o_type) != target_flip)) {
+		printf("<%lu, %lu>\n", plog->o_kv.k.key, plog->o_kv.v);
+		if (unlikely(OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
-
-        memcpy(log, plog, sizeof(*log));
+        memcpy(log, plog, size);
     }
 
     new_region_starts[snap->cpu] = end;
@@ -394,7 +398,8 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     for (i = 0; i < nr_cpu; i++) {
         snapshot_cpu_log(&snapshots[i], cpus[i]);
         fetched.cnt += (int) log_nr(&snapshots[i]);
-    }
+		printf("fetch cpu[%d] nlog %d\n", snapshots[i].cpu, (int) log_nr(&snapshots[i]));
+	}
 
     log = fetched.logs = malloc(sizeof(*log) * fetched.cnt);
 
@@ -953,6 +958,8 @@ int log_layer_init(struct log_layer* layer) {
     for (i = 0; i < NUM_CPU; i++) {
         atomic_set(&layer->nlogs[i].cnt, 0);
     }
+
+	layer->lst.flip = 0;
 
     ret = log_region_init(layer);
 	if (ret)

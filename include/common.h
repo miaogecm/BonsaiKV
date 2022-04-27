@@ -44,7 +44,7 @@ typedef uint8_t		__le8;
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
 
-#define STR_KEY
+//#define STR_KEY
 
 #ifdef STR_KEY
 
@@ -66,11 +66,14 @@ typedef uint8_t		__le8;
 
 typedef struct {
     char key[KEY_LEN];
+#ifndef STR_KEY
+	char pad[16];
+#endif
 } pkey_t;
 
 typedef struct pentry {
     pkey_t k;
-    __le64 v;
+	__le64 v;
 } __attribute__((packed)) pentry_t;
 
 #define EOPEN		104 /* open file error */
