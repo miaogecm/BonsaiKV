@@ -538,8 +538,7 @@ static void pbatch_op_add(struct flush_load *per_socket_loads,
     }
 
     /* Forward the cursor. */
-	if (!pbatch_cursor_is_end(cursor))
-    	pbatch_cursor_inc(cursor);
+   	pbatch_cursor_inc(cursor);
 
     per_socket_loads[*numa_node].load++;
 }
@@ -555,6 +554,7 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
 	bonsai_print("[pflush worker %d] merge %d logs\n", wid, total);
 
     if (unlikely(!total)) {
+		pthread_barrier_wait(barrier);
 		return;
     }
 
@@ -587,6 +587,8 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
             pbatch_list_destroy(&pbatch_lists[i]);
         }
     }
+
+	pthread_barrier_wait(barrier);
 
 	free(logs[wid].logs);
 }
@@ -624,7 +626,7 @@ static void inter_worker_cluster(struct flush_load *per_socket_loads,
         if (likely(!list_empty(target) && !list_empty(addon))) {
             prev = list_last_entry(target, struct cluster, list);
             curr = list_first_entry(addon, struct cluster, list);
-			printf("prev %016lx curr %016lx addon %016lx --> %016lx\n", prev, curr, addon, addon->next);
+			printf("prev %016lx curr %016lx addon %016lx %016lx %016lx\n", prev, curr, addon, &addon->next, addon->next);
             if (prev->pnode == curr->pnode) {
                 pbatch_list_merge(&prev->pbatch_list, &curr->pbatch_list);
                 list_del(&curr->list);

@@ -70,7 +70,7 @@ static inline int pbatch_cursor_is_end(pbatch_cursor_t *cursor) {
 static inline void pbatch_cursor_forward(pbatch_cursor_t *cursor, size_t stride) {
     pbatch_node_t *node;
     size_t avail;
-    while (1) {
+    while (stride) {
         assert(!pbatch_cursor_is_end(cursor));
         node = list_entry(cursor->curr, pbatch_node_t, list);
         avail = node->len - cursor->i;
