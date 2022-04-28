@@ -103,7 +103,7 @@ static inline void pbatch_list_create(struct list_head *list, pbatch_op_t *start
     node->len = len;
     node->autofree = autofree;
     INIT_LIST_HEAD(&node->list);
-    list_add_tail(list, &node->list);
+    list_add_tail(&node->list, list);
 }
 
 static inline void pbatch_list_destroy(struct list_head *list) {

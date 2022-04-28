@@ -130,7 +130,7 @@ static void do_load(long id) {
 #ifdef LONG_KEY
                 __key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
 #else
-                __key = load_arr[i][0];
+                __key = INT2KEY(load_arr[i][0]);
 #endif
                 ret = bonsai_insert(__key, load_arr[i][1]);
             } else {
@@ -185,9 +185,9 @@ static void do_op(long id) {
 #ifdef LONG_KEY
                     __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
 #else
-                    __key = op_arr[i][1];
+                    __key = INT2KEY(op_arr[i][1]);
 #endif
-                    bonsai_insert(op_arr[i][1], op_arr[i][2]);
+                    bonsai_insert(INT2KEY(op_arr[i][1]), op_arr[i][2]);
                 } else {
                     fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
@@ -197,7 +197,7 @@ static void do_op(long id) {
 #ifdef LONG_KEY
                     __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
 #else
-                    __key = op_arr[i][1];
+                    __key = INT2KEY(op_arr[i][1]);
 #endif
                     ret = bonsai_lookup(__key, &v);
                     if (ret) {
@@ -214,8 +214,8 @@ static void do_op(long id) {
                     __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
                     __key2 = MK_K(op_arr[i][2], strlen(op_arr[i][2]));
 #else
-                    __key = op_arr[i][1];
-                    __key2 = op_arr[i][2];
+                    __key = INT2KEY(op_arr[i][1]);
+                    __key2 = INT2KEY(op_arr[i][2]);
 #endif
                     bonsai_scan(__key, 8, __key2, 8, val_arr);
                 } else {

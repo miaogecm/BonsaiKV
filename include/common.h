@@ -5,9 +5,8 @@
 extern "C" {
 #endif
 
-// #define BONSAI_DEBUG
 #define BONSAI_SUPPORT_UPDATE
-//#define BONSAI_HASHSET_DEBUG
+//#define BONSAI_DEBUG
 
 #include <stdint.h>
 #include <stddef.h>
@@ -66,9 +65,6 @@ typedef uint8_t		__le8;
 
 typedef struct {
     char key[KEY_LEN];
-#ifndef STR_KEY
-	char pad[16];
-#endif
 } pkey_t;
 
 typedef struct pentry {

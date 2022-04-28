@@ -534,11 +534,12 @@ static void pbatch_op_add(struct flush_load *per_socket_loads,
         INIT_LIST_HEAD(&cluster->pbatch_list);
         INIT_LIST_HEAD(&cluster->list);
         list_add_tail(&cluster->list, &per_socket_loads[*numa_node].cluster);
-        pbatch_list_split(&cluster->pbatch_list, cursor);
+		pbatch_list_split(&cluster->pbatch_list, cursor);
     }
 
     /* Forward the cursor. */
-    pbatch_cursor_inc(cursor);
+	if (!pbatch_cursor_is_end(cursor))
+    	pbatch_cursor_inc(cursor);
 
     per_socket_loads[*numa_node].load++;
 }
@@ -568,11 +569,13 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
 
     for (; --total; log++) {
         if (pkey_compare(log[0].o_kv.k, log[1].o_kv.k)) {
+			/* merge logs */
             pbatch_op_add(per_socket_loads, cursors, &numa_node, log);
         }
     }
 
     for (next_wid = wid + 1; next_wid < NUM_PFLUSH_WORKER && !logs[next_wid].cnt; next_wid++);
+	
     if (next_wid >= NUM_PFLUSH_WORKER || pkey_compare(logs[next_wid].logs[0].o_kv.k, log->o_kv.k)) {
         pbatch_op_add(per_socket_loads, cursors, &numa_node, log);
     }

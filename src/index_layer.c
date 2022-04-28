@@ -43,6 +43,9 @@ typedef struct inode {
     uint8_t  fgprt[INODE_FANOUT];
 
     pkey_t   fence;
+#ifndef STR_KEY
+	char 	 padding[16];
+#endif
 
     spinlock_t lock;
     seqcount_t seq;
@@ -341,7 +344,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
     }
 
     /* Sort all lps. */
-    qsort(lps, cnt, sizeof(lp_t), lp_compare);
+    qsort(lps, cnt, sizeof(struct lp_info), lp_compare);
 
     /* Get new validmaps: @lvmp and @rvmp. */
     if (cut) {

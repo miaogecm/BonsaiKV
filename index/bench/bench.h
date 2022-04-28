@@ -10,7 +10,30 @@ extern "C" {
 #include <stdio.h>
 #include <errno.h>
 
-typedef uint64_t 	pkey_t;
+
+//#define STR_KEY
+#ifdef STR_KEY
+
+#define KEY_LEN             24
+
+#define MAX_KEY             ((pkey_t) { "\x7f" })
+#define MIN_KEY             ((pkey_t) { "" })
+
+#else
+
+#define KEY_LEN             8
+
+#define INT2KEY(val)        (* (pkey_t *) (unsigned long []) { (val) })
+
+#define MAX_KEY             INT2KEY(-1UL)
+#define MIN_KEY             INT2KEY(0UL)
+
+#endif
+
+typedef struct {
+    char key[KEY_LEN];
+} pkey_t;
+
 typedef uint64_t 	pval_t;
 
 #ifdef BONSAI_DEBUG
