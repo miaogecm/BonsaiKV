@@ -553,6 +553,11 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
 
 	bonsai_print("[pflush worker %d] merge %d logs\n", wid, total);
 
+    for (i = 0; i < NUM_SOCKET; i++) {
+        INIT_LIST_HEAD(&per_socket_loads[i].cluster);
+        per_socket_loads[i].load = 0;
+    }
+
     if (unlikely(!total)) {
 		pthread_barrier_wait(barrier);
 		return;
@@ -563,8 +568,6 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
         INIT_LIST_HEAD(&pbatch_lists[i]);
         pbatch_list_create(&pbatch_lists[i], ops, total, 1);
         pbatch_cursor_init(&cursors[i], &pbatch_lists[i]);
-        INIT_LIST_HEAD(&per_socket_loads[i].cluster);
-        per_socket_loads[i].load = 0;
     }
 
     for (; --total; log++) {
