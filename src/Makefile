@@ -15,7 +15,7 @@ CFLAGS += -Wno-unused-function
 CFLAGS += ${LOCAL}
 CFLAGS += -D PNODE_FP
 
-LDFLAGS += -pthread -lpmem -lpmemobj -lnuma
+LDFLAGS += -pthread -lpmem -lpmemobj -lnuma 
 
 DEPS_DIR  := $(CUR_DIR)/.deps
 DEPCFLAGS = -MD -MF $(DEPS_DIR)/$*.d -MP

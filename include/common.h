@@ -52,6 +52,8 @@ typedef uint8_t		__le8;
 #define MAX_KEY             ((pkey_t) { "\x7f" })
 #define MIN_KEY             ((pkey_t) { "" })
 
+#define print_key(_key) 	printf("%s\n", _key.key);
+
 #else
 
 #define KEY_LEN             8
@@ -60,6 +62,8 @@ typedef uint8_t		__le8;
 
 #define MAX_KEY             INT2KEY(-1UL)
 #define MIN_KEY             INT2KEY(0UL)
+
+#define print_key(_key) 	printf("%lu\n", *(unsigned long *) _key.key);
 
 #endif
 

@@ -470,6 +470,7 @@ relookup:
 
     set_flip(&inode->flipmap, lst, pos);
     inode->lps[pos] = log;
+	inode->fgprt[pos] = pkey_get_signature(key);
     barrier();
 
     inode->validmap = validmap;
@@ -649,7 +650,7 @@ no_split:
 
             inode->pfence = pos;
 
-            if (++p->pno == PNOID_NULL) {
+            if ((++p)->pno == PNOID_NULL) {
                 break;
             }
         } else {

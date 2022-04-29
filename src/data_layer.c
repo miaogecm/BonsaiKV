@@ -321,7 +321,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
             break;
         }
     }
-    assert(!cmp && pos > 0);
+    //assert(!cmp && pos > 0);
 
     /* Create pnodes and initialize them. */
     l = alloc_pnode(lc);
@@ -364,7 +364,7 @@ done:
 
 static unsigned pnode_find_(pentry_t *ent, pnoid_t pnode, pkey_t key, uint8_t *fgprt, __le64 validmap) {
     char key_fgprt = (char) pkey_get_signature(key);
-    __m256i x32 = _mm256_set1_epi8(key_fgprt), y32 = _mm256_load_si256((const __m256i *) fgprt);
+    __m256i x32 = _mm256_set1_epi8(key_fgprt), y32 = _mm256_loadu_si256((const __m256i *) fgprt);
     __m64 x8 = _mm_set1_pi8(key_fgprt), y8 = (__m64) *(unsigned long *) (fgprt + 32);
     unsigned long cmp;
     unsigned pos;
@@ -482,7 +482,6 @@ static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
 
 static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
-
     pnoid_t head, tail, next, prev = PNOID_NULL;
     shim_sync_pfence_t *pfences, *pfence;
     mnode_t *head_mno, *tail_mno, *mno;
