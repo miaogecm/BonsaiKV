@@ -283,6 +283,8 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
 
     s_layer->head = inode;
 
+	printf("sentinel inode: %016lx\n", inode);
+
     return 0;
 }
 
@@ -636,7 +638,11 @@ relookup:
     while (1) {
         if (pkey_compare(p[1].pfence, inode->fence) < 0) {
             pos = inode_find(inode, p[1].pfence);
-            assert(pos != NOT_FOUND);
+			if (pos == NOT_FOUND) {
+				print_key(p[1].pfence);
+				inode_dump(inode);
+				assert(0);
+			}
 
             if (pos == inode->pfence) {
                 /* Obviously the minimum key, no need to split. */

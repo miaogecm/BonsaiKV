@@ -21,7 +21,11 @@
 #include "arch.h"
 #include "bitmap.h"
 
+#ifdef STR_KEY
 #define PNODE_FANOUT            40
+#else
+#define PNODE_FANOUT			80
+#endif
 #define PNODE_INTERLEAVING_SIZE 256
 
 #define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pentry_t) / PNODE_INTERLEAVING_SIZE)
@@ -307,7 +311,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
 
     /* Recolor only. */
     if (!sibling) {
-        l = alloc_pnode(lc);
+        l = r = alloc_pnode(lc);
         pnode_copy(l, original);
         goto done;
     }
@@ -321,7 +325,6 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
             break;
         }
     }
-    //assert(!cmp && pos > 0);
 
     /* Create pnodes and initialize them. */
     l = alloc_pnode(lc);
@@ -335,10 +338,14 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     pnode_init_from_arr(r, ents + pos, cnt - pos);
 
     lmno->lfence = mno->lfence;
+	lmno->rfence = *cut;
     rmno->lfence = *cut;
+	rmno->rfence = mno->rfence;
 
     lmno->next = r;
+	lmno->u.prev = mno->u.prev;
     rmno->next = mno->next;
+	rmno->u.prev = l;
 
     /* Persist and save the right node. */
     pnode_persist(r, 0);
@@ -352,10 +359,14 @@ done:
     persistent_barrier();
 
     /* Link @l to the pnode list. */
-    if (likely(lmno->u.prev)) {
-        pnode_meta(lmno->u.prev)->next = l;
+    if (likely(mno->u.prev != PNOID_NULL)) {
+        pnode_meta(mno->u.prev)->next = l;
     } else {
         layer->sentinel = l;
+    }
+
+	if (likely(mno->next != PNOID_NULL)) {
+        pnode_meta(mno->next)->u.prev = r;
     }
 
     /* Delay free the original pnode. */
