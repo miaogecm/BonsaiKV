@@ -312,6 +312,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     /* Recolor only. */
     if (!sibling) {
         l = r = alloc_pnode(lc);
+        lmno = rmno = pnode_meta(l);
         pnode_copy(l, original);
         goto done;
     }
@@ -343,8 +344,6 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
 	rmno->rfence = mno->rfence;
 
     lmno->next = r;
-	lmno->u.prev = mno->u.prev;
-    rmno->next = mno->next;
 	rmno->u.prev = l;
 
     /* Persist and save the right node. */
@@ -358,7 +357,12 @@ done:
 
     persistent_barrier();
 
-    /* Link @l to the pnode list. */
+    /* Link @l and @r to the pnode list. */
+    spin_lock(&layer->plist_lock);
+
+	lmno->u.prev = mno->u.prev;
+    rmno->next = mno->next;
+
     if (likely(mno->u.prev != PNOID_NULL)) {
         pnode_meta(mno->u.prev)->next = l;
     } else {
@@ -368,6 +372,8 @@ done:
 	if (likely(mno->next != PNOID_NULL)) {
         pnode_meta(mno->next)->u.prev = r;
     }
+
+    spin_unlock(&layer->plist_lock);
 
     /* Delay free the original pnode. */
     delay_free_pnode(original);
