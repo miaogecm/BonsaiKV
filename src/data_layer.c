@@ -503,10 +503,10 @@ static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
 static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
     pnoid_t head, tail, next, prev = PNOID_NULL;
+    pentry_t ents[PNODE_FANOUT], *ent = ents;
     shim_sync_pfence_t *pfences, *pfence;
     mnode_t *head_mno, *tail_mno, *mno;
     pentry_t merged[PNODE_FANOUT], *m;
-    pentry_t ents[PNODE_FANOUT], *ent;
     int node = pnode_numa_node(pnode);
     pbatch_cursor_t cursor;
     unsigned cnt, mcnt, i;
@@ -524,7 +524,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
             if (!op || (ent < ents + cnt && pkey_compare(ent->k, op->key) < 0)) {
                 *m++ = *ent++;
             } else {
-                *m++ = (pentry_t) { op->key, op->val, 0 };
+                *m++ = (pentry_t) { op->key, op->val };
                 do {
                     pbatch_cursor_inc(&cursor);
                     op = pbatch_cursor_get(&cursor);
