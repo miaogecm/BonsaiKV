@@ -319,6 +319,18 @@ static int lp_compare(const void *p, const void *q) {
     return pkey_compare(x->key, y->key);
 }
 
+static void inode_dump(inode_t *inode) {
+    unsigned long vmp = inode->validmap;
+    unsigned pos;
+    /* TODO: Only integer key. */
+    printf(" ====================== [inode %lx] fence=%lx\n",
+           (unsigned long) inode, *(unsigned long *) inode->fence.key);
+    for_each_set_bit(pos, &vmp, INODE_FANOUT) {
+        printf("key[%u]=%lx (%u)\n",
+               pos, *(unsigned long *) lp_get_key(inode->lps[pos], inode->pno).key, inode->fgprt[pos]);
+    }
+}
+
 /*
  * Move @inode's keys within range [cut, fence) to another newly created node. If
  * @cut is NULL, the median value will be chosen. @cut should be an existing key
