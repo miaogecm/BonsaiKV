@@ -607,9 +607,8 @@ static inline void inode_update_pno(inode_t *inode, pkey_t fence, pnoid_t pno) {
 }
 
 static inline void inode_forward(inode_t **prev, inode_t **inode, int lock_next) {
-    inode_t *next;
-    next = inode_off2ptr((*inode)->next);
-    if (lock_next) {
+    inode_t *next = inode_off2ptr((*inode)->next);
+    if (lock_next && next) {
         inode_lock(next);
     }
     if (likely(*prev)) {
@@ -635,7 +634,7 @@ relookup:
         goto relookup;
     }
 
-    while (1) {
+    while (inode) {
         if (pkey_compare(p[1].pfence, inode->fence) < 0) {
             pos = inode_find(inode, p[1].pfence);
 			if (pos == NOT_FOUND) {
@@ -682,7 +681,12 @@ no_split:
         }
     }
 
-    inode_unlock(inode);
+    if (prev) {
+        inode_unlock(prev);
+    }
+    if (inode) {
+        inode_unlock(inode);
+    }
 
     return 0;
 }
