@@ -124,6 +124,11 @@ struct pflush_worksets {
     struct flush_workset        flush_ws;
 };
 
+static void flush_load_move(struct flush_load *dst, struct flush_load *src) {
+    memcpy(dst, src, sizeof(*src));
+    list_replace(&src->cluster, &dst->cluster);
+}
+
 static inline size_t max_load_per_socket(size_t avg_load) {
     return avg_load + 1000000;
 }
@@ -565,7 +570,7 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
     for (i = 0; i < NUM_SOCKET; i++) {
         ops = malloc(total * sizeof(*ops));
         INIT_LIST_HEAD(&pbatch_lists[i]);
-        pbatch_list_create(&pbatch_lists[i], ops, total, 1);
+        pbatch_list_create(&pbatch_lists[i], ops, total);
         pbatch_cursor_init(&cursors[i], &pbatch_lists[i]);
     }
 
@@ -798,7 +803,7 @@ static void intra_socket_load_balance(struct flush_load *per_worker_loads, struc
                                  NUM_PFLUSH_WORKER_PER_NODE);
 
     for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
-        per_worker_loads[worker_id(numa_node, i)] = per_socket_per_worker_loads[i];
+        flush_load_move(&per_worker_loads[worker_id(numa_node, i)], &per_socket_per_worker_loads[i]);
     }
 }
 

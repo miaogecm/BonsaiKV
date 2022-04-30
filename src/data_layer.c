@@ -512,7 +512,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
     unsigned cnt, mcnt, i;
     pbatch_op_t *op;
 
-    pfence = pfences = malloc((tot / (PNODE_FANOUT / 2)) * sizeof(*pfence));
+    pfence = pfences = malloc((tot / (PNODE_FANOUT / 2) + 1) * sizeof(*pfence));
 
     arr_init_from_pnode(ents, pnode, &cnt);
 
@@ -527,6 +527,9 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
                 *m++ = (pentry_t) { op->key, op->val };
                 do {
                     pbatch_cursor_inc(&cursor);
+                    if (unlikely(pbatch_cursor_is_end(&cursor))) {
+                        break;
+                    }
                     op = pbatch_cursor_get(&cursor);
                 } while (op->done);
             }
@@ -534,13 +537,13 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
 
         tail = alloc_pnode(node);
         tail_mno = pnode_meta(tail);
-        pnode_init_from_arr(tail, m, mcnt);
+        pnode_init_from_arr(tail, merged, mcnt);
         if (unlikely(prev == PNOID_NULL)) {
             head = tail;
             tail_mno->lfence = pnode_meta(pnode)->lfence;
         } else {
             mno = pnode_meta(prev);
-            tail_mno->lfence = mno->rfence = m[0].k;
+            tail_mno->lfence = mno->rfence = merged[0].k;
             mno->next = tail;
             tail_mno->u.prev = prev;
             pnode_persist(prev, 0);
