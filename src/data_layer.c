@@ -23,10 +23,11 @@
 
 #ifdef STR_KEY
 #define PNODE_FANOUT            40
-#else
-#define PNODE_FANOUT			80
-#endif
 #define PNODE_INTERLEAVING_SIZE 256
+#else
+#define PNODE_FANOUT			40
+#define PNODE_INTERLEAVING_SIZE 128
+#endif
 
 #define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pentry_t) / PNODE_INTERLEAVING_SIZE)
 #define PNODE_NUM_BLK           (PNODE_NUM_ENT_BLK + 1)
@@ -462,6 +463,8 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
      */
     flush_ents(pnode, changemap);
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
+
+	return insert_cnt;
 }
 
 static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
