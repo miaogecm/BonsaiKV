@@ -124,10 +124,13 @@ struct pflush_worksets {
     struct flush_workset        flush_ws;
 };
 
-void cluster_dump(struct cluster *cl) {
+void cluster_dump(struct list_head* list) {
+    struct cluster* cl;
     printf("----------cluster dump start----------\n");
-    printf("pnode id: %u\n", cl->pnode);
-    pbatch_list_dump(&cl->pbatch_list);
+    list_for_each_entry(cl, list, list) {
+        printf("pnode id: %u\n", cl->pnode);
+        pbatch_list_dump(&cl->pbatch_list);
+    }
     printf("----------cluster dump end----------\n");
 }
 
@@ -678,13 +681,13 @@ static int cluster_work(void *arg) {
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
-    flush_load_dump(ws->per_worker_logs);
+    flush_load_dump(&ws->per_worker_per_socket_loads[wid][0]);
 
 	bonsai_print("[pflush worker %d] merge_and_cluster_logs\n", wid);
 
     /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
     inter_worker_cluster(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
-    flush_load_dump(ws->per_worker_per_socket_loads);
+    flush_load_dump(&ws->per_socket_loads[0]);
 
 	bonsai_print("[pflush worker %d] inter_worker_cluster\n", wid);
 
@@ -852,7 +855,10 @@ static int flush_work(void *arg) {
 
     list_for_each_entry_safe(c, tmp, &load->cluster, list) {
         oplog_snapshot_lst(&lst);
+        
+        pbatch_list_dump(&c->pbatch_list);
         pnode_run_batch(&lst, c->pnode, &c->pbatch_list);
+        pbatch_list_dump(&c->pbatch_list);
 
         pbatch_list_destroy(&c->pbatch_list);
         list_del(&c->list);

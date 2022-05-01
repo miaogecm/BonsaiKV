@@ -118,11 +118,7 @@ static void pbatch_list_dump(struct list_head *list) {
 
     printf("----------pbatch list dump start----------\n");
     list_for_each_entry(node, list, list) {
-        printf("size: %d\n", node->len);
-        for (i = 0; i < node->len; i++) {
-            printf("%016lx -> ", node->start[i]);
-        }
-        printf("NULL\n");
+        printf("size: %d, start: %016lx\n", node->len, node->start);
     }
     printf("----------pbatch list dump end----------\n");
 }
