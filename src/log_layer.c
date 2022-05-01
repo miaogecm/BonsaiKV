@@ -124,6 +124,20 @@ struct pflush_worksets {
     struct flush_workset        flush_ws;
 };
 
+void cluster_dump(struct cluster *cl) {
+    printf("----------cluster dump start----------\n");
+    printf("pnode id: %u\n", cl->pnode);
+    pbatch_list_dump(&cl->pbatch_list);
+    printf("----------cluster dump end----------\n");
+}
+
+void flush_load_dump(struct flush_load* fll) {
+    printf("----------flush load dump start----------\n");
+    printf("load size: %lu\n", fll->load);
+    cluster_dump(&fll->cluster);
+    printf("----------flush load dump end----------\n");
+}
+
 static void flush_load_move(struct flush_load *dst, struct flush_load *src) {
     memcpy(dst, src, sizeof(*src));
     list_replace(&src->cluster, &dst->cluster);
@@ -664,11 +678,13 @@ static int cluster_work(void *arg) {
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
+    flush_load_dump(ws->per_worker_logs);
 
 	bonsai_print("[pflush worker %d] merge_and_cluster_logs\n", wid);
 
     /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
     inter_worker_cluster(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
+    flush_load_dump(ws->per_worker_per_socket_loads);
 
 	bonsai_print("[pflush worker %d] inter_worker_cluster\n", wid);
 
@@ -724,6 +740,7 @@ static void load_split_and_recolor(struct flush_load *dst, struct flush_load *sr
         c = sibling;
     }
 
+    INIT_LIST_HEAD(&dst->cluster);
     list_cut_position(&dst->cluster, &src->cluster, c->list.prev);
 
     dst->load = nr;
@@ -818,8 +835,10 @@ static int load_balance_work(void *arg) {
     int wid = desc->wid;
 
     inter_socket_load_balance(ws->per_socket_loads, wid);
+    flush_load_dump(ws->per_socket_loads);
 
     intra_socket_load_balance(ws->per_worker_loads, ws->per_socket_loads, &ws->barrier, wid);
+    flush_load_dump(ws->per_socket_loads);
 
     return 0;
 }
@@ -1027,3 +1046,4 @@ void log_layer_deinit(struct log_layer* layer) {
 
 	bonsai_print("log_layer_deinit\n");
 }
+

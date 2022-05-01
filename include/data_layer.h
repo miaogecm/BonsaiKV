@@ -107,8 +107,24 @@ static inline void pbatch_list_create(struct list_head *list, pbatch_op_t *start
 static inline void pbatch_list_destroy(struct list_head *list) {
     pbatch_node_t *node, *tmp;
     list_for_each_entry_safe(node, tmp, list, list) {
-        free(node);
+        printf("free %016lx, %016lx\n", node, node + sizeof(node));
+        // free(node);
     }
+}
+
+static void pbatch_list_dump(struct list_head *list) {
+    pbatch_node_t *node;
+    int i;
+
+    printf("----------pbatch list dump start----------\n");
+    list_for_each_entry(node, list, list) {
+        printf("size: %d\n", node->len);
+        for (i = 0; i < node->len; i++) {
+            printf("%016lx -> ", node->start[i]);
+        }
+        printf("NULL\n");
+    }
+    printf("----------pbatch list dump end----------\n");
 }
 
 static inline size_t pbatch_list_len(struct list_head *list) {
