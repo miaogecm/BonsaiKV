@@ -1334,7 +1334,7 @@ forward:
         /* TODO: Why we need the mfence here? */
         atomic_thread_fence(memory_order_seq_cst);
     } else {
-        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
+        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;  
     }
 
 	/* Check that the version has not changed. */
@@ -1360,7 +1360,8 @@ forward:
     if (__predict_true(type == MTREE_GOPREV)) {
         ASSERT(!eq);
         skey = pkey;
-        goto retry;
+		leaf = leaf->prev;
+        goto forward;
     }
 	if (__predict_true(type == MTREE_NOTFOUND)) {
 		assert(0);

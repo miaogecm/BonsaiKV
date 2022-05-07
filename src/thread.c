@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <stdio.h>
 
 #include "thread.h"
 #include "cpu.h"
@@ -357,6 +358,7 @@ int bonsai_user_thread_init(pthread_t tid) {
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
 	thread->t_stm = stm_init_thread();
+	/*FIXME: t_stm is a valid address*/
 
 	spin_lock(&bonsai->list_lock);
   	list_add(&thread->list, &bonsai->thread_list);

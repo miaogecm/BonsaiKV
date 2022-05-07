@@ -31,7 +31,7 @@
 pkey_t a[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	1
+#define NUM_THREAD	4
 #endif
 
 #define NUM_CPU		12
@@ -121,7 +121,7 @@ static void do_load(long id) {
 
     start_measure();
 
-    st = 1.0 * id / NUM_THREAD * N;
+    st = 1.0 * id / NUM_THREAD * N + 1;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
 
     while(repeat--) {
@@ -166,7 +166,7 @@ static void do_op(long id) {
     int ret, st, ed, opcode;
     pkey_t __key, __key2;
 
-    st = 1.0 * id / NUM_THREAD * N;
+    st = 1.0 * id / NUM_THREAD * N + 1;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
 
     start_measure();
@@ -200,9 +200,9 @@ static void do_op(long id) {
                     __key = INT2KEY(op_arr[i][1]);
 #endif
                     ret = bonsai_lookup(__key, &v);
-                    if (ret) {
-                        abort();
-                    }
+                    // if (ret) {
+                    //     abort();
+                    // }
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8);
                 }
