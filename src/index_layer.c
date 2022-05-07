@@ -620,7 +620,7 @@ static inline void inode_forward(inode_t **prev, inode_t **inode, int lock_next)
 
 int shim_sync(log_state_t *lst, shim_sync_pfence_t *pfences) {
     shim_sync_pfence_t *p = pfences - 1;
-    inode_t *inode, *prev;
+    inode_t *inode, *prev = NULL;
     pkey_t fence;
     unsigned pos;
     int ret;
