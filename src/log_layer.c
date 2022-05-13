@@ -413,10 +413,16 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     logs_t fetched = { .cnt = 0 };
     struct oplog *log;
     int i;
+    struct log_layer *layer = LOG(bonsai);
+    int num_logs;
 
     for (i = 0; i < nr_cpu; i++) {
         snapshot_cpu_log(&snapshots[i], cpus[i]);
-        fetched.cnt += (int) log_nr(&snapshots[i]);
+        num_logs = (int) log_nr(&snapshots[i]);
+        fetched.cnt += num_logs;
+        bonsai_debug("[%d] MINUS %d\n", cpus[i], num_logs);
+        assert(atomic_read(&layer->nlogs[cpus[i]].cnt) + CHECK_NLOG_INTERVAL >= num_logs);
+        atomic_sub(num_logs, &layer->nlogs[cpus[i]].cnt);
 	}
 
 	if (unlikely(!fetched.cnt))
@@ -864,6 +870,8 @@ static int flush_work(void *arg) {
         list_del(&c->list);
         free(c);
     }
+
+    return 0;
 }
 
 static void cleanup_logs(const uint32_t *new_region_starts) {
@@ -1044,7 +1052,6 @@ void log_layer_deinit(struct log_layer* layer) {
 	for (node = 0; node < NUM_SOCKET; node++) {
 		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu++) {
 			desc = &layer->desc->descs[cpu];
-			free(desc->lcb);
 		}
 	}
 	

@@ -107,8 +107,7 @@ static inline void pbatch_list_create(struct list_head *list, pbatch_op_t *start
 static inline void pbatch_list_destroy(struct list_head *list) {
     pbatch_node_t *node, *tmp;
     list_for_each_entry_safe(node, tmp, list, list) {
-        printf("free %016lx, %016lx\n", node, node + sizeof(node));
-        // free(node);
+        free(node);
     }
 }
 

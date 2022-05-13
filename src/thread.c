@@ -25,6 +25,7 @@
 #include "bonsai.h"
 #include "log_layer.h"
 #include "index_layer.h"
+#include "stm.h"
 
 __thread struct thread_info* __this = NULL;
 
@@ -163,14 +164,12 @@ static void thread_work(struct workqueue_struct* wq) {
 static void pflush_thread_exit(struct thread_info* thread) {
 	struct log_layer *layer = LOG(bonsai);
 
-	list_del(&thread->list);
-	thread->t_state = S_EXIT;
-
-	atomic_inc(&layer->exit);
-
 	spin_lock(&bonsai->list_lock);
 	list_del(&thread->list);
 	spin_unlock(&bonsai->list_lock);
+	thread->t_state = S_EXIT;
+
+	atomic_inc(&layer->exit);
 
 	bonsai_print("pflush thread[%d] exit\n", thread->t_id);
 }
@@ -193,7 +192,6 @@ static void pflush_worker(struct thread_info* this) {
 		
 		__this->t_state = S_RUNNING;
 		thread_work(&__this->t_wq);
-		//FIXME: when force_flush, both work_q is empty, it will never wakeup master
 	}
 
 	pflush_thread_exit(this);
@@ -225,6 +223,7 @@ static inline int need_flush_log() {
     int cpu, total = 0;
     for (cpu = 0; cpu < NUM_CPU; cpu++) {
         total += atomic_read(&layer->nlogs[cpu].cnt);
+		bonsai_debug("cpu[%d] %d\n", cpu, atomic_read(&layer->nlogs[cpu].cnt));
         if (total >= CHKPT_NLOG_INTERVAL) {
             return 1;
         }
@@ -358,6 +357,7 @@ int bonsai_user_thread_init(pthread_t tid) {
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
 	thread->t_stm = stm_init_thread();
+	printf("T_STM: %016lx\n", thread->t_stm);
 	/*FIXME: t_stm is a valid address*/
 
 	spin_lock(&bonsai->list_lock);
@@ -495,9 +495,6 @@ int bonsai_smo_thread_exit() {
 	}
 
 	pthread_join(bonsai->tids[NUM_PFLUSH_THREAD], NULL);
-	spin_lock(&bonsai->list_lock);
-	list_del(&bonsai->smo->list);
-	spin_unlock(&bonsai->list_lock);
 	free(bonsai->smo);
 
 	bonsai_print("smo thread exit\n");
