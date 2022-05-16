@@ -14,6 +14,7 @@ CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value
 CFLAGS += -Wno-unused-function
 CFLAGS += ${LOCAL}
 CFLAGS += -D PNODE_FP
+#CFLAGS += -fsanitize=address
 
 LDFLAGS += -pthread -lpmem -lpmemobj -lnuma 
 

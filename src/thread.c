@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <stdio.h>
 
 #include "thread.h"
 #include "cpu.h"
@@ -193,7 +192,6 @@ static void pflush_worker(struct thread_info* this) {
 		
 		__this->t_state = S_RUNNING;
 		thread_work(&__this->t_wq);
-		//FIXME: when force_flush, both work_q is empty, it will never wakeup master
 	}
 
 	pflush_thread_exit(this);
@@ -358,7 +356,6 @@ int bonsai_user_thread_init(pthread_t tid) {
 	thread->t_state = S_RUNNING;
 	thread->t_epoch = bonsai->desc->epoch;
 	thread->t_stm = stm_init_thread();
-	/*FIXME: t_stm is a valid address*/
 
 	spin_lock(&bonsai->list_lock);
   	list_add(&thread->list, &bonsai->thread_list);
@@ -366,9 +363,6 @@ int bonsai_user_thread_init(pthread_t tid) {
 
 	bonsai->tids[thread->t_id] = tid;
 	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - NUM_SMO_THREAD - 1] = thread;
-
-	/* software transactional memory */
-	stm_init_thread();
 
 	/* quiescent state based reclamation */
 	fb_set_tid(thread->t_id);
