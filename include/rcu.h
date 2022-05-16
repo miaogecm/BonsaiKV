@@ -21,7 +21,7 @@ void fb_init(fuzzy_barrier_t *fb);
 void fb_thread_online(fuzzy_barrier_t *fb);
 void fb_thread_offline(fuzzy_barrier_t *fb);
 int fb_try_barrier(fuzzy_barrier_t *fb);
-int fb_end_barrier(fuzzy_barrier_t *fb);
+void fb_end_barrier(fuzzy_barrier_t *fb);
 
 typedef void (*rcu_cb_t)(void *);
 

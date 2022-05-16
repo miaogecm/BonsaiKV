@@ -244,7 +244,7 @@ restart_no_load:
 }
 
 static INLINE stm_word_t stm_wbetl_read(stm_tx_t *tx, volatile stm_word_t *addr, 
-		struct index_struct* layer)
+		struct index_layer* layer)
 {
   return stm_wbetl_read_invisible(tx, addr, layer);
 }
@@ -266,7 +266,7 @@ static INLINE w_entry_t * stm_wbetl_write(stm_tx_t *tx, volatile stm_word_t *add
   /* Try to acquire lock */
 restart:
   l = ATOMIC_LOAD_ACQ(lock);
-restart_no_load:
+//restart_no_load:
   if (unlikely(LOCK_GET_OWNED(l))) {
     /* case 1: address is locked */
 
@@ -322,7 +322,7 @@ restart_no_load:
   /* Handle write after reads (before CAS) */
   version = LOCK_GET_TIMESTAMP(l);
 
-acquire:
+//acquire:
   if (unlikely(version > tx->end)) {
     /* We might have read an older version previously */
     if (unlikely(stm_has_read(tx, lock) != NULL)) {
@@ -374,9 +374,9 @@ do_write:
 
 static INLINE int stm_wbetl_commit(stm_tx_t *tx)
 {
-  	w_entry_t *w;
+  	//w_entry_t *w;
   	stm_word_t t;
-  	int i;
+  	//int i;
 
 	PRINT_DEBUG("==> stm_wbetl_commit(%p[%lu-%lu])\n", tx, (unsigned long)tx->start, (unsigned long)tx->end);
 
@@ -406,9 +406,9 @@ static INLINE int stm_wbetl_commit(stm_tx_t *tx)
   	}
 #endif
 
-  persist_write_set(tx, t);
+  //persist_write_set(tx, t);
 
-end:
+//end:
   	return 1;
 }
 
@@ -625,7 +625,7 @@ void bonsai_stm_abort(stm_tx_t* stx, int reason)
 /*
  * Called by the CURRENT thread to load a word-sized value.
  */
-stm_word_t bonsai_stm_load(stm_tx_t* stx, volatile stm_word_t *addr, struct index_struct* layer)
+stm_word_t bonsai_stm_load(stm_tx_t* stx, volatile stm_word_t *addr, struct index_layer* layer)
 {
   return stm_wbetl_read(stx, addr, layer);
 }

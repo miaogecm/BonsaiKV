@@ -63,7 +63,7 @@ int fb_try_barrier(fuzzy_barrier_t *fb) {
     return 1;
 }
 
-int fb_end_barrier(fuzzy_barrier_t *fb) {
+void fb_end_barrier(fuzzy_barrier_t *fb) {
     atomic64_set(&fb->qs_bmp, 0);
 }
 
@@ -130,11 +130,11 @@ int rcu_now(rcu_t *rcu) {
  * since @since, which can be derived from @rcu_now.
  */
 void rcu_synchronize(rcu_t *rcu, int since) {
-    smp_mb();
-    
-    /*FIXME: this sssumption is so bad*/
+	/*FIXME: this sssumption is so bad*/
     /* 1 second no work, assume all user_threads exit, this is always right for workloads */
     static int timeout = 1000;
+		
+	smp_mb();
 
     while (ACCESS_ONCE(rcu->fb_cnt) - since < 2 && timeout) {
         usleep(1000);

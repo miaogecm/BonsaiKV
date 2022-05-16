@@ -671,7 +671,6 @@ void pnode_recycle() {
 
 static void init_pnode_pool(struct data_layer *layer) {
     pnoid_t cur;
-	int node, num_node_per_socket = PNODE_NUM / NUM_SOCKET;
 
     for (cur = 0; cur < PNODE_NUM; cur++) {
         pnode_meta(cur)->u.node = cur + 1 < PNODE_NUM ? cur + 1 : PNOID_NULL;

@@ -1,5 +1,12 @@
 #!/bin/bash
 
+mkdir -p /mnt/ext4/dimm0
+mkdir -p /mnt/ext4/dimm1
+mkdir -p /mnt/ext4/dimm2
+mkdir -p /mnt/ext4/dimm3
+mkdir -p /mnt/ext4/dimm4
+mkdir -p /mnt/ext4/dimm5
+
 mkfs.ext4 /dev/pmem0
 mount -t ext4 -o dax /dev/pmem0 /mnt/ext4/dimm0
 

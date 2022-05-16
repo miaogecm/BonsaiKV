@@ -29,6 +29,7 @@ struct data_region {
 struct log_layer;
 struct data_layer;
 struct bonsai_desc;
+struct log_region;
 
 extern int log_region_init(struct log_layer* layer);
 extern void log_region_deinit(struct log_layer* layer);

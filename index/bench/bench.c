@@ -25,7 +25,7 @@
 #include "../data/kvdata.h"
 
 #ifndef N
-#define N			100000
+#define N			1000000
 #endif
 
 pkey_t a[N];
@@ -163,7 +163,7 @@ static void do_op(long id) {
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
 	long i, repeat = 1;
-    int ret, st, ed, opcode;
+    int st, ed, opcode;
     pkey_t __key, __key2;
 
     st = 1.0 * id / NUM_THREAD * N + 1;
@@ -187,7 +187,8 @@ static void do_op(long id) {
 #else
                     __key = INT2KEY(op_arr[i][1]);
 #endif
-                    bonsai_insert(INT2KEY(op_arr[i][1]), op_arr[i][2]);
+                    bonsai_insert(__key, op_arr[i][2]);
+					
                 } else {
                     fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
@@ -199,7 +200,8 @@ static void do_op(long id) {
 #else
                     __key = INT2KEY(op_arr[i][1]);
 #endif
-                    ret = bonsai_lookup(__key, &v);
+                    bonsai_lookup(__key, &v);
+					
                     // if (ret) {
                     //     abort();
                     // }
@@ -300,6 +302,7 @@ void *user_thread_parent_fun(void *arg) {
 	for (i = 0; i < NUM_THREAD; i++) {
 		pthread_join(tids[i], NULL);
 	}
+	return NULL;
 }
 
 int bench(char* index_name, init_func_t init, destory_func_t destory,

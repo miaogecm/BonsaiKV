@@ -47,9 +47,10 @@ void bonsai_mark_cpu(int cpu) {
 int bonsai_insert(pkey_t key, pval_t value) {
   	logid_t log = oplog_insert(key, value, OP_INSERT, __this->t_cpu);
   	log_state_t snap;
+	int ret;
+	
   	oplog_snapshot_lst(&snap);
-		int ret;
-
+		
 		ret = shim_upsert(&snap, key, log);
 
 		if (rcu_op_count ++ > RCU_MAX_OP) {
@@ -63,8 +64,10 @@ int bonsai_insert(pkey_t key, pval_t value) {
 int bonsai_remove(pkey_t key) {
 		logid_t log = oplog_insert(key, 0, OP_REMOVE, __this->t_cpu);
 		log_state_t snap;
-  	oplog_snapshot_lst(&snap);
 		int ret;
+		
+  	oplog_snapshot_lst(&snap);
+		
 
 		ret = shim_upsert(&snap, key, log);
 
@@ -81,6 +84,7 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
 }
 
 int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
+	return 0;
 }
 
 void bonsai_barrier() {
@@ -112,7 +116,7 @@ void bonsai_deinit() {
 
 int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
                 remove_func_t remove, lookup_func_t lookup, scan_func_t scan) {
-	int error = 0, fd, node;
+	int error = 0, fd;
     pnoid_t sentinel;
 	char *addr;
 

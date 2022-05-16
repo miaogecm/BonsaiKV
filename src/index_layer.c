@@ -104,7 +104,6 @@ void do_smo() {
     struct index_layer *i_layer = INDEX(bonsai);
     struct shim_layer* s_layer = SHIM(bonsai);
     unsigned long min_ts;
-    struct inode *victim;
     struct smo_log log;
     int cpu, min_cpu;
 
@@ -694,7 +693,6 @@ no_split:
 void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init,
                       insert_func_t insert, update_func_t update, remove_func_t remove,
 				      lookup_func_t lookup, scan_func_t scan, destory_func_t destroy) {
-    int node;
 
     layer->index_struct = init();
 

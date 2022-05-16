@@ -140,7 +140,7 @@ static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
 /* FIXME: if we force to persist LCB during log checkpoint, data in LCB can not always cache line aligned */
 static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
 	size_t i;
-	long long t1, t2, t3, t4;
+	//long long t1, t2, t3, t4;
 	unsigned char *from, *to;
 	
     //assert(len % CACHELINE_SIZE == 0);

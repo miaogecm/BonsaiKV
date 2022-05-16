@@ -397,7 +397,7 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
 
     for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
         plog = &region->logs[cur];
-		if (unlikely(OPLOG_FLIP(plog->o_type) != target_flip)) {
+		if (unlikely((int)OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
         memcpy(log, plog, size);
@@ -420,8 +420,6 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
         snapshot_cpu_log(&snapshots[i], cpus[i]);
         num_logs = (int) log_nr(&snapshots[i]);
         fetched.cnt += num_logs;
-        bonsai_debug("[%d] MINUS %d\n", cpus[i], num_logs);
-        assert(atomic_read(&layer->nlogs[cpus[i]].cnt) + CHECK_NLOG_INTERVAL >= num_logs);
         atomic_sub(num_logs, &layer->nlogs[cpus[i]].cnt);
 	}
 
@@ -1059,4 +1057,3 @@ void log_layer_deinit(struct log_layer* layer) {
 
 	bonsai_print("log_layer_deinit\n");
 }
-

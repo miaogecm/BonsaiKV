@@ -265,13 +265,13 @@ struct stm_global {
   char padding[CACHELINE_SIZE];
 } ALIGNED;
 
-struct index_struct;
+struct index_layer;
 
 extern void bonsai_stm_start(stm_tx_t* stx, stm_tx_attr_t attr);
 extern int bonsai_stm_commit(stm_tx_t* stx);
 extern void bonsai_stm_abort(stm_tx_t* stx, int reason);
 
-extern stm_word_t bonsai_stm_load(stm_tx_t* stx, volatile stm_word_t *addr, struct index_struct* layer);
+extern stm_word_t bonsai_stm_load(stm_tx_t* stx, volatile stm_word_t *addr, struct index_layer* layer);
 extern void bonsai_stm_store(stm_tx_t* stx, volatile stm_word_t *addr, stm_word_t value);
 
 extern stm_tx_t* stm_init_thread(void);

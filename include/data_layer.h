@@ -6,6 +6,8 @@ extern "C" {
 #endif
 
 #include <stdint-gcc.h>
+#include <stdlib.h>
+
 #include "arch.h"
 #include "rwlock.h"
 #include "list.h"
@@ -113,7 +115,6 @@ static inline void pbatch_list_destroy(struct list_head *list) {
 
 static void pbatch_list_dump(struct list_head *list) {
     pbatch_node_t *node;
-    int i;
 
     printf("----------pbatch list dump start----------\n");
     list_for_each_entry(node, list, list) {

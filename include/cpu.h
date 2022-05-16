@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#define _GNU_SOURCE
 #include <sched.h>
 #include <stdio.h>
 #include <assert.h>
@@ -44,7 +45,7 @@ static inline int get_numa_node(int cpu) {
 	return cpu_to_node((cpu != NOCPU) ? cpu : get_cpu());
 }
 
-static inline int mark_cpu(int cpu) {
+static inline void mark_cpu(int cpu) {
 	cpu_used[cpu] = 1;
 }
 
