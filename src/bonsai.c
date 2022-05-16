@@ -87,10 +87,8 @@ void bonsai_barrier() {
     atomic_set(&bonsai->l_layer.force_flush, 1);
     do {
         wakeup_master();
-        // usleep(30000);
-		sleep(1);
-		//TODO: wait thread.c:195 to be fixed
-    } while (0 && atomic_read(&bonsai->l_layer.force_flush));
+        usleep(30000);
+    } while (atomic_read(&bonsai->l_layer.force_flush));
     printf("=== Everything is persistent. ===\n");
 }
 

@@ -25,7 +25,7 @@
 #include "../data/kvdata.h"
 
 #ifndef N
-#define N			1000000
+#define N			100000
 #endif
 
 pkey_t a[N];

@@ -131,8 +131,13 @@ int rcu_now(rcu_t *rcu) {
  */
 void rcu_synchronize(rcu_t *rcu, int since) {
     smp_mb();
+    
+    /*FIXME: this sssumption is so bad*/
+    /* 1 second no work, assume all user_threads exit, this is always right for workloads */
+    static int timeout = 1000;
 
-    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2) {
+    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2 && timeout) {
         usleep(1000);
+        timeout--;
     }
 }

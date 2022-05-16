@@ -674,7 +674,7 @@ stm_tx_t* stm_init_thread(void)
   stm_allocate_ws_entries(tx, 0);
   /* Nesting level */
   tx->nesting = 0;
-
+  
   //stm_quiesce_enter_thread(tx);
 
   return tx;
