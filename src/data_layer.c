@@ -665,8 +665,9 @@ void pnode_recycle() {
         return;
     }
 
-    pnode_meta(d_layer->tofree_tail)->u.prev = d_layer->free_list;
+    pnode_meta(d_layer->tofree_tail)->u.node = d_layer->free_list;
     d_layer->free_list = d_layer->tofree_head;
+	d_layer->tofree_head = d_layer->tofree_tail = PNOID_NULL;
 }
 
 static void init_pnode_pool(struct data_layer *layer) {
