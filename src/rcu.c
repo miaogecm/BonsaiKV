@@ -132,7 +132,7 @@ int rcu_now(rcu_t *rcu) {
 void rcu_synchronize(rcu_t *rcu, int since) {	
 	smp_mb();
 
-    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2) {
+    while (atomic64_read(&rcu->fb.thr_bmp) && ACCESS_ONCE(rcu->fb_cnt) - since < 2) {
         usleep(1000);
     }
 }
