@@ -6,7 +6,7 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  * 
- * A QSBR (Quiescent State Based Reclamation) based Safe Memory Reclamation Implementation
+ * A QSBR (Quiescent State Based Reclamation) based Safe Memory Reclamation
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
@@ -129,15 +129,10 @@ int rcu_now(rcu_t *rcu) {
  * Wait until each online thread has passed through a quiescent state
  * since @since, which can be derived from @rcu_now.
  */
-void rcu_synchronize(rcu_t *rcu, int since) {
-	/*FIXME: this sssumption is so bad*/
-    /* 1 second no work, assume all user_threads exit, this is always right for workloads */
-    static int timeout = 1000;
-		
+void rcu_synchronize(rcu_t *rcu, int since) {	
 	smp_mb();
 
-    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2 && timeout) {
+    while (ACCESS_ONCE(rcu->fb_cnt) - since < 2) {
         usleep(1000);
-        timeout--;
     }
 }

@@ -55,7 +55,7 @@ int bonsai_insert(pkey_t key, pval_t value) {
 
 		if (rcu_op_count ++ > RCU_MAX_OP) {
 			rcu_op_count = 0;
-			rcu_quiescent(RCU(bonsai));
+			//rcu_quiescent(RCU(bonsai));
 		}
 
 		return ret;
@@ -73,7 +73,7 @@ int bonsai_remove(pkey_t key) {
 
 		if (rcu_op_count ++ > RCU_MAX_OP) {
 			rcu_op_count = 0;
-			rcu_quiescent(RCU(bonsai));
+			//rcu_quiescent(RCU(bonsai));
 		}
 
 		return ret;
