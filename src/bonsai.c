@@ -55,7 +55,7 @@ int bonsai_insert(pkey_t key, pval_t value) {
 
 		if (rcu_op_count ++ > RCU_MAX_OP) {
 			rcu_op_count = 0;
-			//rcu_quiescent(RCU(bonsai));
+			rcu_quiescent(RCU(bonsai));
 		}
 
 		return ret;
@@ -73,7 +73,7 @@ int bonsai_remove(pkey_t key) {
 
 		if (rcu_op_count ++ > RCU_MAX_OP) {
 			rcu_op_count = 0;
-			//rcu_quiescent(RCU(bonsai));
+			rcu_quiescent(RCU(bonsai));
 		}
 
 		return ret;
@@ -165,6 +165,10 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		/* 5. initialize sentinel nodes */
     	sentinel = pnode_sentinel_init();
     	shim_sentinel_init(sentinel);
+
+		/* 6. initialize RCU */
+		rcu_init(&bonsai->rcu);
+		fb_init(&bonsai->rcu.fb);
 
 		bonsai->desc->init = 1;
   	} else {
