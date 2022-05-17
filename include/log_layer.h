@@ -13,7 +13,7 @@ extern "C" {
 #include "arch.h"
 #include "seqlock.h"
 
-#define OPLOG_NUM_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
+#define NUM_OPLOG_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
 #define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)
 
 typedef enum {
@@ -60,7 +60,7 @@ struct cpu_log_region_meta {
 
 struct cpu_log_region {
 	struct cpu_log_region_meta meta; ____cacheline_aligned 
-    struct oplog logs[OPLOG_NUM_PER_CPU];
+    struct oplog logs[NUM_OPLOG_PER_CPU];
 } __packed;
 
 struct dimm_log_region {

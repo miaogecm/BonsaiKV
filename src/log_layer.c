@@ -151,8 +151,8 @@ static inline size_t max_load_per_socket(size_t avg_load) {
 }
 
 static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
-    uint32_t d1 = (meta->end - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
-    uint32_t d2 = (off - meta->start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+    uint32_t d1 = (meta->end - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
+    uint32_t d2 = (off - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
     return (int) (d2 - d1);
 }
 
@@ -198,9 +198,9 @@ static void write_back(int cpu, int dimm_unlock) {
     lcb = local_desc->lcb;
     len = local_desc->size;
 
-    while ((c = min(OPLOG_NUM_PER_CPU - end, len))) {
+    while ((c = min(NUM_OPLOG_PER_CPU- end, len))) {
         memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
-        end  = (end + c) % OPLOG_NUM_PER_CPU;
+        end  = (end + c) % NUM_OPLOG_PER_CPU;
         len -= c;
         lcb += c;
     }
@@ -258,7 +258,7 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
     assert(local_desc->size < LCB_MAX_NR);
 
     id.cpu = cpu;
-    id.off = (local_desc->size + end) % OPLOG_NUM_PER_CPU;
+    id.off = (local_desc->size + end) % NUM_OPLOG_PER_CPU;
 
     log = &local_desc->lcb[local_desc->size++];
 	log->o_type = cpu_to_le8(op);
@@ -266,7 +266,7 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-    if (unlikely(local_desc->size >= LCB_FULL_NR 
+    if (unlikely(local_desc->size >= LCB_FULL_NR
 			&& local_desc->size % 4 == 0)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
             write_back(cpu, 1);
@@ -341,7 +341,7 @@ static void launch_workers(struct pflush_worksets *worksets, work_func_t fn, voi
 }
 
 static size_t log_nr(struct cpu_log_snapshot *snap) {
-    return (snap->region_end - snap->region_start + OPLOG_NUM_PER_CPU) % OPLOG_NUM_PER_CPU;
+    return (snap->region_end - snap->region_start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
 }
 
 static void force_wb() {
@@ -395,7 +395,7 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
     cur = snap->region_start;
     end = snap->region_end;
 
-    for (log = logs; cur != end; cur = (cur + 1) % OPLOG_NUM_PER_CPU, log++) {
+    for (log = logs; cur != end; cur = (cur + 1) % NUM_OPLOG_PER_CPU, log++) {
         plog = &region->logs[cur];
 		if (unlikely((int)OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
