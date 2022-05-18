@@ -25,7 +25,7 @@
 #include "rcu.h"
 
 struct bonsai_info* bonsai;
-static char* bonsai_fpath = "/mnt/ext4/node0/bonsai";
+static char* bonsai_fpath = "/mnt/ext4/dimm0/bonsai";
 
 int cpu_used[NUM_CPU] = { 0 };
 
@@ -45,38 +45,41 @@ void bonsai_mark_cpu(int cpu) {
 }
 
 int bonsai_insert(pkey_t key, pval_t value) {
-  	logid_t log = oplog_insert(key, value, OP_INSERT, __this->t_cpu);
   	log_state_t snap;
+  	logid_t log;
 	int ret;
 	
   	oplog_snapshot_lst(&snap);
-		
-		ret = shim_upsert(&snap, key, log);
 
-		if (rcu_op_count ++ > RCU_MAX_OP) {
-			rcu_op_count = 0;
-			rcu_quiescent(RCU(bonsai));
-		}
+    log = oplog_insert(&snap, key, value, OP_INSERT, __this->t_cpu);
 
-		return ret;
+    ret = shim_upsert(&snap, key, log);
+
+    if (rcu_op_count ++ > RCU_MAX_OP) {
+        rcu_op_count = 0;
+        rcu_quiescent(RCU(bonsai));
+    }
+
+    return ret;
 }
 
 int bonsai_remove(pkey_t key) {
-		logid_t log = oplog_insert(key, 0, OP_REMOVE, __this->t_cpu);
-		log_state_t snap;
-		int ret;
+    log_state_t snap;
+    logid_t log;
+    int ret;
 		
   	oplog_snapshot_lst(&snap);
-		
 
-		ret = shim_upsert(&snap, key, log);
+    log = oplog_insert(&snap, key, 0, OP_REMOVE, __this->t_cpu);
 
-		if (rcu_op_count ++ > RCU_MAX_OP) {
-			rcu_op_count = 0;
-			rcu_quiescent(RCU(bonsai));
-		}
+    ret = shim_upsert(&snap, key, log);
 
-		return ret;
+    if (rcu_op_count ++ > RCU_MAX_OP) {
+        rcu_op_count = 0;
+        rcu_quiescent(RCU(bonsai));
+    }
+
+    return ret;
 }
 
 int bonsai_lookup(pkey_t key, pval_t *val) {

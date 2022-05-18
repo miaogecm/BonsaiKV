@@ -1,12 +1,11 @@
 #!/bin/bash
 
 NR_DIMM=6
-PMEMS=(/dev/pmem0 /dev/pmem1 /dev/pmem2 /dev/pmem3 /dev/pmem4 /dev/pmem5)
+DIMM_SIZE=2G
 
 for i in $(seq 0 $((NR_DIMM - 1))); do
   mkdir -p /mnt/ext4/dimm$i
-  mkfs.ext4 ${PMEMS[$i]}
-  mount -t ext4 -o dax ${PMEMS[$i]} /mnt/ext4/dimm$i
+  mount -t tmpfs -o size=$DIMM_SIZE tmpfs /mnt/ext4/dimm$i
 done
 
 ulimit -c unlimited

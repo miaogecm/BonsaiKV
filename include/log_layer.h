@@ -96,7 +96,7 @@ struct log_layer;
 
 extern void oplog_snapshot_lst(log_state_t *lst);
 
-extern logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu);
+extern logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, int cpu);
 
 extern void oplog_flush();
 

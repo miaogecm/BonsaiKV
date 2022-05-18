@@ -243,7 +243,7 @@ static void handle_wb(int signo) {
     }
 }
 
-logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
+logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
@@ -261,7 +261,7 @@ logid_t oplog_insert(pkey_t key, pval_t val, optype_t op, int cpu) {
     id.off = (local_desc->size + end) % NUM_OPLOG_PER_CPU;
 
     log = &local_desc->lcb[local_desc->size++];
-	log->o_type = cpu_to_le8(op);
+	log->o_type = cpu_to_le8(op | lst->flip);
     log->o_stamp = cpu_to_le64(ordo_new_clock(0));
 	log->o_kv.k = key;
 	log->o_kv.v = val;
@@ -314,7 +314,8 @@ static inline int worker_cpu(int wid) {
 
 static inline void new_flip() {
     rcu_t *rcu = RCU(bonsai);
-	xadd(&LOG(bonsai)->lst.flip, ACCESS_ONCE(LOG(bonsai)->lst.flip) ? -1 : 1);
+
+    LOG(bonsai)->lst.flip ^= 1;
 	
     /* Wait for all the user threads to observe the latest flip. */
     rcu_synchronize(rcu, rcu_now(rcu));
@@ -397,13 +398,13 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
 
     for (log = logs; cur != end; cur = (cur + 1) % NUM_OPLOG_PER_CPU, log++) {
         plog = &region->logs[cur];
-		if (unlikely((int)OPLOG_FLIP(plog->o_type) != target_flip)) {
+		if (unlikely((int) OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
         memcpy(log, plog, size);
     }
 
-    new_region_starts[snap->cpu] = end;
+    new_region_starts[snap->cpu] = cur;
 
     return log - logs;
 }
@@ -942,6 +943,7 @@ void oplog_flush() {
 	atomic_set(&l_layer->checkpoint, 1);
 
     new_flip();
+    bonsai_print("Enter flip %d\n", l_layer->lst.flip);
 
     begin_invalidate_unref_entries(&since);
 
