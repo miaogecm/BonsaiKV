@@ -669,7 +669,7 @@ relookup:
             }
 
             /*
-             * After split, the remain @inode contains keys that are strictly
+             * After split, the remaining @inode contains keys that are strictly
              * smaller than rfence. We can sync it.
              */
             if (likely(pno != PNOID_NULL)) {
