@@ -1302,7 +1302,7 @@ forward:
  * masstree_get: fetch a value given the key.
  */
 void *
-masstree_get(masstree_t *tree, const void *key, size_t len)
+masstree_get(masstree_t *tree, const void *key, size_t len, const void* actual_key)
 {
 	mtree_node_t *root = tree->root;
 	unsigned l = 0, slen, idx, type;
@@ -1311,6 +1311,8 @@ masstree_get(masstree_t *tree, const void *key, size_t len)
 	uint32_t v;
     int eq = 1, this_eq;
 	void *lv;
+	unsigned int off = 0;
+
 advance:
 	/*
 	 * Fetch a slice (64-bit word), iterating layers.  Note: sets
@@ -1334,6 +1336,7 @@ forward:
         /* TODO: Why we need the mfence here? */
         atomic_thread_fence(memory_order_seq_cst);
     } else {
+		assert(0);
         pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;  
     }
 
@@ -1349,12 +1352,20 @@ forward:
 
 	if (__predict_true(type == MTREE_VALUE)) {
 		ASSERT((slen & MTREE_LAYER) == 0);
+		if (actual_key != NULL) {
+			assert(off < len && off >= len - 8);
+			memcpy(actual_key + off, &leaf->keyslice[idx], len - off);
+		}
 		return lv;
 	}
 	if (__predict_true(type == MTREE_LAYER)) {
 		/* Advance the key and move to the next layer. */
 		ASSERT((slen & MTREE_LAYER) != 0);
 		root = lv;
+		if (actual_key != NULL) {
+			memcpy(actual_key + off, &leaf->keyslice[idx], 8);
+			off += 8;
+		}
 		goto advance;
 	}
     if (__predict_true(type == MTREE_GOPREV)) {

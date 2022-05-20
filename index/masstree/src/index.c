@@ -41,9 +41,9 @@ static int mass_remove(void* index_struct, const void *key, size_t len) {
     return 0;
 }
 
-static void* mass_lookup(void* index_struct, const void *key, size_t len) {
+static void* mass_lookup(void* index_struct, const void *key, size_t len, const void *actual_key) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    return masstree_get(tr, key, len);
+    return masstree_get(tr, key, len, actual_key);
 }
 
 static void* mass_lowerbound(void* index_struct, const void *key, size_t len) {
