@@ -29,7 +29,8 @@
 #define PNODE_INTERLEAVING_SIZE 128
 #endif
 
-#define PNODE_NUM_ENT_BLK       (PNODE_FANOUT * sizeof(pentry_t) / PNODE_INTERLEAVING_SIZE)
+#define PNODE_NUM_ENT_PER_BLK   (PNODE_INTERLEAVING_SIZE / sizeof(pentry_t))
+#define PNODE_NUM_ENT_BLK       (PNODE_FANOUT / PNODE_NUM_ENT_PER_BLK)
 #define PNODE_NUM_BLK           (PNODE_NUM_ENT_BLK + 1)
 
 #define NOT_FOUND               (-1u)
@@ -175,7 +176,7 @@ static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int d
 static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     struct data_layer *d_layer = DATA(bonsai);
 
-    unsigned blknr = i / PNODE_NUM_ENT_BLK + 1, blkoff = i % PNODE_NUM_ENT_BLK;
+    unsigned blknr = i / PNODE_NUM_ENT_PER_BLK + 1, blkoff = i % PNODE_NUM_ENT_PER_BLK;
     int my = get_numa_node(__this->t_cpu), node = pnode_numa_node(pno);
     int dimm_idx = pnode_permute(pno)[blknr];
     union pnoid_u pnoid = { .id = pno };
@@ -467,7 +468,7 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
 	return insert_cnt;
 }
 
-static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
+static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap, changemap = 0;
     pbatch_cursor_t cursor;
@@ -498,21 +499,21 @@ static void pnode_inplace_insert(pnoid_t pnode, struct list_head *pbatch_list) {
     validmap |= changemap;
     mno->validmap = validmap;
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
+
+    *start = *end = pnode;
 }
 
-static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
+static void pnode_prebuild(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
+
     pnoid_t head, tail, next, prev = PNOID_NULL;
     pentry_t ents[PNODE_FANOUT], *ent = ents;
-    shim_sync_pfence_t *pfences, *pfence;
     mnode_t *head_mno, *tail_mno, *mno;
     pentry_t merged[PNODE_FANOUT], *m;
     int node = pnode_numa_node(pnode);
     pbatch_cursor_t cursor;
     unsigned cnt, mcnt, i;
     pbatch_op_t *op;
-
-    pfence = pfences = malloc((tot / (PNODE_FANOUT / 2) + 1) * sizeof(*pfence));
 
     arr_init_from_pnode(ents, pnode, &cnt);
 
@@ -541,6 +542,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
         if (unlikely(prev == PNOID_NULL)) {
             head = tail;
             tail_mno->lfence = pnode_meta(pnode)->lfence;
+            *start = tail;
         } else {
             mno = pnode_meta(prev);
             tail_mno->lfence = mno->rfence = merged[0].k;
@@ -548,8 +550,6 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
             tail_mno->u.prev = prev;
             pnode_persist(prev, 0);
         }
-
-        *pfence++ = (shim_sync_pfence_t) { tail_mno->lfence, tail };
 
         prev = tail;
     }
@@ -559,7 +559,7 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
 
     persistent_barrier();
 
-    *pfence++ = (shim_sync_pfence_t) { tail_mno->rfence, PNOID_NULL };
+    *end = tail;
 
     head_mno = pnode_meta(head);
     mno = pnode_meta(pnode);
@@ -594,15 +594,12 @@ static shim_sync_pfence_t *pnode_prebuild(pnoid_t pnode, struct list_head *pbatc
 
     /* Delay free the original pnode. */
     delay_free_pnode(pnode);
-
-    return pfences;
 }
 
 void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
-    shim_sync_pfence_t nosmo_pfences[] = { { mno->lfence, pnode }, { mno->rfence, PNOID_NULL } };
-    shim_sync_pfence_t *pfences = nosmo_pfences;
     unsigned long validmap;
+    pnoid_t start, end;
     size_t tot;
 
     tot = pnode_run_nosmo(pnode, pbatch_list);
@@ -613,21 +610,25 @@ void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_l
 
     /* Inplace insert or prebuild? */
     if (tot <= PNODE_FANOUT) {
-        pnode_inplace_insert(pnode, pbatch_list);
+        pnode_inplace_insert(&start, &end, pnode, pbatch_list);
     } else {
-        pfences = pnode_prebuild(pnode, pbatch_list, tot);
+        pnode_prebuild(&start, &end, pnode, pbatch_list, tot);
     }
 
     /* Sync with shim layer. */
-    shim_sync(lst, pfences);
+    shim_sync(lst, start, end);
+}
 
-    if (pfences != nosmo_pfences) {
-        free(pfences);
-    }
+pnoid_t pnode_next(pnoid_t pnode) {
+    return pnode_meta(pnode)->next;
 }
 
 pkey_t pnode_get_lfence(pnoid_t pnode) {
     return pnode_meta(pnode)->lfence;
+}
+
+pkey_t pnode_get_rfence(pnoid_t pnode) {
+    return pnode_meta(pnode)->rfence;
 }
 
 void pnode_prefetch_meta(pnoid_t pnode) {

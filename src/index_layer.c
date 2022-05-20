@@ -22,11 +22,8 @@
 #include "ordo.h"
 #include "cpu.h"
 
-typedef uint32_t lp_t;
-
 #define INODE_FANOUT    16
 
-#define LP_PFENCE       (-1u)
 #define NOT_FOUND       (-1u)
 #define NULL_OFF        (-1u)
 
@@ -35,7 +32,8 @@ typedef struct inode {
     /* header, 6-8 words */
     uint16_t validmap;
     uint16_t flipmap;
-    uint32_t pfence;
+    uint16_t has_pfence;
+    uint16_t deleted;
 
     uint32_t next;
     pnoid_t  pno;
@@ -50,8 +48,8 @@ typedef struct inode {
     spinlock_t lock;
     seqcount_t seq;
 
-    /* packed log/pnode addresses, 8 words */
-    lp_t lps[INODE_FANOUT];
+    /* packed log addresses, 8 words */
+    logid_t logs[INODE_FANOUT];
 } inode_t;
 
 struct pptr {
@@ -157,14 +155,18 @@ retry:
 #define inode_prefetch(prefetcher, t) \
     inode_prefetch_(prefetcher, t, __UNIQUE_ID(prefetch_ptr))
 
-static inline inode_t *inode_seek(pkey_t key, int w) {
+static inline inode_t *inode_seek(pkey_t key, int w, pkey_t *actual_key) {
     struct index_layer *i_layer = INDEX(bonsai);
     inode_t *inode;
     pnoid_t pnode;
     void *pptr;
 
-    pptr = i_layer->lookup(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN);
+    pptr = i_layer->lookup(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN, actual_key ? actual_key->key : NULL);
     unpack_pptr(&inode, &pnode, pptr);
+
+    if (actual_key) {
+        *actual_key = str_to_pkey(*actual_key);
+    }
 
     if (w) {
         inode_prefetch(cache_prefetchw_high, inode);
@@ -185,10 +187,10 @@ static inline void inode_unlock(inode_t *inode) {
     spin_unlock(&inode->lock);
 }
 
-static inline int inode_crab_and_lock(inode_t **inode, pkey_t key) {
+static int inode_crab_and_lock(inode_t **inode, pkey_t key) {
     inode_t *target;
     inode_lock(*inode);
-    if (unlikely(!(*inode)->validmap)) {
+    if (unlikely((*inode)->deleted)) {
         /* It's deleted. */
         inode_unlock(*inode);
         return -EAGAIN;
@@ -196,6 +198,11 @@ static inline int inode_crab_and_lock(inode_t **inode, pkey_t key) {
     while (pkey_compare(key, (*inode)->fence) >= 0) {
         target = inode_off2ptr((*inode)->next);
         inode_lock(target);
+        /*
+         * Don't worry. @target must be still alive now, as deletion needs
+         * to lock both inode and its predecessor. We're holding the lock
+         * of @target's predecessor.
+         */
         inode_unlock(*inode);
         *inode = target;
     }
@@ -264,40 +271,33 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     pack_pptr(&pptr, inode, sentinel_pnoid);
     i_layer->insert(i_layer->index_struct, pkey_to_str(MIN_KEY).key, KEY_LEN, pptr);
 
-    inode->validmap = 1;
+    inode->validmap = 0;
     inode->flipmap = 0;
-    inode->pfence = 0;
+    /* MIN_KEY is the sentinel inode's pfence. */
+    inode->has_pfence = 1;
+    inode->deleted = 0;
 
     inode->next = NULL_OFF;
     inode->pno = sentinel_pnoid;
-
-    inode->fgprt[0] = pkey_get_signature(MIN_KEY);
 
     inode->fence = MAX_KEY;
 
     spin_lock_init(&inode->lock);
     seqcount_init(&inode->seq);
 
-    inode->lps[0] = LP_PFENCE;
-
     s_layer->head = inode;
 
-	printf("sentinel inode: %016lx\n", inode);
+	printf("sentinel inode: %016lx\n", (unsigned long) inode);
 
     return 0;
 }
 
-static inline pkey_t lp_get_key(lp_t lp, pnoid_t pno) {
-    if (lp == LP_PFENCE) {
-        return pnode_get_lfence(pno);
-    } else {
-        return oplog_get(lp)->o_kv.k;
-    }
+static inline pkey_t log_get_key(logid_t log, pnoid_t pno) {
+    return oplog_get(log)->o_kv.k;
 }
 
-static inline pval_t lp_get_val(lp_t lp) {
-    assert(lp != LP_PFENCE);
-    return oplog_get(lp)->o_kv.v;
+static inline pval_t log_get_val(logid_t log) {
+    return oplog_get(log)->o_kv.v;
 }
 
 static void set_flip(uint16_t *flipmap, log_state_t *lst, unsigned pos) {
@@ -328,48 +328,54 @@ static void inode_dump(inode_t *inode) {
            (unsigned long) inode, *(unsigned long *) inode->fence.key);
     for_each_set_bit(pos, &vmp, INODE_FANOUT) {
         printf("key[%u]=%lx (%u)\n",
-               pos, *(unsigned long *) lp_get_key(inode->lps[pos], inode->pno).key, inode->fgprt[pos]);
+               pos, *(unsigned long *) log_get_key(inode->logs[pos], inode->pno).key, inode->fgprt[pos]);
     }
 }
 
 /*
- * Move @inode's keys within range [cut, fence) to another newly created node. If
- * @cut is NULL, the median value will be chosen. @cut should be an existing key
- * in @inode. If @cut is the minimum key in @inode, the split will not happen, and
- * the return value is 0, otherwise 1. Note that @inode will not be unlocked, and
- * the sibling will be locked.
+ * Move @inode's keys within range [cut, fence) to another node N.
+ *
+ * [ Operation ]
+ *
+ * If @cut is NULL, the median value will be chosen. N will be either a newly created node,
+ * which is @inode's new successor, or the original @inode if @cut is lower or equal than all
+ * the keys in @inode. The return value could be used to distinguish between these two cases:
+ * 1 for the first case, and 0 for the second. Note that in the latter case, @inode_split does
+ * nothing.
+ *
+ * [ Locking ]
+ *
+ * If split happens (i.e. The return value is 1.), both @inode and @inode's successor will be
+ * locked.
  */
 static int inode_split(inode_t *inode, pkey_t *cut) {
     unsigned long validmap = inode->validmap, lmask = 0;
     struct lp_info lps[INODE_FANOUT], *lp;
     unsigned pos, cnt = 0;
     uint16_t lvmp, rvmp;
-    inode_t *right;
     pkey_t fence;
+    inode_t *n;
     void *pptr;
-    int cmp;
 
-    /* Collect all the lps. */
+    /* Collect all the logs. */
     for_each_set_bit(pos, &validmap, INODE_FANOUT) {
         lp = &lps[cnt++];
-        lp->key = lp_get_key(inode->lps[pos], inode->pno);
+        lp->key = log_get_key(inode->logs[pos], inode->pno);
         lp->pos = pos;
     }
 
-    /* Sort all lps. */
+    /* Sort all logs. */
     qsort(lps, cnt, sizeof(struct lp_info), lp_compare);
 
     /* Get new validmaps: @lvmp and @rvmp. */
     if (cut) {
         for (pos = 0; pos < cnt; pos++) {
             lp = &lps[pos];
-            if ((cmp = pkey_compare(lp->key, *cut)) >= 0) {
+            if (pkey_compare(lp->key, *cut) >= 0) {
                 break;
             }
             __set_bit(lp->pos, &lmask);
         }
-        /* @cut should be existing key, so the last compare must be equal. */
-        assert(!cmp);
         fence = *cut;
     } else {
         /* Use median. */
@@ -386,49 +392,44 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
         return 0;
     }
 
-    /* Alloc and init the right node. */
-    right = inode_alloc();
-    right->validmap = rvmp;
-    right->flipmap = inode->flipmap;
-    right->next = inode->next;
-    right->pno = inode->pno;
-    right->fence = inode->fence;
-    spin_lock_init(&right->lock);
-    seqcount_init(&right->seq);
-    memcpy(right->lps, inode->lps, sizeof(inode->lps));
-    memcpy(right->fgprt, inode->fgprt, sizeof(inode->fgprt));
-	inode_lock(right);
+    /* Alloc and init the n node. */
+    n = inode_alloc();
+    n->validmap = rvmp;
+    n->flipmap = inode->flipmap;
+    n->next = inode->next;
+    n->pno = inode->pno;
+    n->fence = inode->fence;
+    spin_lock_init(&n->lock);
+    seqcount_init(&n->seq);
+    memcpy(n->logs, inode->logs, sizeof(inode->logs));
+    memcpy(n->fgprt, inode->fgprt, sizeof(inode->fgprt));
+	inode_lock(n);
 
-    /* Set pfence. */
-    if (inode->pfence == NOT_FOUND || test_bit(inode->pfence, &lmask)) {
-        right->pfence = NOT_FOUND;
-    } else {
-        right->pfence = inode->pfence;
-        inode->pfence = NOT_FOUND;
-    }
+    /* Note that if an inode contains a pfence key, it should be the minimum key of the inode. */
+    n->has_pfence = 0;
 
-    /* Now update the left node. */
+    /* Now update @inode. */
     write_seqcount_begin(&inode->seq);
     inode->validmap = lvmp;
-    inode->next = inode_ptr2off(right);
+    inode->next = inode_ptr2off(n);
     inode->fence = fence;
     write_seqcount_end(&inode->seq);
 
     /* Insert into upper index. */
-    pack_pptr(&pptr, right, inode->pno);
+    pack_pptr(&pptr, n, inode->pno);
     smo_append(fence, pptr);
 
     return 1;
 }
 
-static unsigned inode_find_(lp_t *lp, inode_t *inode, pkey_t key, uint8_t *fgprt, uint32_t validmap) {
+static unsigned inode_find_(logid_t *log, inode_t *inode, pkey_t key, uint8_t *fgprt, uint32_t validmap) {
     __m128i x = _mm_set1_epi8((char) pkey_get_signature(key));
     __m128i y = _mm_load_si128((const __m128i *) fgprt);
     unsigned long cmp = _mm_movemask_epi8(_mm_cmpeq_epi8(x, y)) & validmap;
     unsigned pos;
     for_each_set_bit(pos, &cmp, INODE_FANOUT) {
-        *lp = ACCESS_ONCE(inode->lps[pos]);
-        if (likely(!pkey_compare(key, lp_get_key(*lp, inode->pno)))) {
+        *log = ACCESS_ONCE(inode->logs[pos]);
+        if (likely(!pkey_compare(key, log_get_key(*log, inode->pno)))) {
             return pos;
         }
     }
@@ -436,8 +437,8 @@ static unsigned inode_find_(lp_t *lp, inode_t *inode, pkey_t key, uint8_t *fgprt
 }
 
 static inline unsigned inode_find(inode_t *inode, pkey_t key) {
-    lp_t lp;
-    return inode_find_(&lp, inode, key, inode->fgprt, inode->validmap);
+    logid_t log;
+    return inode_find_(&log, inode, key, inode->fgprt, inode->validmap);
 }
 
 /* Insert/update a log key. */
@@ -448,7 +449,7 @@ int shim_upsert(log_state_t *lst, pkey_t key, logid_t log) {
     int ret;
 
 relookup:
-    inode = inode_seek(key, 1);
+    inode = inode_seek(key, 1, NULL);
 
     ret = inode_crab_and_lock(&inode, key);
     if (unlikely(ret == -EAGAIN)) {
@@ -482,7 +483,7 @@ relookup:
     }
 
     set_flip(&inode->flipmap, lst, pos);
-    inode->lps[pos] = log;
+    inode->logs[pos] = log;
 	inode->fgprt[pos] = pkey_get_signature(key);
     barrier();
 
@@ -510,11 +511,11 @@ int shim_lookup(pkey_t key, pval_t *val) {
     unsigned int seq;
     pnoid_t pnode;
     unsigned pos;
+    logid_t log;
     pkey_t max;
-    lp_t lp;
     int ret;
 
-    inode = inode_seek(key, 0);
+    inode = inode_seek(key, 0, NULL);
 
 retry:
     seq = read_seqcount_begin(&inode->seq);
@@ -534,11 +535,11 @@ retry:
     validmap = ACCESS_ONCE(inode->validmap);
     fgprt_copy(fgprt, inode->fgprt);
 
-    pos = inode_find_(&lp, inode, key, fgprt, validmap);
+    pos = inode_find_(&log, inode, key, fgprt, validmap);
 
-    if (pos != NOT_FOUND && lp != LP_PFENCE) {
+    if (pos != NOT_FOUND) {
         /* Value in log. */
-        *val = lp_get_val(lp);
+        *val = log_get_val(log);
 
         ret = 0;
         goto done;
@@ -562,35 +563,55 @@ done:
 }
 
 pnoid_t shim_pnode_of(pkey_t key) {
-    return inode_seek(key, 0)->pno;
+    return inode_seek(key, 0, NULL)->pno;
 }
 
-static inline int inode_remove_old(log_state_t *lst, inode_t *prev, inode_t *inode, pkey_t fence) {
+static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pnoid_t pno, pkey_t lbound) {
+    void *pptr;
+
+    /* update pno */
+    inode->pno = pno;
+    pack_pptr(&pptr, inode, pno);
+    smo_append(prev ? prev->fence : lbound, pptr);
+
+    /* update pfence */
+    if (prev && prev->pno == pno) {
+        /* @inode is not the leader. It shouldn't have pfence. */
+        assert(!inode->has_pfence);
+        return;
+    }
+    inode->has_pfence = 1;
+}
+
+static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
     struct index_layer *i_layer = INDEX(bonsai);
     unsigned long validmap;
 
-    /* Remove unused. */
+    /* Remove entries that belongs to the previous flip. */
     validmap = inode->validmap & (inode->flipmap ^ (lst->flip ? 0 : -1u));
-    /* Do not delete pfence! */
-    if (inode->pfence != NOT_FOUND) {
-        /* The log item should be removed, but not the valid bit. */
-        inode->lps[inode->pfence] = LP_PFENCE;
-        __set_bit(inode->pfence, &validmap);
-    }
 
-    barrier();
     inode->validmap = validmap;
+    barrier();
 
-    if (!validmap) {
-        /* If @inode is empty, ready to free it. */
+    /* If no logs and pfence inside @inode, free it. */
+    if (unlikely(!validmap && !inode->has_pfence)) {
+        /*
+         * Note that @prev won't be NULL here. The first @inode to sync
+         * should be definitely a leading inode, which has pfence, and
+         * won't be deleted.
+         */
+        pkey_t old_fence = prev->fence;
+
+        inode->deleted = 1;
+
         write_seqcount_begin(&prev->seq);
         prev->next = inode->next;
         prev->fence = inode->fence;
         write_seqcount_end(&prev->seq);
 
-        i_layer->remove(i_layer->index_struct, pkey_to_str(fence).key, KEY_LEN);
+        i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
 
-        call_rcu(RCU(bonsai), free, inode);
+        call_rcu(RCU(bonsai), (rcu_cb_t) inode_free, inode);
 
         return -ENOENT;
     }
@@ -598,14 +619,7 @@ static inline int inode_remove_old(log_state_t *lst, inode_t *prev, inode_t *ino
     return 0;
 }
 
-static inline void inode_update_pno(inode_t *inode, pkey_t fence, pnoid_t pno) {
-    void *pptr;
-    inode->pno = pno;
-    pack_pptr(&pptr, inode, pno);
-    smo_append(fence, pptr);
-}
-
-static inline void inode_forward(inode_t **prev, inode_t **inode, int lock_next) {
+static inline void sync_moveon(inode_t **prev, inode_t **inode, int lock_next) {
     inode_t *next = inode_off2ptr((*inode)->next);
     if (lock_next && next) {
         inode_lock(next);
@@ -617,66 +631,64 @@ static inline void inode_forward(inode_t **prev, inode_t **inode, int lock_next)
     *inode = next;
 }
 
-int shim_sync(log_state_t *lst, shim_sync_pfence_t *pfences) {
-    shim_sync_pfence_t *p = pfences - 1;
+/* If you can make sure that the whole @inode is under @pno, you can call @sync_inode. */
+static void sync_inode(log_state_t *lst, inode_t *prev, inode_t *inode, pnoid_t pno, pkey_t lbound) {
+    /* Sync the pno pointer inside inode, and the index layer. And pfence. */
+    sync_inode_pno(prev, inode, pno, lbound);
+    /* Cleanup old log entries inside @inode. */
+    sync_inode_logs(lst, prev, inode);
+}
+
+int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end) {
     inode_t *inode, *prev = NULL;
-    pkey_t fence;
-    unsigned pos;
+    pnoid_t pno = PNOID_NULL;
+    pkey_t lbound, rfence;
     int ret;
 
-relookup:
-    inode = inode_seek(pfences->pfence, 1);
+    /* View it as the rfence of @start's predecessor. */
+    rfence = pnode_get_lfence(start);
 
-    ret = inode_crab_and_lock(&inode, pfences->pfence);
+relookup:
+    inode = inode_seek(rfence, 1, &lbound);
+
+    ret = inode_crab_and_lock(&inode, rfence);
     if (unlikely(ret == -EAGAIN)) {
         /* The inode has been deleted. */
         goto relookup;
     }
 
     while (inode) {
-        if (pkey_compare(p[1].pfence, inode->fence) < 0) {
-            pos = inode_find(inode, p[1].pfence);
-			if (pos == NOT_FOUND) {
-				print_key(p[1].pfence);
-				inode_dump(inode);
-				assert(0);
-			}
-
-            if (pos == inode->pfence) {
-                /* Obviously the minimum key, no need to split. */
+        if (pkey_compare(rfence, inode->fence) < 0) {
+            /*
+             * Now our rfence lies somewhere inside inode. We try to split
+             * the @inode using rfence as the cut.
+             */
+            if (unlikely(!inode_split(inode, &rfence))) {
+                /* Leftmost cut, no split. */
                 goto no_split;
             }
 
-            if (unlikely(!inode_split(inode, &p[1].pfence))) {
-                /* Still the minimum key... */
-                goto no_split;
+            /*
+             * After split, the remain @inode contains keys that are strictly
+             * smaller than rfence. We can sync it.
+             */
+            if (likely(pno != PNOID_NULL)) {
+                sync_inode(lst, prev, inode, pno, lbound);
             }
 
-            if (likely(p >= pfences)) {
-                /* Not the initial split. */
-                if (!inode_remove_old(lst, prev, inode, fence)) {
-                    inode_update_pno(inode, fence, p->pno);
-                }
-            }
-
-            inode_forward(&prev, &inode, 0);
+            sync_moveon(&prev, &inode, 0);
 
 no_split:
-            fence = p[1].pfence;
-
-            inode->pfence = pos;
-
-            if ((++p)->pno == PNOID_NULL) {
+            if (pno == end) {
                 break;
             }
+            pno = pno == PNOID_NULL ? start : pnode_next(pno);
+            rfence = pnode_get_rfence(pno);
         } else {
-            if (!inode_remove_old(lst, prev, inode, fence)) {
-                inode_update_pno(inode, fence, p->pno);
-            }
+            /* Oh, rfence >= lbound. The whole inode is under @pno. */
+            sync_inode(lst, prev, inode, pno, lbound);
 
-            fence = inode->fence;
-
-            inode_forward(&prev, &inode, 1);
+            sync_moveon(&prev, &inode, 1);
         }
     }
 

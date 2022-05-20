@@ -116,6 +116,17 @@ static inline pkey_t pkey_to_str(pkey_t k) {
     return k;
 }
 
+static inline pkey_t str_to_pkey(pkey_t k) {
+#ifndef STR_KEY
+#if KEY_LEN != 8
+#error "Unsupported key length!"
+#endif
+    unsigned long *p = (unsigned long *) k.key;
+    *p = __builtin_bswap64(*p);
+#endif
+    return k;
+}
+
 static inline pkey_t pkey_prev(pkey_t k) {
 #ifdef STR_KEY
 #if KEY_LEN != 24

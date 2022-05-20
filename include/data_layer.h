@@ -172,7 +172,9 @@ pnoid_t pnode_sentinel_init();
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
 void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list);
 
+pnoid_t pnode_next(pnoid_t pnode);
 pkey_t pnode_get_lfence(pnoid_t pnode);
+pkey_t pnode_get_rfence(pnoid_t pnode);
 void pnode_prefetch_meta(pnoid_t pnode);
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
 int is_in_pnode(pnoid_t pnode, pkey_t key);

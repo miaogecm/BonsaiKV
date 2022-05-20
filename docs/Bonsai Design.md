@@ -23,7 +23,7 @@ struct shim_leaf {
     uint32_t bitmap;
     uint8_t fgprt[12];
     
-    struct oplog *lps[12];
+    struct oplog *logs[12];
     struct pnode *pnode;
     
     spinlock_t lock;

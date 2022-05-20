@@ -11,7 +11,7 @@ extern "C" {
 //#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
 #define INODE_POOL_SIZE                         (1 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
 #define INODE_SIZE								(2 * 64)
-#define TOTAL_INODE								INODE_POOL_SIZE / INODE_SIZE
+#define TOTAL_INODE								(INODE_POOL_SIZE / INODE_SIZE)
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
@@ -20,7 +20,7 @@ typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
-typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
+typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len, const void *actual_key);
 typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 
 struct index_layer {
@@ -34,11 +34,6 @@ struct index_layer {
 
 	destory_func_t destory;
 };
-
-typedef struct {
-    pkey_t  pfence;
-    pnoid_t pno;
-} shim_sync_pfence_t;
 
 struct inode;
 
@@ -65,7 +60,7 @@ struct shim_layer {
 int shim_sentinel_init(pnoid_t sentinel_pnoid);
 int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);
-int shim_sync(log_state_t *lst, shim_sync_pfence_t *pfences);
+int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end);
 pnoid_t shim_pnode_of(pkey_t key);
 
 void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init,
