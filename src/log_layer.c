@@ -855,14 +855,12 @@ static int flush_work(void *arg) {
     struct pflush_work_desc *desc = arg;
     struct flush_workset *ws = desc->workset;
     struct flush_load *load = &ws->per_worker_loads[desc->wid];
+    log_state_t *lst = &LOG(bonsai)->lst;
     struct cluster *c, *tmp;
-    log_state_t lst;
 
     list_for_each_entry_safe(c, tmp, &load->cluster, list) {
-        oplog_snapshot_lst(&lst);
-
         // pbatch_list_dump(&c->pbatch_list);
-        pnode_run_batch(&lst, c->pnode, &c->pbatch_list);
+        pnode_run_batch(lst, c->pnode, &c->pbatch_list);
         // pbatch_list_dump(&c->pbatch_list);
 
         pbatch_list_destroy(&c->pbatch_list);
