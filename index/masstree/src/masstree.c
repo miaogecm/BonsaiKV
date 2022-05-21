@@ -1336,8 +1336,7 @@ forward:
         /* TODO: Why we need the mfence here? */
         atomic_thread_fence(memory_order_seq_cst);
     } else {
-		assert(0);
-        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;  
+        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
     }
 
 	/* Check that the version has not changed. */

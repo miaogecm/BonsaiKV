@@ -183,7 +183,7 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     unsigned epoch, *e, old_e;
     pentry_t *local, *ent;
 
-    ent = pnode_dimm_addr(pno, dimm_idx) + blkoff;
+    ent = (pentry_t *) pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
     if (node == my) {
         /* What a good day! */
@@ -295,6 +295,19 @@ static void pnode_copy(pnoid_t dst, pnoid_t src) {
     }
 }
 
+static void pnode_verify(pnoid_t pnode) {
+    mnode_t *mno = pnode_meta(pnode);
+    unsigned long vmp = mno->validmap;
+    pentry_t *ent;
+    unsigned pos;
+    for_each_set_bit(pos, &vmp, PNODE_FANOUT) {
+        ent = pnode_ent(pnode, pos);
+        printf("gotcha %lx %u %lu\n", ent, pnode, *(unsigned long *) ent->k.key);
+        assert(pkey_compare(ent->k, mno->lfence) >= 0);
+        assert(pkey_compare(ent->k, mno->rfence) < 0);
+    }
+}
+
 /*
  * SR operation
  *
@@ -309,7 +322,6 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     pentry_t ents[PNODE_FANOUT], *ent;
     mnode_t *mno, *lmno, *rmno;
     unsigned pos, cnt = 0;
-    int cmp;
 
     /* Recolor only. */
     if (!sibling) {
@@ -324,7 +336,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     /* Find split position. */
     for (pos = 0; pos < cnt; pos++) {
         ent = &ents[pos];
-        if ((cmp = pkey_compare(ent->k, *cut)) >= 0) {
+        if (pkey_compare(ent->k, *cut) >= 0) {
             break;
         }
     }

@@ -49,7 +49,7 @@ extern void *		masstree_gc_prepare(masstree_t *);
 extern void			masstree_gc(masstree_t *, void *);
 extern size_t		masstree_maxheight(void);
 
-extern void *		masstree_get(masstree_t *, const void *, size_t);
+extern void *		masstree_get(masstree_t *, const void *, size_t, const void *);
 extern bool			masstree_put(masstree_t *, const void *, size_t, void *);
 extern bool			masstree_del(masstree_t *, const void *, size_t);
 

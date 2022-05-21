@@ -206,7 +206,7 @@ static void do_op(long id) {
                     //     abort();
                     // }
                 } else {
-                    v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8);
+                    v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;

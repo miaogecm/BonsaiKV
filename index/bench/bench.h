@@ -49,7 +49,7 @@ typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*update_func_t)(void* index_struct, const void *key, size_t len, const void* value);
 typedef int (*remove_func_t)(void* index_struct, const void *key, size_t len);
-typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len);
+typedef void* (*lookup_func_t)(void* index_struct, const void *key, size_t len, const void *actual_key);
 typedef int (*scan_func_t)(void* index_struct, const void *low, const void *high);
 
 int bench(char* index_name, init_func_t init, destory_func_t destory,

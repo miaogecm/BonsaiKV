@@ -180,7 +180,7 @@ restart_no_load:
         		}
         		if (w->next == NULL) {
           			/* No: get value from memory */
-                value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN);
+                value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN, NULL);
           			//value = ATOMIC_LOAD(addr);
           			break;
         		}
@@ -198,7 +198,7 @@ restart_no_load:
 		
 		  /* load the value from memory */
     	//value = ATOMIC_LOAD_ACQ(addr);
-      value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN);
+      value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN, NULL);
 		  /* load the lock again */
     	l2 = ATOMIC_LOAD_ACQ(lock);
     	if (unlikely(l != l2)) {

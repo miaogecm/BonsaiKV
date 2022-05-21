@@ -349,6 +349,8 @@ static void inode_dump(inode_t *inode) {
  * locked.
  */
 static int inode_split(inode_t *inode, pkey_t *cut) {
+    struct index_layer *i_layer = INDEX(bonsai);
+
     unsigned long validmap = inode->validmap, lmask = 0;
     struct lp_info lps[INODE_FANOUT], *lp;
     unsigned pos, cnt = 0;
@@ -399,6 +401,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
     n->next = inode->next;
     n->pno = inode->pno;
     n->fence = inode->fence;
+    n->deleted = 0;
     spin_lock_init(&n->lock);
     seqcount_init(&n->seq);
     memcpy(n->logs, inode->logs, sizeof(inode->logs));
@@ -417,7 +420,7 @@ static int inode_split(inode_t *inode, pkey_t *cut) {
 
     /* Insert into upper index. */
     pack_pptr(&pptr, n, inode->pno);
-    smo_append(fence, pptr);
+    i_layer->insert(i_layer->index_struct, pkey_to_str(fence).key, KEY_LEN, pptr);
 
     return 1;
 }
@@ -567,12 +570,13 @@ pnoid_t shim_pnode_of(pkey_t key) {
 }
 
 static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pnoid_t pno, pkey_t lbound) {
+    struct index_layer *i_layer = INDEX(bonsai);
     void *pptr;
 
     /* update pno */
     inode->pno = pno;
     pack_pptr(&pptr, inode, pno);
-    smo_append(prev ? prev->fence : lbound, pptr);
+    i_layer->insert(i_layer->index_struct, pkey_to_str(prev ? prev->fence : lbound).key, KEY_LEN, pptr);
 
     /* update pfence */
     if (prev && prev->pno == pno) {
@@ -685,7 +689,7 @@ no_split:
             pno = pno == PNOID_NULL ? start : pnode_next(pno);
             rfence = pnode_get_rfence(pno);
         } else {
-            /* Oh, rfence >= lbound. The whole inode is under @pno. */
+            /* Oh, rfence >= ifence. The whole inode is under @pno. */
             sync_inode(lst, prev, inode, pno, lbound);
 
             sync_moveon(&prev, &inode, 1);
