@@ -1354,7 +1354,9 @@ forward:
 		ASSERT((slen & MTREE_LAYER) == 0);
 		if (actual_key != NULL) {
 			assert(off < len && off >= len - 8);
-			memcpy(actual_key + off, &leaf->keyslice[idx], len - off);
+			skey = leaf->keyslice[idx];
+			skey = htobe64(skey);
+			memcpy(actual_key + off, &skey, len - off);
 		}
 		return lv;
 	}
@@ -1363,7 +1365,9 @@ forward:
 		ASSERT((slen & MTREE_LAYER) != 0);
 		root = lv;
 		if (actual_key != NULL) {
-			memcpy(actual_key + off, &leaf->keyslice[idx], 8);
+			skey = leaf->keyslice[idx];
+			skey = htobe64(skey);
+			memcpy(actual_key + off, &skey, 8);
 			off += 8;
 		}
 		goto advance;
