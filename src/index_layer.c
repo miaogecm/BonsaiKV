@@ -560,7 +560,6 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
     /* update pno */
     inode->pno = pno;
     pack_pptr(&pptr, inode, pno);
-    //printf("Insert %lx with %lx\n", inode, *(unsigned long *) ilfence.key);
     i_layer->insert(i_layer->index_struct, pkey_to_str(ilfence).key, KEY_LEN, pptr);
 
     /* update pfence */
@@ -599,7 +598,6 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
         prev->fence = inode->fence;
         write_seqcount_end(&prev->seq);
 
-        printf("Deleted %lx with %lx\n", inode, *(unsigned long *) old_fence.key);
         ret = i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
         assert(!ret);
 
@@ -616,10 +614,14 @@ static inline void sync_moveon(inode_t **prev, inode_t **inode, int lock_next) {
     if (lock_next && next) {
         inode_lock(next);
     }
-    if (likely(*prev)) {
-        inode_unlock(*prev);
+    if (!(*inode)->deleted) {
+        if (likely(*prev)) {
+            inode_unlock(*prev);
+        }
+        *prev = *inode;
+    } else {
+        assert(*prev && (*prev)->next == (*inode)->next);
     }
-    *prev = *inode;
     *inode = next;
 }
 
