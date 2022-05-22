@@ -560,6 +560,7 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
     /* update pno */
     inode->pno = pno;
     pack_pptr(&pptr, inode, pno);
+    //printf("Insert %lx with %lx\n", inode, *(unsigned long *) ilfence.key);
     i_layer->insert(i_layer->index_struct, pkey_to_str(ilfence).key, KEY_LEN, pptr);
 
     /* update pfence */
@@ -574,6 +575,7 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
 static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
     struct index_layer *i_layer = INDEX(bonsai);
     unsigned long validmap;
+    int ret;
 
     /* Remove entries that belongs to the previous flip. */
     validmap = inode->validmap & (inode->flipmap ^ (lst->flip ? 0 : -1u));
@@ -597,7 +599,9 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
         prev->fence = inode->fence;
         write_seqcount_end(&prev->seq);
 
-        i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
+        printf("Deleted %lx with %lx\n", inode, *(unsigned long *) old_fence.key);
+        ret = i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
+        assert(!ret);
 
         call_rcu(RCU(bonsai), (rcu_cb_t) inode_free, inode);
 

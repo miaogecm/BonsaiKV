@@ -36,9 +36,7 @@ static int mass_update(void* index_struct, const void *key, size_t len, const vo
 
 static int mass_remove(void* index_struct, const void *key, size_t len) {
     masstree_t* tr = (masstree_t*) (index_struct);
-    masstree_del(tr, key, len);
-
-    return 0;
+    return masstree_del(tr, key, len) ? 0 : -ENOENT;
 }
 
 static void* mass_lookup(void* index_struct, const void *key, size_t len, const void *actual_key) {

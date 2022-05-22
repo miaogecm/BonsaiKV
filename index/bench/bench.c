@@ -54,6 +54,9 @@ extern void bonsai_deinit();
 extern void bonsai_mark_cpu(int cpu);
 extern void bonsai_barrier();
 
+extern void bonsai_online();
+extern void bonsai_offline();
+
 extern pkey_t bonsai_make_key(const void *key, size_t len);
 
 extern int bonsai_insert(pkey_t key, pval_t value);
@@ -238,13 +241,7 @@ static void do_op(long id) {
 
 	printf("user thread[%ld]---------------------end---------------------\n", id);
 
-    if (in_bonsai) {
-        bonsai_user_thread_exit();
-    }
-
 	free(val_arr);
-
-	printf("user thread[%ld] exit\n", id);
 #endif
 }
 
@@ -273,7 +270,9 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
+    bonsai_online();
     do_load(id);
+    bonsai_offline();
 
     pthread_barrier_wait(&barrier);
 
@@ -281,13 +280,21 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
+    bonsai_online();
     do_op(id);
+    bonsai_offline();
 
     pthread_barrier_wait(&barrier);
 
     do_barrier(id);
 
     pthread_barrier_wait(&barrier);
+
+    if (in_bonsai) {
+        bonsai_user_thread_exit();
+    }
+
+	printf("user thread[%ld] exit\n", id);
 
 	return NULL;
 }

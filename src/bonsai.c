@@ -44,6 +44,14 @@ void bonsai_mark_cpu(int cpu) {
     mark_cpu(cpu);
 }
 
+void bonsai_online() {
+	rcu_thread_online(RCU(bonsai));
+}
+
+void bonsai_offline() {
+    rcu_thread_offline(RCU(bonsai));
+}
+
 int bonsai_insert(pkey_t key, pval_t value) {
   	log_state_t snap;
   	logid_t log;

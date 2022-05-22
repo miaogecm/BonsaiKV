@@ -364,9 +364,8 @@ int bonsai_user_thread_init(pthread_t tid) {
 	bonsai->tids[thread->t_id] = tid;
 	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - NUM_SMO_THREAD - 1] = thread;
 
-	/* quiescent state based reclamation */
+	/* quiescent state based RCU */
 	fb_set_tid(thread->t_id);
-	rcu_thread_online(RCU(bonsai));
 
 	__this = thread;
 
@@ -383,8 +382,6 @@ void bonsai_user_thread_exit() {
 	spin_unlock(&bonsai->list_lock);
 
 	stm_exit_thread(thread->t_stm);
-	
-	rcu_thread_offline(RCU(bonsai));
 
 	free(thread);
 }
