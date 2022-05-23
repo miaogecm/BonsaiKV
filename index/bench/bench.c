@@ -79,9 +79,10 @@ hashmap* map;
 
 static void map_load()  {
     int i;
-    pkey_t *__key = malloc(sizeof(pkey_t));
+    pkey_t* __key;
 
     for (i = 0; i < N; i ++) {
+        __key = malloc(sizeof(pkey_t));
 #ifdef LONG_KEY
         *__key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
 #else
@@ -94,7 +95,7 @@ static void map_load()  {
 static void map_lookup_check(pkey_t k, pval_t exc_v) {
 #ifdef USE_MAP
     pval_t v = 0;
-    hashmap_get(map, &k, KEY_LEN, &v);
+    assert(hashmap_get(map, &k, KEY_LEN, &v));
     assert(exc_v == v);
 #endif
 }
@@ -180,7 +181,7 @@ static void do_op(long id) {
 	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
     double interval;
 	long i, repeat = 1;
-    int st, ed, opcode, ret;
+    int st, ed, opcode;
     pkey_t __key, __key2;
     int ret;
 
