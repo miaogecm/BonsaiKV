@@ -147,6 +147,7 @@ typedef struct {
 struct mtree_inode {
 	uint32_t	version;
 	uint8_t		nkeys;
+	uint64_t	lfence;
 	uint64_t	keyslice[NODE_MAX];
 	mtree_node_t *	child[NODE_MAX + 1];
 	mtree_inode_t *	parent;
@@ -158,6 +159,7 @@ struct mtree_leaf {
 	uint16_t	removed;
 	uint8_t		keyinfo[NODE_MAX];
 	uint64_t	permutation;
+	uint64_t	lfence;
 	uint64_t	keyslice[NODE_MAX];
 	void *		lv[NODE_MAX];
 	mtree_leaf_t *	next;
@@ -450,8 +452,9 @@ static bool
 key_geq(const mtree_leaf_t *leaf, uint64_t key, unsigned len)
 {
 	const uint64_t perm = leaf->permutation;
-	const unsigned idx = PERM_KEYIDX(perm, 0);
-	const uint64_t slice = leaf->keyslice[idx];
+	// const unsigned idx = PERM_KEYIDX(perm, 0);
+	// const uint64_t slice = leaf->keyslice[idx];
+	const uint64_t slice = leaf->lfence;
 	//const unsigned slen = KEY_LLEN(leaf->keyinfo[idx]);
 	//const bool empty = PERM_NKEYS(perm) == 0;
 	(void)len;
@@ -802,6 +805,8 @@ split_inter_node(masstree_t *tree, mtree_node_t *parent, uint64_t ckey,
 	 * will be removed and passed the upper level as a middle key.
 	 */
 	memcpy(rnode->keyslice, &lnode->keyslice[s], c * sizeof(uint64_t));
+	rnode->lfence = rnode->keyslice[0];
+
 	for (unsigned i = 0; i <= c; i++) {
 		rnode->child[i] = lnode->child[s + i];
 		node_set_parent(rnode->child[i], rnode);
@@ -871,6 +876,7 @@ split_leaf_node(masstree_t *tree, mtree_node_t *node,
 	nleaf->permutation = PERM_SEQUENTIAL | (NODE_MAX - NODE_PIVOT);
 	atomic_thread_fence(memory_order_seq_cst);
 	nkey = nleaf->keyslice[0];
+	nleaf->lfence = nkey;
 
 	/*
 	 * Notes on updating the list pointers:
@@ -931,6 +937,8 @@ ascend:
 		/* Initialise, set two children and the middle key. */
 		pnode->version = NODE_LOCKED | NODE_INSERTING | NODE_ISROOT;
 		pnode->keyslice[0] = nkey;
+		pnode->lfence = nkey;
+		
 		pnode->child[0] = node;
 		pnode->child[1] = nnode;
 		pnode->nkeys = 1;
@@ -1336,7 +1344,9 @@ forward:
         /* TODO: Why we need the mfence here? */
         atomic_thread_fence(memory_order_seq_cst);
     } else {
-        pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
+        // pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
+		pkey = leaf->lfence - 1;
+		// printf("%lu\n", pkey);
     }
 
 	/* Check that the version has not changed. */
@@ -1374,8 +1384,10 @@ forward:
     if (__predict_true(type == MTREE_GOPREV)) {
         ASSERT(!eq);
         skey = pkey;
-		leaf = leaf->prev;
-        goto forward;
+		assert(pkey == leaf->lfence - 1);
+		// printf("goto prev: %lu\n", pkey);
+		// leaf = leaf->prev;
+        goto retry;
     }
 	if (__predict_true(type == MTREE_NOTFOUND)) {
 		assert(0);
@@ -1630,6 +1642,8 @@ masstree_create(const masstree_ops_t *ops)
 	root = (mtree_node_t *)&tree->initleaf;
 	root->version = NODE_ISROOT | NODE_ISBORDER;
 	tree->root = root;
+
+	tree->initleaf.lfence = 0;
 
 	atomic_thread_fence(memory_order_seq_cst);
 	return tree;
