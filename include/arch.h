@@ -137,48 +137,55 @@ static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
     }
 }
 
-/* FIXME: if we force to persist LCB during log checkpoint, data in LCB can not always cache line aligned */
+/*
+ * Code taken from:
+ * https://github.com/twitter-archive/bittern/blob/master/bittern-cache/src/bittern_cache_kmod/memcpy_nt.c
+ */
 static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
-	size_t i;
-	//long long t1, t2, t3, t4;
+	int i;
+	long long t1, t2, t3, t4;
 	unsigned char *from, *to;
-	
-    //assert(len % CACHELINE_SIZE == 0);
+	size_t remain = len & (CACHELINE_SIZE - 1);
 
 	from = src;
 	to = dst;
 	i = len / CACHELINE_SIZE;
 
-    while (i--) {
-		/*
-        __asm__ __volatile__("  mov (%4), %0\n"
-                             "  mov 8(%4), %1\n"
-                             "  mov 16(%4), %2\n"
-                             "  mov 24(%4), %3\n"
-                             "  movnti %0, (%5)\n"
-                             "  movnti %1, 8(%5)\n"
-                             "  movnti %2, 16(%5)\n"
-                             "  movnti %3, 24(%5)\n"
-                             "  mov 32(%4), %0\n"
-                             "  mov 40(%4), %1\n"
-                             "  mov 48(%4), %2\n"
-                             "  mov 56(%4), %3\n"
-                             "  movnti %0, 32(%5)\n"
-                             "  movnti %1, 40(%5)\n"
-                             "  movnti %2, 48(%5)\n"
-                             "  movnti %3, 56(%5)\n":"=r"(t1), "=r"(t2),
-                             "	=r"(t3), "=r"(t4)
-                             : "r"(from), "r"(to)
-                             : "memory");
+	for (; i > 0; i--) {
+		__asm__ __volatile__("  mov (%4), %0\n"
+				     "  mov 8(%4), %1\n"
+				     "  mov 16(%4), %2\n"
+				     "  mov 24(%4), %3\n"
+				     "  movnti %0, (%5)\n"
+				     "  movnti %1, 8(%5)\n"
+				     "  movnti %2, 16(%5)\n"
+				     "  movnti %3, 24(%5)\n"
+				     "  mov 32(%4), %0\n"
+				     "  mov 40(%4), %1\n"
+				     "  mov 48(%4), %2\n"
+				     "  mov 56(%4), %3\n"
+				     "  movnti %0, 32(%5)\n"
+				     "  movnti %1, 40(%5)\n"
+				     "  movnti %2, 48(%5)\n"
+				     "  movnti %3, 56(%5)\n":"=r"(t1), "=r"(t2),
+				     "=r"(t3), "=r"(t4)
+				     : "r"(from), "r"(to)
+				     : "memory");
 
-		*/
-		memcpy(dst, src, len);
 		from += CACHELINE_SIZE;
 		to += CACHELINE_SIZE;
 	}
 
+	/*
+	 * Now do the tail of the block:
+	 */
+	if (remain) {
+		memcpy(to, from, remain);
+		bonsai_flush(to, remain, 0);
+	}
+
     if (fence) {
-        memory_sfence();
+        persistent_barrier();
     }
 }
 
