@@ -30,9 +30,9 @@ extern "C" {
 
 #endif
 
-typedef struct {
-    char key[KEY_LEN];
-} pkey_t;
+// typedef struct {
+//     char key[KEY_LEN];
+// } pkey_t;
 
 typedef uint64_t 	pval_t;
 

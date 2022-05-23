@@ -20,6 +20,10 @@
 #include <string.h>
 #include <sys/time.h>
 
+#define USE_MAP
+#include "map.c"
+#include "spinlock.h"
+
 #include "bench.h"
 
 #include "../data/kvdata.h"
@@ -70,6 +74,30 @@ extern void bonsai_user_thread_exit();
 pthread_t tids[NUM_THREAD];
 
 int in_bonsai;
+
+hashmap* map;
+
+static void map_load()  {
+    int i;
+    pkey_t __key;
+
+    for (i = 0; i < N; i ++) {
+#ifdef LONG_KEY
+        __key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
+#else
+        __key = INT2KEY(load_arr[i][0]);
+#endif
+        hashmap_set(map, &__key, KEY_LEN, load_arr[i][1]);
+    }
+}
+
+static void map_lookup_check(pkey_t k, pval_t exc_v) {
+#ifdef USE_MAP
+    pval_t v = 0;
+    hashmap_get(map, &k, KEY_LEN, &v);
+    assert(exc_v == v);
+#endif
+}
 
 static inline int get_cpu() {
 	cpu_set_t mask;
@@ -139,25 +167,11 @@ static void do_load(long id) {
             } else {
                 ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
-            // assert(ret == 0);
+            assert(ret == 0);
         }
     }
     interval = end_measure();
     printf("user thread[%ld] load finished in %.3lf seconds\n", id, interval);
-
-    // char c[] = "1234567a";
-    // for (i = 0; i < 10; i++) {
-    //     c[7] += i;
-    //     bonsai_insert(c, sizeof(c), i);
-    // }
-
-    // char cc[] = "1234567a";
-    // for (i = 0; i < 10; i++) {
-    //     cc[7] += i;
-    //     pval_t v;
-    //     bonsai_lookup(cc, sizeof(cc), &v);
-    //     printf("%lu\n", v);
-    // }
 }
 
 static void do_op(long id) {
@@ -168,6 +182,7 @@ static void do_op(long id) {
 	long i, repeat = 1;
     int st, ed, opcode;
     pkey_t __key, __key2;
+    int ret;
 
     st = 1.0 * id / NUM_THREAD * N + 1;
     ed = 1.0 * (id + 1) / NUM_THREAD * N;
@@ -190,11 +205,12 @@ static void do_op(long id) {
 #else
                     __key = INT2KEY(op_arr[i][1]);
 #endif
-                    bonsai_insert(__key, op_arr[i][2]);
+                    ret = bonsai_insert(__key, op_arr[i][2]);
 					
                 } else {
-                    fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
+                    ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
+                assert(ret == 0);
                 break;
             case 2:
                 if (in_bonsai) {
@@ -203,11 +219,9 @@ static void do_op(long id) {
 #else
                     __key = INT2KEY(op_arr[i][1]);
 #endif
-                    bonsai_lookup(__key, &v);
-					
-                    // if (ret) {
-                    //     abort();
-                    // }
+                    v = 0;
+                    ret = bonsai_lookup(__key, &v);				
+                    map_lookup_check(__key, v);
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
                 }
@@ -245,7 +259,7 @@ static void do_op(long id) {
 #endif
 }
 
-static void do_barrier(long id) {
+static void do_barrier(long id, const char* name) {
     double interval;
 
     if (id == 0) {
@@ -254,7 +268,7 @@ static void do_barrier(long id) {
         }
 
         interval = end_measure();
-        printf("op total: %.3lf seconds\n", interval);
+        printf("%s total: %.3lf seconds\n", name, interval);
     }
 }
 
@@ -276,7 +290,7 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
-    do_barrier(id);
+    do_barrier(id, "load");
 
     pthread_barrier_wait(&barrier);
 
@@ -286,7 +300,7 @@ void* thread_fun(void* arg) {
 
     pthread_barrier_wait(&barrier);
 
-    do_barrier(id);
+    do_barrier(id, "op");
 
     pthread_barrier_wait(&barrier);
 
@@ -353,6 +367,11 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     } else {
         index_struct = init();
     }
+
+#ifdef USE_MAP
+    map = hashmap_create();
+    map_load();
+#endif
 
     pthread_create(&user_thread_parent, NULL, user_thread_parent_fun, NULL);
     pthread_setname_np(user_thread_parent, "user_thread_parent");
