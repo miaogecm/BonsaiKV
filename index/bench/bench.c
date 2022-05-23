@@ -79,15 +79,15 @@ hashmap* map;
 
 static void map_load()  {
     int i;
-    pkey_t __key;
+    pkey_t *__key = malloc(sizeof(pkey_t));
 
     for (i = 0; i < N; i ++) {
 #ifdef LONG_KEY
-        __key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
+        *__key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
 #else
-        __key = INT2KEY(load_arr[i][0]);
+        *__key = INT2KEY(load_arr[i][0]);
 #endif
-        hashmap_set(map, &__key, KEY_LEN, load_arr[i][1]);
+        hashmap_set(map, __key, KEY_LEN, load_arr[i][1]);
     }
 }
 
