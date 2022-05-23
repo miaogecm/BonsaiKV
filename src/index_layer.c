@@ -621,6 +621,7 @@ static inline void sync_moveon(inode_t **prev, inode_t **inode, int lock_next) {
         *prev = *inode;
     } else {
         assert(*prev && (*prev)->next == (*inode)->next);
+        inode_unlock(*inode);
     }
     *inode = next;
 }
