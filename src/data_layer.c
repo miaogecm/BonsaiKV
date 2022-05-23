@@ -419,7 +419,20 @@ static inline unsigned pnode_find(pnoid_t pnode, pkey_t key) {
 
 static void flush_ents(pnoid_t pnode, unsigned long changemap) {
     unsigned pos;
+    /*
+     * Transform @changemap to avoid repeatedly flushing the same cacheline.
+     *
+     * We firstly make entries in the same line to have same bit. Then mask 
+     * out bits of non-first entry in each line.
+     * 
+     * Example (32B entry, 2 entries per line): 
+     *      10001101b -> 11001111b -> 10001010b
+     */
+#ifdef STR_KEY
     changemap = (changemap | (changemap >> 1)) & 0x5555555555555555;
+#else
+    changemap = (changemap | (changemap >> 1) | (changemap >> 2) | (changemap >> 3)) & 0x1111111111111111;
+#endif
     for_each_set_bit(pos, &changemap, PNODE_FANOUT) {
         bonsai_flush(pnode_ent(pnode, pos), sizeof(pentry_t), 0);
     }
@@ -482,7 +495,7 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
 
 static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
-    unsigned long validmap = mno->validmap, changemap = 0;
+    unsigned long validmap = mno->validmap;
     pbatch_cursor_t cursor;
     pbatch_op_t *op;
     unsigned pos;
@@ -502,13 +515,15 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
         e->k = op->key;
         e->v = op->val;
 
-        __set_bit(pos, &changemap);
+        mno->fgprt[pos] = pkey_get_signature(op->key);
+
+        __set_bit(pos, &validmap);
     }
 
-    flush_ents(pnode, changemap);
+    flush_ents(pnode, mno->validmap ^ validmap);
     persistent_barrier();
 
-    validmap |= changemap;
+    /* flush validmap and fgprt */
     mno->validmap = validmap;
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 

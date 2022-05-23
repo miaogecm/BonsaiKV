@@ -410,28 +410,31 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
 }
 
 static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
+    int tot_max = 0, nr_logs_max, nr_logs_fetched, i;
     struct cpu_log_snapshot snapshots[NUM_CPU];
-    logs_t fetched = { .cnt = 0 };
-    struct oplog *log;
-    int i;
     struct log_layer *layer = LOG(bonsai);
-    int num_logs;
+    struct oplog *log;
+    logs_t fetched;
 
     for (i = 0; i < nr_cpu; i++) {
         snapshot_cpu_log(&snapshots[i], cpus[i]);
-        num_logs = (int) log_nr(&snapshots[i]);
-        fetched.cnt += num_logs;
-        atomic_sub(num_logs, &layer->nlogs[cpus[i]].cnt);
+        nr_logs_max = (int) log_nr(&snapshots[i]);
+        tot_max += nr_logs_max;
 	}
 
-	if (unlikely(!fetched.cnt))
-		usleep(100);
+	if (unlikely(!tot_max)) {
+        usleep(100);
+    }
 
-    log = fetched.logs = malloc(sizeof(*log) * fetched.cnt);
+    log = fetched.logs = malloc(sizeof(*log) * tot_max);
 
     for (i = 0; i < nr_cpu; i++) {
-        log += fetch_cpu_logs(new_region_starts, log, &snapshots[i]);
+        nr_logs_fetched = (int) fetch_cpu_logs(new_region_starts, log, &snapshots[i]);
+        log += nr_logs_fetched;
+        atomic_sub(nr_logs_fetched, &layer->nlogs[cpus[i]].cnt);
     }
+
+    fetched.cnt = (int) (log - fetched.logs);
 
     return fetched;
 }
@@ -843,10 +846,10 @@ static int load_balance_work(void *arg) {
     int wid = desc->wid;
 
     inter_socket_load_balance(ws->per_socket_loads, wid);
-    // flush_load_dump(ws->per_socket_loads);
+    //flush_load_dump(&ws->per_socket_loads[0]);
 
     intra_socket_load_balance(ws->per_worker_loads, ws->per_socket_loads, &ws->barrier, wid);
-    // flush_load_dump(ws->per_socket_loads);
+    //flush_load_dump(&ws->per_worker_loads[0]);
 
     return 0;
 }

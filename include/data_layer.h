@@ -114,11 +114,15 @@ static inline void pbatch_list_destroy(struct list_head *list) {
 }
 
 static void pbatch_list_dump(struct list_head *list) {
-    pbatch_node_t *node;
+    pbatch_cursor_t cursor;
+    pbatch_op_t *op;
 
     printf("----------pbatch list dump start----------\n");
-    list_for_each_entry(node, list, list) {
-        printf("list: %016lx, next: %016lx, size: %d, start: %016lx\n", &(node->list), node->list.next, node->len, node->start);
+    pbatch_cursor_init(&cursor, list);
+    while (!pbatch_cursor_is_end(&cursor)) {
+        op = pbatch_cursor_get(&cursor);
+        printf("op %d %lu %lu\n", op->type, *(unsigned long *) op->key.key, op->val);
+        pbatch_cursor_inc(&cursor);
     }
     printf("----------pbatch list dump end----------\n");
 }
