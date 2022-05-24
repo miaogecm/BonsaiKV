@@ -167,8 +167,8 @@ static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
 				     "  movnti %0, 32(%5)\n"
 				     "  movnti %1, 40(%5)\n"
 				     "  movnti %2, 48(%5)\n"
-				     "  movnti %3, 56(%5)\n":"=r"(t1), "=r"(t2),
-				     "=r"(t3), "=r"(t4)
+				     "  movnti %3, 56(%5)\n"
+                     : "=&r"(t1), "=&r"(t2), "=&r"(t3), "=&r"(t4)
 				     : "r"(from), "r"(to)
 				     : "memory");
 

@@ -504,7 +504,7 @@ int bonsai_pflushd_thread_exit() {
 		usleep(10);
 	}
 
-	for (i = 0; i < NUM_PFLUSH_THREAD + 1; i++) {
+	for (i = 0; i < NUM_PFLUSH_THREAD; i++) {
 		pthread_join(bonsai->tids[i], NULL);
 		free(bonsai->pflush_threads[i]);
 	}

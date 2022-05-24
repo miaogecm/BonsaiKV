@@ -155,7 +155,7 @@ static inline void pbatch_list_split(struct list_head *dst, pbatch_cursor_t *cur
 }
 
 static inline void pbatch_list_merge(struct list_head *dst, struct list_head *src) {
-    list_splice(src, dst);
+    list_splice_tail(src, dst);
 }
 
 static inline pbatch_op_t *pbatch_list_get(struct list_head *list, size_t i) {

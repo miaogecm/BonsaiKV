@@ -124,7 +124,7 @@ struct pflush_worksets {
     struct flush_workset        flush_ws;
 };
 
-void cluster_dump(struct list_head* list) {
+static void cluster_dump(struct list_head* list) {
     struct cluster* cl;
     printf("----------cluster dump start----------\n");
     list_for_each_entry(cl, list, list) {
@@ -134,7 +134,7 @@ void cluster_dump(struct list_head* list) {
     printf("----------cluster dump end----------\n");
 }
 
-void flush_load_dump(struct flush_load* fll) {
+static void flush_load_dump(struct flush_load* fll) {
     printf("----------flush load dump start----------\n");
     printf("load size: %lu\n", fll->load);
     cluster_dump(&fll->cluster);
@@ -147,7 +147,7 @@ static void flush_load_move(struct flush_load *dst, struct flush_load *src) {
 }
 
 static inline size_t max_load_per_socket(size_t avg_load) {
-    return avg_load + 1000000;
+    return avg_load + avg_load / 8;
 }
 
 static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
@@ -524,6 +524,8 @@ static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, 
         free(data);
         logs[wid].logs = data = nent;
 	}
+
+	bonsai_print("[pflush worker %d] collaboratively_sort_logs: got %d logs\n", wid, logs[wid].cnt);
 }
 
 static void pbatch_op_add(struct flush_load *per_socket_loads,
@@ -581,8 +583,6 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
     struct oplog *log = logs[wid].logs;
     pbatch_op_t *ops;
 
-	bonsai_print("[pflush worker %d] merge %d logs\n", wid, total);
-
     for (i = 0; i < NUM_SOCKET; i++) {
         INIT_LIST_HEAD(&per_socket_loads[i].cluster);
         per_socket_loads[i].load = 0;
@@ -624,6 +624,11 @@ out:
 	pthread_barrier_wait(barrier);
 
 	free(logs[wid].logs);
+
+    for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {
+        bonsai_print("[pflush worker %d] merge_and_cluster_logs: node %d, %lu logs\n",
+                     wid, numa_node, per_socket_loads[numa_node].load);
+    }
 }
 
 static void inter_worker_cluster(struct flush_load *per_socket_loads,
@@ -670,6 +675,8 @@ static void inter_worker_cluster(struct flush_load *per_socket_loads,
 
         load->load += load_per_worker->load;
     }
+
+    bonsai_print("[pflush worker %d] inter_worker_cluster: node %d, %lu logs\n", wid, numa_node, load->load);
 }
 
 /*
@@ -684,20 +691,14 @@ static int cluster_work(void *arg) {
 
     /* Sort them collaboratively. */
     collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
-
-	bonsai_print("[pflush worker %d] collaboratively_sort_logs\n", wid);
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
     // flush_load_dump(&ws->per_worker_per_socket_loads[wid][0]);
 
-	bonsai_print("[pflush worker %d] merge_and_cluster_logs\n", wid);
-
     /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
     inter_worker_cluster(ws->per_socket_loads, ws->per_worker_per_socket_loads, &ws->barrier, wid);
     // flush_load_dump(&ws->per_socket_loads[0]);
-
-	bonsai_print("[pflush worker %d] inter_worker_cluster\n", wid);
 
     return 0;
 }
@@ -783,7 +784,7 @@ static void do_inter_socket_load_balance(struct flush_load *per_socket_loads) {
         load = &per_socket_loads[node];
 
         if (load->load > max_load) {
-            for (victim = 0; victim < NUM_SOCKET && per_socket_loads[node].load >= avg_load; victim++);
+            for (victim = 0; victim < NUM_SOCKET && per_socket_loads[victim].load >= avg_load; victim++);
             assert(victim < NUM_SOCKET);
 
             list_sort(NULL, &load->cluster, cluster_cmp);
@@ -806,9 +807,18 @@ static void do_intra_socket_load_balance(struct flush_load *per_worker_loads, st
 }
 
 static void inter_socket_load_balance(struct flush_load *per_socket_loads, int wid) {
-    if (wid == 0) {
+    int numa_node;
+
+    if (wid != 0) {
         /* We only want one global worker to do this now. */
-        do_inter_socket_load_balance(per_socket_loads);
+        return;
+    }
+
+    do_inter_socket_load_balance(per_socket_loads);
+
+    for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {
+        bonsai_print("[pflush worker %d] inter_socket_load_balance: node %d, %lu logs\n",
+                     wid, numa_node, per_socket_loads[numa_node].load);
     }
 }
 
@@ -832,6 +842,11 @@ static void intra_socket_load_balance(struct flush_load *per_worker_loads, struc
 
     for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
         flush_load_move(&per_worker_loads[worker_id(numa_node, i)], &per_socket_per_worker_loads[i]);
+    }
+
+    for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+        bonsai_print("[pflush worker %d] intra_socket_load_balance: worker %d [node %d, #%d], %lu logs\n",
+                     wid, worker_id(numa_node, i), numa_node, i, per_worker_loads[worker_id(numa_node, i)].load);
     }
 }
 
@@ -999,7 +1014,7 @@ out:
 }
 
 int log_layer_init(struct log_layer* layer) {
-	int i, ret = 0, node, dimm_idx, dimm, cpu;
+	int i, ret = 0, node, dimm_idx, dimm, cpu_idx, cpu;
     struct cpu_log_region_desc *desc;
     pthread_mutex_t *dimm_lock;
 
@@ -1018,16 +1033,20 @@ int log_layer_init(struct log_layer* layer) {
 	if (ret)
 		goto out;
 
-	layer->desc = (struct log_region_desc*)malloc(sizeof(struct log_region_desc));
+	layer->desc = malloc(sizeof(struct log_region_desc));
 
-    for (node = 0, cpu = 0; node < NUM_SOCKET; node++) {
-        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx ++) {
+    for (node = 0; node < NUM_SOCKET; node++) {
+        cpu_idx = 0;
+
+        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
             dimm = node_to_dimm(node, dimm_idx);
 
             dimm_lock = malloc(sizeof(pthread_mutex_t));
 
-            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu++) {
-                desc = &layer->desc->descs[cpu];				
+            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
+                cpu = node_to_cpu(node, cpu_idx);
+
+                desc = &layer->desc->descs[cpu];
                 desc->region = &layer->dimm_regions[dimm]->regions[i];
                 desc->size = 0;
                 desc->lcb = malloc(LCB_MAX_SIZE * sizeof(*desc->lcb));

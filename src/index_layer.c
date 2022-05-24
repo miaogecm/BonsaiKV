@@ -27,6 +27,9 @@
 #define NOT_FOUND       (-1u)
 #define NULL_OFF        (-1u)
 
+/* Used for debugging. */
+// #define INODE_LFENCE
+
 /* Index Node: 2 cachelines */
 typedef struct inode {
     /* header, 6-8 words */
@@ -50,6 +53,12 @@ typedef struct inode {
 
     /* packed log addresses, 8 words */
     logid_t logs[INODE_FANOUT];
+
+#ifdef INODE_LFENCE
+    pkey_t   lfence;
+    /* Padding the inode to 4 cachelines. */
+    char     padding1[2 * CACHELINE_SIZE - sizeof(pkey_t)];
+#endif
 } inode_t;
 
 struct pptr {
@@ -284,6 +293,9 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     inode->pno = sentinel_pnoid;
 
     inode->fence = MAX_KEY;
+#ifdef INODE_LFENCE
+    inode->lfence = MIN_KEY;
+#endif
 
     spin_lock_init(&inode->lock);
     seqcount_init(&inode->seq);
@@ -394,6 +406,10 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     memcpy(n->logs, inode->logs, sizeof(inode->logs));
     memcpy(n->fgprt, inode->fgprt, sizeof(inode->fgprt));
 	inode_lock(n);
+
+#ifdef INODE_LFENCE
+    n->lfence = fence;
+#endif
 
     /* Note that if an inode contains a pfence key, it should be the minimum key of the inode. */
     n->has_pfence = 0;

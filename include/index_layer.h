@@ -10,7 +10,7 @@ extern "C" {
 
 //#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
 #define INODE_POOL_SIZE                         (1 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
-#define INODE_SIZE								(2 * 64)
+#define INODE_SIZE								sizeof(inode_t)
 #define TOTAL_INODE								(INODE_POOL_SIZE / INODE_SIZE)
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048

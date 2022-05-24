@@ -32,14 +32,12 @@ static char *log_region_fpath[NUM_DIMM] = {
 	"/mnt/ext4/dimm3/log",
 	"/mnt/ext4/dimm4/log",
 	"/mnt/ext4/dimm5/log",
-/*
 	"/mnt/ext4/dimm6/log",
 	"/mnt/ext4/dimm7/log",
 	"/mnt/ext4/dimm8/log",
 	"/mnt/ext4/dimm9/log",
 	"/mnt/ext4/dimm10/log",
 	"/mnt/ext4/dimm11/log",
-*/
 };
 
 static char* data_region_fpath[NUM_DIMM] = {
@@ -49,14 +47,12 @@ static char* data_region_fpath[NUM_DIMM] = {
 	"/mnt/ext4/dimm3/objpool",
 	"/mnt/ext4/dimm4/objpool",
 	"/mnt/ext4/dimm5/objpool",
-/*
 	"/mnt/ext4/dimm6/objpool",
 	"/mnt/ext4/dimm7/objpool",
 	"/mnt/ext4/dimm8/objpool",
 	"/mnt/ext4/dimm9/objpool",
 	"/mnt/ext4/dimm10/objpool",
 	"/mnt/ext4/dimm11/objpool",
-*/
 };
 
 int log_region_init(struct log_layer *layer) {

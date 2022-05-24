@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NR_DIMM=6
+NR_DIMM=12
 DIMM_SIZE=2G
 
 for i in $(seq 0 $((NR_DIMM - 1))); do
