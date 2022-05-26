@@ -43,11 +43,13 @@ struct vclass_desc {
     size_t nr_val_max, size;
 };
 
+#define MAX_NUM_VAL 10000000
+
 static struct vclass_desc vclass_descs[] = {
-    [VCLASS_16B]  = { 1024, 16 },
-    [VCLASS_32B]  = { 1024, 32 },
-    [VCLASS_64B]  = { 1024, 64 },
-    [VCLASS_128B] = { 1024, 128 },
+    [VCLASS_16B]  = { MAX_NUM_VAL, 16 },
+    [VCLASS_32B]  = { MAX_NUM_VAL, 32 },
+    [VCLASS_64B]  = { MAX_NUM_VAL, 64 },
+    [VCLASS_128B] = { MAX_NUM_VAL, 128 },
 };
 
 struct cpu_vpool_hdr {
@@ -233,6 +235,14 @@ void valman_pull(pval_t val) {
 
 pval_t bonsai_make_val(enum vclass vclass, void *val) {
     return pval_make_v(vclass, val);
+}
+
+void bonsai_valman_free_v(pval_t victim) {
+    valman_free_v(pval_t victim);
+}
+
+void *bonsai_valman_extract_v(size_t *size, pval_t val) {
+    return valman_extract_v(size_t *size, pval_t val);
 }
 
 #endif

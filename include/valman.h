@@ -72,4 +72,10 @@ static inline void valman_persist() {
     valman_persist_cpu(__this->t_cpu);
 }
 
+extern pval_t bonsai_make_val(enum vclass vclass, void *val);
+
+extern void bonsai_valman_free_v(pval_t victim);
+
+extern void *bonsai_valman_extract_v(size_t *size, pval_t val);
+
 #endif //BONSAI_VALMAN_H

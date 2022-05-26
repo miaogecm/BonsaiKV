@@ -25,6 +25,7 @@
 #include "spinlock.h"
 
 #include "bench.h"
+#include "valman.h"
 
 #include "../data/kvdata.h"
 
@@ -39,6 +40,8 @@ pkey_t a[N];
 #endif
 
 #define NUM_CPU		12
+
+#define VCLASS  VCLASS_16B
 
 static void           *index_struct;
 static init_func_t    fn_init;
@@ -92,11 +95,17 @@ static void map_load()  {
     }
 }
 
-static void map_lookup_check(pkey_t k, pval_t exc_v) {
+static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
 #ifdef USE_MAP
     pval_t v = 0;
     assert(hashmap_get(map, &k, KEY_LEN, &v));
+
+#ifdef STR_VAL
+    assert(memcpy(v, exc_v, size) == 0);
+#else
     assert(exc_v == v);
+#endif
+
 #endif
 }
 
@@ -148,6 +157,7 @@ static void do_load(long id) {
     int ret;
     int repeat = 1;
     pkey_t __key;
+    pval_t __val;
 
 	//printf("user thread[%ld] do load\n", id);
 
@@ -164,7 +174,12 @@ static void do_load(long id) {
 #else
                 __key = INT2KEY(load_arr[i][0]);
 #endif
-                ret = bonsai_insert(__key, load_arr[i][1]);
+#ifdef STR_VAL
+                    __val = bonsai_make_val(VCLASS, load_arr[i][1]);
+#else
+                    __val = load_arr[i][1];
+#endif
+                ret = bonsai_insert(__key, __val);
             } else {
                 ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
@@ -183,6 +198,8 @@ static void do_op(long id) {
 	long i, repeat = 1;
     int st, ed, opcode;
     pkey_t __key, __key2;
+    pval_t __val;
+    size_t size;
     int ret;
 
     st = 1.0 * id / NUM_THREAD * N;
@@ -206,6 +223,11 @@ static void do_op(long id) {
 #else
                     __key = INT2KEY(op_arr[i][1]);
 #endif
+#ifdef STR_VAL
+                    __val = bonsai_make_val(VCLASS, op_arr[i][2]);
+#else
+                    __val = op_arr[i][2];
+#endif
                     ret = bonsai_insert(__key, op_arr[i][2]);
 					
                 } else {
@@ -221,8 +243,14 @@ static void do_op(long id) {
                     __key = INT2KEY(op_arr[i][1]);
 #endif
                     v = 0;
-                    ret = bonsai_lookup(__key, &v);				
-                    map_lookup_check(__key, v);
+                    ret = bonsai_lookup(__key, &v);	
+#ifdef STR_VAL
+                    __val = bonsai_valman_extract_v(size, v);	
+                    map_lookup_check(__key, __val, size);
+                    bonsai_valman_free_v(__val);
+#else 
+                    map_lookup_check(__key, v, 8);
+#endif
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
                 }
