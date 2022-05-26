@@ -91,7 +91,7 @@ static void map_load()  {
 #else
         *__key = INT2KEY(load_arr[i][0]);
 #endif
-        hashmap_set(map, __key, KEY_LEN, load_arr[i][1]);
+        hashmap_set(map, __key, KEY_LEN, &load_arr[i][1]);
     }
 }
 
@@ -99,13 +99,7 @@ static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
 #ifdef USE_MAP
     pval_t v = 0;
     assert(hashmap_get(map, &k, KEY_LEN, &v));
-
-#ifdef STR_VAL
-    assert(memcpy(v, exc_v, size) == 0);
-#else
-    assert(exc_v == v);
-#endif
-
+    assert(memcmp(v, exc_v, size) == 0);
 #endif
 }
 
@@ -228,8 +222,12 @@ static void do_op(long id) {
 #else
                     __val = op_arr[i][2];
 #endif
-                    ret = bonsai_insert(__key, op_arr[i][2]);
-					
+#ifdef STR_VAL
+                    __val = bonsai_make_val(VCLASS, load_arr[i][2]);
+#else
+                    __val = load_arr[i][2];
+#endif
+                    ret = bonsai_insert(__key, __val);
                 } else {
                     ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
@@ -243,13 +241,13 @@ static void do_op(long id) {
                     __key = INT2KEY(op_arr[i][1]);
 #endif
                     v = 0;
-                    ret = bonsai_lookup(__key, &v);	
+                    ret = bonsai_lookup(__key, &v);
 #ifdef STR_VAL
                     __val = bonsai_valman_extract_v(size, v);	
                     map_lookup_check(__key, __val, size);
                     bonsai_valman_free_v(__val);
 #else 
-                    map_lookup_check(__key, v, 8);
+                    map_lookup_check(__key, &v, 8);
 #endif
                 } else {
                     v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
