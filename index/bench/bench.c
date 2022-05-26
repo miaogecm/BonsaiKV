@@ -27,7 +27,7 @@
 #include "bench.h"
 #include "valman.h"
 
-#include "../data/kvdata.h"
+#include "kvdata.h"
 
 #ifndef N
 #define N			1000000
@@ -86,12 +86,12 @@ static void map_load()  {
 
     for (i = 0; i < N; i ++) {
         __key = malloc(sizeof(pkey_t));
-#ifdef LONG_KEY
-        *__key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
+#ifdef STR_KEY
+        *__key = MK_K(load_k_arr[i], strlen(load_k_arr[i]));
 #else
-        *__key = INT2KEY(load_arr[i][0]);
+        *__key = INT2KEY(load_k_arr[i]);
 #endif
-        hashmap_set(map, __key, KEY_LEN, &load_arr[i][1]);
+        hashmap_set(map, __key, KEY_LEN, &load_v_arr[i]);
     }
 }
 
@@ -101,6 +101,17 @@ static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
     assert(hashmap_get(map, &k, KEY_LEN, &v));
     assert(memcmp(v, exc_v, size) == 0);
 #endif
+}
+
+static inline uint64_t atoul(const char* str) {
+	uint64_t res = 0;
+	int i;
+
+	for (i = 0; i < strlen(str); i++) {
+		res = res * 10 + str[i] - '0';
+	}
+
+	return res;
 }
 
 static inline int get_cpu() {
@@ -163,19 +174,19 @@ static void do_load(long id) {
     while(repeat--) {
         for (i = st; i < ed; i ++) {
             if (in_bonsai) {
-#ifdef LONG_KEY
-                __key = MK_K(load_arr[i][0], strlen(load_arr[i][0]));
+#ifdef STR_KEY
+                __key = MK_K(load_k_arr[i], strlen(load_k_arr[i]));
 #else
-                __key = INT2KEY(load_arr[i][0]);
+                __key = INT2KEY(load_k_arr[i]);
 #endif
 #ifdef STR_VAL
-                    __val = bonsai_make_val(VCLASS, load_arr[i][1]);
+                    __val = bonsai_make_val(VCLASS, load_v_arr[i]);
 #else
-                    __val = load_arr[i][1];
+                    __val = load_v_arr[i];
 #endif
                 ret = bonsai_insert(__key, __val);
             } else {
-                ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
+                // ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
             assert(ret == 0);
         }
@@ -203,42 +214,33 @@ static void do_op(long id) {
 
     while(repeat--) {
         for (i = st; i < ed; i ++) {
-#ifdef LONG_KEY
-            opcode = op_arr[i][0][0] - '0';
-#else
-            opcode = op_arr[i][0];
-#endif
+            opcode = type_arr[i];
             switch (opcode) {
             case 0:
             case 1:
                 if (in_bonsai) {
-#ifdef LONG_KEY
-                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+#ifdef STR_KEY
+                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
 #else
-                    __key = INT2KEY(op_arr[i][1]);
+                    __key = INT2KEY(op_k_arr[i]);
 #endif
 #ifdef STR_VAL
-                    __val = bonsai_make_val(VCLASS, op_arr[i][2]);
+                    __val = bonsai_make_val(VCLASS, op_v_arr[i]);
 #else
-                    __val = op_arr[i][2];
-#endif
-#ifdef STR_VAL
-                    __val = bonsai_make_val(VCLASS, load_arr[i][2]);
-#else
-                    __val = load_arr[i][2];
+                    __val = op_v_arr[i];
 #endif
                     ret = bonsai_insert(__key, __val);
                 } else {
-                    ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
+                    // ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
                 assert(ret == 0);
                 break;
             case 2:
                 if (in_bonsai) {
-#ifdef LONG_KEY
-                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+#ifdef STR_KEY
+                    __key = MK_K(op_k_arr[i], strlen(op_v_arr[i]));
 #else
-                    __key = INT2KEY(op_arr[i][1]);
+                    __key = INT2KEY(op_v_arr[i]);
 #endif
                     v = 0;
                     ret = bonsai_lookup(__key, &v);
@@ -250,20 +252,20 @@ static void do_op(long id) {
                     map_lookup_check(__key, &v, 8);
 #endif
                 } else {
-                    v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
+                    // v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;
             case 3:
                 if (in_bonsai) {
-#ifdef LONG_KEY
-                    __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
-                    __key2 = MK_K(op_arr[i][2], strlen(op_arr[i][2]));
+#ifdef STR_KEY
+                    // __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
+                    // __key2 = MK_K(op_arr[i][2], strlen(op_arr[i][2]));
 #else
-                    __key = INT2KEY(op_arr[i][1]);
-                    __key2 = INT2KEY(op_arr[i][2]);
+                    // __key = INT2KEY(op_arr[i][1]);
+                    // __key2 = INT2KEY(op_arr[i][2]);
 #endif
-                    bonsai_scan(__key, 8, __key2, 8, val_arr);
+                    // bonsai_scan(__key, 8, __key2, 8, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);
@@ -367,7 +369,7 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     if (in_bonsai) {
         printf("Using bonsai.\n");
     }
-#ifdef LONG_KEY
+#ifdef STR_KEY
     printf("Using long key.\n");
 #endif
 

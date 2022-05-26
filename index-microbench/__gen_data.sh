@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# export index_microbench_dir='/home/miaogecm/Documents/Projects/index-microbench-master'
-export index_microbench_dir='/home/gky/Desktop/temp_cm/index-microbench'
-# export index_microbench_dir='/home/deadpool/Desktop/kv_test/index-microbench'
+export index_microbench_dir='./'
 
-mkdir ../data
 gcc -g gen_data.c -o gen_data.out ${env}
 
 cd ${index_microbench_dir}
