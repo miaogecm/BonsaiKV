@@ -497,7 +497,7 @@ relookup:
     return ret;
 }
 
-static int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {
+static inline int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {
     return pnode_lookup(pnode, key, val);
 }
 

@@ -195,6 +195,9 @@ static void write_back(int cpu, int dimm_unlock) {
     struct oplog *lcb;
     size_t len, c;
 
+    /* Make sure value allocations are persistent. */
+    valman_persist_cpu(cpu);
+
     lcb = local_desc->lcb;
     len = local_desc->size;
 
@@ -454,7 +457,7 @@ static int fetch_work(void *arg) {
     wnr = worker_nr(wid);
 
     for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
-        cpus[nr_cpu] = node_to_cpu(numa_node, i);	
+        cpus[nr_cpu] = node_idx_to_cpu(numa_node, i);
     }
 
     ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, cpus);
@@ -1039,12 +1042,12 @@ int log_layer_init(struct log_layer* layer) {
         cpu_idx = 0;
 
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
-            dimm = node_to_dimm(node, dimm_idx);
+            dimm = node_idx_to_dimm(node, dimm_idx);
 
             dimm_lock = malloc(sizeof(pthread_mutex_t));
 
             for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
-                cpu = node_to_cpu(node, cpu_idx);
+                cpu = node_idx_to_cpu(node, cpu_idx);
 
                 desc = &layer->desc->descs[cpu];
                 desc->region = &layer->dimm_regions[dimm]->regions[i];

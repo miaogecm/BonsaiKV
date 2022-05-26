@@ -17,7 +17,6 @@
 #define THR_MASK(tid)       (1ul << (tid))
 
 static __thread int my_tid;
-__thread int rcu_op_count = 0;
 
 void fb_set_tid(int tid) {
     my_tid = tid;

@@ -22,6 +22,7 @@ extern "C" {
 #include "index_layer.h"
 #include "cpu.h"
 #include "rcu.h"
+#include "valman.h"
 
 #define REGION_FPATH_LEN	19
 #define OBJPOOL_FPATH_LEN	20

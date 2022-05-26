@@ -32,13 +32,22 @@ int cpu_used[NUM_CPU] = { 0 };
 extern void* index_struct(void* index_struct);
 extern void kv_print(void* index_struct);
 
-#ifdef LONG_KEY
+#ifdef STR_KEY
+
 pkey_t bonsai_make_key(const void *key, size_t len) {
     return pkey_generate_v(key, len);
 }
+
 #endif
 
-extern __thread int rcu_op_count;
+__thread int op_count = 0;
+
+static inline void try_quiescent() {
+    if (op_count ++ > RCU_MAX_OP) {
+        op_count = 0;
+        rcu_quiescent(RCU(bonsai));
+    }
+}
 
 void bonsai_mark_cpu(int cpu) {
     mark_cpu(cpu);
@@ -59,14 +68,11 @@ int bonsai_insert(pkey_t key, pval_t value) {
 	
   	oplog_snapshot_lst(&snap);
 
-    log = oplog_insert(&snap, key, value, OP_INSERT, __this->t_cpu);
+    log = oplog_insert(&snap, key, valman_make_nv(value), OP_INSERT, __this->t_cpu);
 
     ret = shim_upsert(&snap, key, log);
 
-    if (rcu_op_count ++ > RCU_MAX_OP) {
-        rcu_op_count = 0;
-        rcu_quiescent(RCU(bonsai));
-    }
+    try_quiescent();
 
     return ret;
 }
@@ -82,16 +88,24 @@ int bonsai_remove(pkey_t key) {
 
     ret = shim_upsert(&snap, key, log);
 
-    if (rcu_op_count ++ > RCU_MAX_OP) {
-        rcu_op_count = 0;
-        rcu_quiescent(RCU(bonsai));
-    }
+    try_quiescent();
 
     return ret;
 }
 
 int bonsai_lookup(pkey_t key, pval_t *val) {
-    return shim_lookup(key, val);
+    pval_t nv_val;
+    int ret;
+
+    ret = shim_lookup(key, &nv_val);
+
+    if (likely(!ret)) {
+        *val = valman_make_v_local(nv_val);
+    }
+
+    try_quiescent();
+
+    return ret;
 }
 
 int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {

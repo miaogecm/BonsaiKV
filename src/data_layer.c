@@ -153,8 +153,8 @@ static inline int *pnode_permute(pnoid_t pno) {
 }
 
 static inline void *pnode_dimm_addr(pnoid_t pno, int dimm_idx) {
-    int node = pnode_numa_node(pno), dimm = node_to_dimm(node, dimm_idx);
-    return DATA(bonsai)->region[dimm].d_start + pnode_off(pno);
+    int node = pnode_numa_node(pno), dimm = node_idx_to_dimm(node, dimm_idx);
+    return DATA(bonsai)->pno_region[dimm].d_start + pnode_off(pno);
 }
 
 static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
@@ -168,9 +168,12 @@ static mnode_t *pnode_meta(pnoid_t pno) {
 static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int dimm_idx) {
     struct data_layer *d_layer = DATA(bonsai);
     int src_dimm, dst_dimm;
-    src_dimm = node_to_dimm(from_node, dimm_idx);
-    dst_dimm = node_to_dimm(to_node, dimm_idx);
-    return d_layer->region[dst_dimm].d_start + (ptr - (void *) d_layer->region[src_dimm].d_start);
+    if (from_node == to_node) {
+        return ptr;
+    }
+    src_dimm = node_idx_to_dimm(from_node, dimm_idx);
+    dst_dimm = node_idx_to_dimm(to_node, dimm_idx);
+    return d_layer->pno_region[dst_dimm].d_start + (ptr - (void *) d_layer->pno_region[src_dimm].d_start);
 }
 
 static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
@@ -185,11 +188,6 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
 
     ent = (pentry_t *) pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
-    if (node == my) {
-        /* What a good day! */
-        return ent;
-    }
-
     epoch = d_layer->epoch;
 
     local = pnoptr_cvt_node(ent, my, node, dimm_idx);
@@ -198,7 +196,10 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
 
     if (unlikely(epoch > old_e + 1)) {
         /* At lease one epoch in between. It's invalidated. */
-        memcpy(local, ent, sizeof(pentry_t));
+        if (local != ent) {
+            memcpy(local, ent, sizeof(pentry_t));
+        }
+        valman_pull(local->v);
         barrier();
     }
 

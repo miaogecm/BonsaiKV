@@ -21,7 +21,7 @@ typedef uint32_t pnoid_t;
 #define PNOID_NULL              (-1u)
 
 struct data_layer {
-	struct data_region region[NUM_DIMM];
+	struct data_region pno_region[NUM_DIMM], val_region[NUM_DIMM];
 
     pnoid_t free_list;
 
@@ -31,6 +31,8 @@ struct data_layer {
 
     /* Protect the pnode list. */
 	spinlock_t plist_lock;
+
+    struct vpool *vpool;
 
 	unsigned epoch;
     unsigned *epoch_table[NUM_SOCKET];

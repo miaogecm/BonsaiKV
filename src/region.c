@@ -119,7 +119,7 @@ int data_region_init(struct data_layer *layer) {
     void *vaddr;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-			region = &layer->region[dimm];
+			region = &layer->pno_region[dimm];
 
 			/* create a pmem file */
     	if ((fd = open(data_region_fpath[dimm], O_CREAT | O_RDWR, 0666)) < 0) {
@@ -161,7 +161,7 @@ void data_region_deinit(struct data_layer *layer) {
 	int dimm;
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-			region = &layer->region[dimm];
+			region = &layer->pno_region[dimm];
       munmap(region->d_start, size_per_dimm);
 			close(region->d_fd);
 	}

@@ -52,7 +52,7 @@ static inline void mark_cpu(int cpu) {
 static inline int alloc_cpu_onnode(int node) {
 	int cpu_idx, cpu;
 	for (cpu_idx = 0; cpu_idx < NUM_CPU_PER_SOCKET; cpu_idx++) {
-		cpu = node_to_cpu(node, cpu_idx);
+		cpu = node_idx_to_cpu(node, cpu_idx);
 		if (!cpu_used[cpu]) {
 			mark_cpu(cpu);
 			return cpu;
