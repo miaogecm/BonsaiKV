@@ -191,7 +191,7 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
         if (local != ent) {
             memcpy(local, ent, sizeof(pentry_t));
         }
-        valman_pull(local->v);
+        //valman_pull(local->v);
         barrier();
     }
 
@@ -772,6 +772,8 @@ int data_layer_init(struct data_layer *layer) {
     }
 	
     init_pnode_pool(layer);
+
+    valman_vpool_init();
 	
     layer->epoch = 2;
     for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {

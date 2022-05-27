@@ -40,16 +40,11 @@ union pval_desc {
 } __packed;
 
 struct vclass_desc {
-    size_t nr_val_max, size;
+    size_t nr_val_max_per_cpu, size;
 };
 
-#define MAX_NUM_VAL 10000000
-
 static struct vclass_desc vclass_descs[] = {
-    [VCLASS_16B]  = { MAX_NUM_VAL, 16 },
-    [VCLASS_32B]  = { MAX_NUM_VAL, 32 },
-    [VCLASS_64B]  = { MAX_NUM_VAL, 64 },
-    [VCLASS_128B] = { MAX_NUM_VAL, 128 },
+    [VCLASS_16B]  = { 2400000, 16 },
 };
 
 struct cpu_vpool_hdr {
@@ -89,7 +84,7 @@ static void create_vpool() {
     __le64 *last_next;
 
     for (vc = 0; vc < NR_VCLASS; vc++) {
-        assert(vclass_descs[vc].nr_val_max % NUM_DIMM == 0);
+        assert(vclass_descs[vc].nr_val_max_per_cpu % NUM_DIMM_PER_SOCKET == 0);
     }
 
     hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
@@ -104,7 +99,7 @@ static void create_vpool() {
             last_next = &hdr->cpu_vpool_hdrs[cpu].free[vc];
 
             dimm_idx = 0;
-            for (i = 0; i < vclass_descs[vc].nr_val_max; i++) {
+            for (i = 0; i < vclass_descs[vc].nr_val_max_per_cpu; i++) {
                 dimm = node_idx_to_dimm(0, dimm_idx);
 
                 *last_next = pval_make_nv(vc, dimm, curr[dimm_idx] - d_layer->val_region[dimm].d_start);
@@ -179,7 +174,7 @@ pval_t valman_make_nv_cpu(pval_t val, int cpu) {
     size = vclass_descs[desc.vclass].size;
     memcpy(dst, src, size);
     bonsai_flush(dst, size, 1);
-    vpool->free[desc.vclass] = pval_next_free(n);
+    vpool->free[desc.vclass] = pval_next_free(vpool->free[desc.vclass]);
     return n;
 }
 
@@ -231,6 +226,21 @@ void valman_pull(pval_t val) {
         return;
     }
     memcpy(pval_ptr(local), pval_ptr(val), vclass_descs[desc.vclass].size);
+}
+
+size_t valman_vpool_dimm_size() {
+    size_t size = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), val_size;
+    int i;
+    for (i = 0; i < NR_VCLASS; i++) {
+        val_size = vclass_descs[i].size + sizeof(unsigned long);
+        size += NUM_CPU * val_size * (vclass_descs[i].nr_val_max_per_cpu / NUM_DIMM_PER_SOCKET);
+    }
+    return size;
+}
+
+void valman_vpool_init() {
+    create_vpool();
+    DATA(bonsai)->vpool = get_vpool();
 }
 
 pval_t bonsai_make_val(enum vclass vclass, void *val) {

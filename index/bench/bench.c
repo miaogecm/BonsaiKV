@@ -240,14 +240,14 @@ static void do_op(long id) {
 #ifdef STR_KEY
                     __key = MK_K(op_k_arr[i], strlen(op_v_arr[i]));
 #else
-                    __key = INT2KEY(op_v_arr[i]);
+                    __key = INT2KEY(op_k_arr[i]);
 #endif
                     v = 0;
                     ret = bonsai_lookup(__key, &v);
 #ifdef STR_VAL
-                    __val = bonsai_extract_val(size, v);
+                    __val = bonsai_extract_val(&size, v);
                     map_lookup_check(__key, __val, size);
-                    bonsai_free_val(__val);
+                    bonsai_free_val(v);
 #else 
                     map_lookup_check(__key, &v, 8);
 #endif

@@ -16,9 +16,6 @@
 
 enum vclass {
     VCLASS_16B = 0,
-    VCLASS_32B,
-    VCLASS_64B,
-    VCLASS_128B,
     NR_VCLASS
 };
 
@@ -35,6 +32,10 @@ void *valman_extract_v(size_t *size, pval_t val);
 void valman_persist_cpu(int cpu);
 
 void valman_pull(pval_t val);
+
+size_t valman_vpool_dimm_size();
+
+void valman_vpool_init();
 
 #else
 

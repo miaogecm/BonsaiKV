@@ -24,6 +24,7 @@
 #include "cpu.h"
 #include "data_layer.h"
 #include "hwconfig.h"
+#include "valman.h"
 
 static char *log_region_fpath[NUM_DIMM] = {
 	"/mnt/ext4/dimm0/log",
@@ -40,19 +41,34 @@ static char *log_region_fpath[NUM_DIMM] = {
 	"/mnt/ext4/dimm11/log",
 };
 
-static char* data_region_fpath[NUM_DIMM] = {
-	"/mnt/ext4/dimm0/objpool",
-	"/mnt/ext4/dimm1/objpool",
-	"/mnt/ext4/dimm2/objpool",
-	"/mnt/ext4/dimm3/objpool",
-	"/mnt/ext4/dimm4/objpool",
-	"/mnt/ext4/dimm5/objpool",
-	"/mnt/ext4/dimm6/objpool",
-	"/mnt/ext4/dimm7/objpool",
-	"/mnt/ext4/dimm8/objpool",
-	"/mnt/ext4/dimm9/objpool",
-	"/mnt/ext4/dimm10/objpool",
-	"/mnt/ext4/dimm11/objpool",
+static char* pnode_region_fpath[NUM_DIMM] = {
+	"/mnt/ext4/dimm0/pnopool",
+	"/mnt/ext4/dimm1/pnopool",
+	"/mnt/ext4/dimm2/pnopool",
+	"/mnt/ext4/dimm3/pnopool",
+	"/mnt/ext4/dimm4/pnopool",
+	"/mnt/ext4/dimm5/pnopool",
+	"/mnt/ext4/dimm6/pnopool",
+	"/mnt/ext4/dimm7/pnopool",
+	"/mnt/ext4/dimm8/pnopool",
+	"/mnt/ext4/dimm9/pnopool",
+	"/mnt/ext4/dimm10/pnopool",
+	"/mnt/ext4/dimm11/pnopool",
+};
+
+static char* pval_region_fpath[NUM_DIMM] = {
+	"/mnt/ext4/dimm0/pvalpool",
+	"/mnt/ext4/dimm1/pvalpool",
+	"/mnt/ext4/dimm2/pvalpool",
+	"/mnt/ext4/dimm3/pvalpool",
+	"/mnt/ext4/dimm4/pvalpool",
+	"/mnt/ext4/dimm5/pvalpool",
+	"/mnt/ext4/dimm6/pvalpool",
+	"/mnt/ext4/dimm7/pvalpool",
+	"/mnt/ext4/dimm8/pvalpool",
+	"/mnt/ext4/dimm9/pvalpool",
+	"/mnt/ext4/dimm10/pvalpool",
+	"/mnt/ext4/dimm11/pvalpool",
 };
 
 int log_region_init(struct log_layer *layer) {
@@ -112,7 +128,7 @@ void log_region_deinit(struct log_layer* layer) {
 	}
 }
 
-int data_region_init(struct data_layer *layer) {
+int pnode_region_init(struct data_layer *layer) {
   	size_t size_per_dimm = DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET;
 	struct data_region *region;
 	int dimm, fd, ret = 0;
@@ -122,7 +138,7 @@ int data_region_init(struct data_layer *layer) {
 			region = &layer->pno_region[dimm];
 
 			/* create a pmem file */
-    	if ((fd = open(data_region_fpath[dimm], O_CREAT | O_RDWR, 0666)) < 0) {
+    	if ((fd = open(pnode_region_fpath[dimm], O_CREAT | O_RDWR, 0666)) < 0) {
             ret = errno;
         	perror("open");
         	goto out;
@@ -146,8 +162,8 @@ int data_region_init(struct data_layer *layer) {
 		region->d_fd = fd;
 		region->d_start = vaddr;
 
-		bonsai_print("data_region_init dimm[%d] region: [%016lx, %016lx]\n",
-                     dimm, (unsigned long) region->d_start, 
+		bonsai_print("pnode_region_init dimm[%d] region: [%016lx, %016lx]\n",
+                     dimm, (unsigned long) region->d_start,
                      (unsigned long) region->d_start + size_per_dimm);
 	}
 
@@ -155,7 +171,7 @@ out:
 	return ret;
 }
 
-void data_region_deinit(struct data_layer *layer) {
+void pnode_region_deinit(struct data_layer *layer) {
     size_t size_per_dimm = DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET;
 	struct data_region *region;
 	int dimm;
@@ -165,4 +181,79 @@ void data_region_deinit(struct data_layer *layer) {
       munmap(region->d_start, size_per_dimm);
 			close(region->d_fd);
 	}
+}
+
+int pval_region_init(struct data_layer *layer) {
+  	size_t size_per_dimm = valman_vpool_dimm_size();
+	struct data_region *region;
+	int dimm, fd, ret = 0;
+    void *vaddr;
+
+	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
+			region = &layer->val_region[dimm];
+
+			/* create a pmem file */
+    	if ((fd = open(pval_region_fpath[dimm], O_CREAT | O_RDWR, 0666)) < 0) {
+            ret = errno;
+        	perror("open");
+        	goto out;
+    	}
+
+    	/* allocate the pmem */
+    	if (posix_fallocate(fd, 0, (off_t) size_per_dimm) != 0) {
+            ret = errno;
+        	perror("posix_fallocate");
+        	goto out;
+    	}
+
+    	/* memory map it */
+    	if ((vaddr = mmap(NULL, size_per_dimm,
+                          PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
+            ret = errno;
+       		perror("mmap");
+        	goto out;
+    	}
+
+		region->d_fd = fd;
+		region->d_start = vaddr;
+
+		bonsai_print("pval_region_init dimm[%d] region: [%016lx, %016lx]\n",
+                     dimm, (unsigned long) region->d_start,
+                            (unsigned long) region->d_start + size_per_dimm);
+	}
+
+out:
+	return ret;
+}
+
+void pval_region_deinit(struct data_layer *layer) {
+  	size_t size_per_dimm = valman_vpool_dimm_size();
+	struct data_region *region;
+	int dimm;
+
+	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
+        region = &layer->val_region[dimm];
+        munmap(region->d_start, size_per_dimm);
+        close(region->d_fd);
+	}
+}
+
+int data_region_init(struct data_layer *layer) {
+    int err;
+
+    if (unlikely(err = pnode_region_init(layer))) {
+        goto out;
+    }
+
+    if (unlikely(err = pval_region_init(layer))) {
+        goto out;
+    }
+
+out:
+    return err;
+}
+
+void data_region_deinit(struct data_layer *layer) {
+    pval_region_deinit(layer);
+    pnode_region_deinit(layer);
 }
