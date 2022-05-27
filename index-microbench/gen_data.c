@@ -33,6 +33,17 @@ static inline uint64_t atoul(const char* str) {
 	return res;
 }
 
+// fprintf(val_out, "\"%s\", \n", val);
+static inline void print_by_char(FILE* stream, const char* str) {
+	int i;
+
+	fprintf(stream, "\"");
+	for (i = 0; i < strlen(str); i++) {
+		fprintf(stream, "\\x%o", str[i]);
+	}
+	fprintf(stream, "\", \n");
+}
+
 static inline uint8_t get_op_id(const char* str) {
 	if (str[0] == 'I') {
 		return 0;
@@ -83,15 +94,15 @@ int main(int argc, char* argv[]) {
 	if (type[0] == '0') {
 		key_out = fopen(key_file, "w");
 #ifdef STR_KEY
-		fprintf(key_out, "char k_arr[%d][%d] = {\n", num_n, KEY_LEN);
+		fprintf(key_out, "char load_k_arr[%s][%d] = {\n", num_n, KEY_LEN);
 #else
 		fprintf(key_out, "#include <stdint.h>\n\n");
 		fprintf(key_out, "uint64_t load_k_arr[%s] = {\n", num_n);
 #endif
 
 		val_out = fopen(val_file, "w");
-#ifdef STR_KEY
-		fprintf(val_out, "char v_arr[%d][%d] = {\n", num_n, VAL_LEN);
+#ifdef STR_VAL
+		fprintf(val_out, "char load_v_arr[%s][%d] = {\n", num_n, VAL_LEN);
 #else
 		fprintf(val_out, "#include <stdint.h>\n\n");
 		fprintf(val_out, "uint64_t load_v_arr[%s] = {\n", num_n);
@@ -102,8 +113,8 @@ int main(int argc, char* argv[]) {
 #else
 			fprintf(key_out, "%lu, \n", atoul(key));
 #endif
-#ifdef VAL_KEY
-			fprintf(val_out, "\"%s\", \n", val);
+#ifdef STR_VAL
+			print_by_char(val_out, val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
 #endif
@@ -113,15 +124,15 @@ int main(int argc, char* argv[]) {
 	} else {
 		key_out = fopen(key_file, "w");
 #ifdef STR_KEY
-		fprintf(key_out, "char k_arr[%d][%d] = {\n", num_n, KEY_LEN);
+		fprintf(key_out, "char op_k_arr[%s][%d] = {\n", num_n, KEY_LEN);
 #else
 		fprintf(key_out, "#include <stdint.h>\n\n");
 		fprintf(key_out, "uint64_t op_k_arr[%s] = {\n", num_n);
 #endif
 
 		val_out = fopen(val_file, "w");
-#ifdef STR_KEY
-		fprintf(val_out, "char v_arr[%d][%d] = {\n", num_n, VAL_LEN);
+#ifdef STR_VAL
+		fprintf(val_out, "char op_v_arr[%s][%d] = {\n", num_n, VAL_LEN);
 #else
 		fprintf(val_out, "#include <stdint.h>\n\n");
 		fprintf(val_out, "uint64_t op_v_arr[%s] = {\n", num_n);
@@ -144,8 +155,8 @@ int main(int argc, char* argv[]) {
 			if (op_id <= 1) {
 				scanf("%s", val);
 			}
-#ifdef VAL_KEY
-			fprintf(val_out, "\"%s\", \n", val);
+#ifdef STR_VAL
+			print_by_char(val_out, val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
 #endif
