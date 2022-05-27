@@ -10,9 +10,8 @@ log
 core
 perf*
 kv
-index/data
 .idea
 btree
-./index-microbench/data
-./index-microbench/data_lib
-./index-microbench/workloads
+./index-microbench/data/*
+./index-microbench/data_lib/*
+./index-microbench/workloads/*
