@@ -21,14 +21,6 @@
 #include "arch.h"
 #include "bitmap.h"
 
-#ifdef STR_KEY
-#define PNODE_FANOUT            40
-#define PNODE_INTERLEAVING_SIZE 256
-#else
-#define PNODE_FANOUT			40
-#define PNODE_INTERLEAVING_SIZE 128
-#endif
-
 #define PNODE_NUM_ENT_PER_BLK   (PNODE_INTERLEAVING_SIZE / sizeof(pentry_t))
 #define PNODE_NUM_ENT_BLK       (PNODE_FANOUT / PNODE_NUM_ENT_PER_BLK)
 #define PNODE_NUM_BLK           (PNODE_NUM_ENT_BLK + 1)
@@ -697,6 +689,22 @@ void pnode_recycle() {
     pnode_meta(d_layer->tofree_tail)->u.node = d_layer->free_list;
     d_layer->free_list = d_layer->tofree_head;
 	d_layer->tofree_head = d_layer->tofree_tail = PNOID_NULL;
+}
+
+int pnode_snapshot(pnoid_t pnode, pentry_t *entries) {
+    mnode_t *mnode = pnode_meta(pnode);
+    unsigned long validmap;
+    unsigned pos;
+    int cnt = 0;
+
+    /* Snapshot the validmap first. */
+    validmap = ACCESS_ONCE(mnode->validmap);
+
+    for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
+        entries[cnt++] = *pnode_ent(pnode, pos);
+    }
+
+    return cnt;
 }
 
 static void init_pnode_pool(struct data_layer *layer) {

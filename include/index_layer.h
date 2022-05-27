@@ -15,6 +15,12 @@ extern "C" {
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
+typedef enum {
+    SCAN_NEXT,
+    SCAN_STOP
+} scanner_ctl_t;
+typedef scanner_ctl_t (*scanner_t)(pentry_t e);
+
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);

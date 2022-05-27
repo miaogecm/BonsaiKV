@@ -497,6 +497,118 @@ relookup:
     return ret;
 }
 
+static int ent_cmp(const void *a, const void *b) {
+    const pentry_t *e1 = a, *e2 = b;
+    return pkey_compare(e1->k, e2->k);
+}
+
+int shim_scan(pkey_t start, scanner_t scanner) {
+    pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent, t;
+    int nr_ents, nr_pents, has_ent, has_pent, cmp;
+    pnoid_t pno, last_pno = PNOID_NULL;
+    unsigned long validmap;
+    inode_t *inode, *next;
+    scanner_ctl_t ctl;
+    unsigned int seq;
+    unsigned pos;
+    pkey_t fence;
+
+    inode = inode_seek(start, 0, NULL);
+
+scan_inode:
+    seq = read_seqcount_begin(&inode->seq);
+
+    fence = ACCESS_ONCE(inode->fence);
+    next = inode_off2ptr(ACCESS_ONCE(inode->next));
+
+    /* Get a consistent <fence, next> pair. */
+    if (unlikely(read_seqcount_retry(&inode->seq, seq))) {
+        goto scan_inode;
+    }
+
+    /* Walk to correct inode. */
+    if (unlikely(pkey_compare(start, fence) >= 0)) {
+        inode = next;
+        goto scan_inode;
+    }
+
+    validmap = ACCESS_ONCE(inode->validmap);
+    pno = ACCESS_ONCE(inode->pno);
+
+    nr_ents = 0;
+    for_each_set_bit(pos, &validmap, INODE_FANOUT) {
+        t = oplog_get(inode->logs[pos])->o_kv;
+        if (pkey_compare(t.k, start) >= 0) {
+            ents[nr_ents++] = t;
+        }
+    }
+    ent = ents;
+
+    if (unlikely(read_seqcount_retry(&inode->seq, seq))) {
+        goto scan_inode;
+    }
+
+    qsort(ents, nr_ents, sizeof(*ents), ent_cmp);
+
+    if (pno != last_pno) {
+        /* Not have same pno as the last ino, re-retrieve the pnode. */
+        pent = pents;
+        nr_pents = pnode_snapshot(pno, pent);
+        qsort(pent, nr_pents, sizeof(*pent), ent_cmp);
+        last_pno = pno;
+    }
+
+    /* [start, fence) */
+    while (nr_pents > 0 && pkey_compare(pent->k, start) < 0) {
+        nr_pents--;
+        pent++;
+    }
+
+    /* Merge sort @pents and @ents, and call scanner. */
+    goto merge_sort;
+    do {
+        if (has_ent && has_pent) {
+            cmp = pkey_compare(ent->k, pent->k);
+            if (cmp < 0) {
+                goto use_ent;
+            } else if (cmp > 0) {
+                goto use_pent;
+            }
+            while (nr_pents > 0 && pkey_compare(pent->k, ent->k) != 0) {
+                nr_pents--;
+                pent++;
+            }
+            goto use_ent;
+        } else if (has_ent) {
+use_ent:
+            ctl = scanner(*ent);
+            ent++;
+        } else {
+use_pent:
+            ctl = scanner(*pent);
+            nr_pents--;
+            pent++;
+        }
+        if (ctl == SCAN_STOP) {
+            goto out;
+        }
+merge_sort:
+        has_ent = ent < ents + nr_ents;
+        has_pent = nr_pents > 0 && pkey_compare(pent->k, fence) < 0;
+    } while (has_ent || has_pent);
+
+    if (unlikely(!next)) {
+        goto out;
+    }
+
+    /* @inode exhausted, go next. */
+    inode = next;
+    goto scan_inode;
+
+out:
+    return 0;
+}
+
 static inline int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {
     return pnode_lookup(pnode, key, val);
 }
