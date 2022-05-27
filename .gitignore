@@ -7,9 +7,12 @@ log
 *.a
 .objs
 .DS_Store
-core*
+core
 perf*
 kv
 index/data
 .idea
 btree
+./index-microbench/data
+./index-microbench/data_lib
+./index-microbench/workloads
