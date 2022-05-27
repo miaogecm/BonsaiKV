@@ -74,8 +74,8 @@ static inline void valman_persist() {
 
 extern pval_t bonsai_make_val(enum vclass vclass, void *val);
 
-extern void bonsai_valman_free_v(pval_t victim);
+extern void bonsai_free_val(pval_t victim);
 
-extern void *bonsai_valman_extract_v(size_t *size, pval_t val);
+extern void *bonsai_extract_val(size_t *size, pval_t val);
 
 #endif //BONSAI_VALMAN_H
