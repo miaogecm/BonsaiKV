@@ -24,6 +24,7 @@ extern "C" {
 #define KEY_LEN             8
 
 #define INT2KEY(val)        (* (pkey_t *) (unsigned long []) { (val) })
+#define KEY2INT(val)        (* (unsigned long *) val)
 
 #define MAX_KEY             INT2KEY(-1UL)
 #define MIN_KEY             INT2KEY(0UL)

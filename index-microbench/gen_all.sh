@@ -21,7 +21,7 @@ export V_LEN="16_"
 export env="-DSTR_VAL -DVAL_LEN=16"
 
 # count=36000000
-export count=1000000
+export count=10000
 
 # for KEY_TYPE in monoint randint; do
 # 	for WORKLOAD_TYPE in a b c d e; do

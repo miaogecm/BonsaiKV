@@ -109,7 +109,27 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
     return ret;
 }
 
-int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
+struct wrapper_argv {
+	scanner_t scanner;
+	void* argv;
+};
+
+static int wrapper(pentry_t e, struct wrapper_argv* w_argv) {
+	scanner_t scanner = w_argv->scanner;
+
+	e.v = valman_make_v(e.v);
+	//TODO: free it
+
+	return scanner(e, w_argv->argv);
+}
+
+int bonsai_scan(pkey_t start, scanner_t scanner, void* argv) {
+	struct wrapper_argv w_argv = {scanner, argv};
+
+	shim_scan(start, wrapper, &w_argv);
+
+	try_quiescent();
+
 	return 0;
 }
 

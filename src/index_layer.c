@@ -502,7 +502,7 @@ static int ent_cmp(const void *a, const void *b) {
     return pkey_compare(e1->k, e2->k);
 }
 
-int shim_scan(pkey_t start, scanner_t scanner) {
+int shim_scan(pkey_t start, scanner_t scanner, void* argv) {
     pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent, t;
     int nr_ents, nr_pents, has_ent, has_pent, cmp;
     pnoid_t pno, last_pno = PNOID_NULL;
@@ -581,11 +581,11 @@ scan_inode:
             goto use_ent;
         } else if (has_ent) {
 use_ent:
-            ctl = scanner(*ent);
+            ctl = scanner(*ent, argv);
             ent++;
         } else {
 use_pent:
-            ctl = scanner(*pent);
+            ctl = scanner(*pent, argv);
             nr_pents--;
             pent++;
         }

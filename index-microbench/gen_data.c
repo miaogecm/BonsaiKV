@@ -152,8 +152,8 @@ int main(int argc, char* argv[]) {
 #else
 			fprintf(key_out, "%lu, \n", atoul(key));
 #endif		
-			strcmp(val, "0");
-			if (op_id <= 1) {
+			strcpy(val, "0");
+			if (op_id != 2) {
 				scanf("%s", val);
 			}
 #ifdef STR_VAL
