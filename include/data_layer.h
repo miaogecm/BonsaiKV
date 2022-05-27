@@ -16,6 +16,14 @@ extern "C" {
 #include "hwconfig.h"
 #include "log_layer.h"
 
+#ifdef STR_KEY
+#define PNODE_FANOUT            40
+#define PNODE_INTERLEAVING_SIZE 256
+#else
+#define PNODE_FANOUT			40
+#define PNODE_INTERLEAVING_SIZE 128
+#endif
+
 typedef uint32_t pnoid_t;
 
 #define PNOID_NULL              (-1u)
@@ -183,6 +191,7 @@ pkey_t pnode_get_lfence(pnoid_t pnode);
 pkey_t pnode_get_rfence(pnoid_t pnode);
 void pnode_prefetch_meta(pnoid_t pnode);
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val);
+int pnode_snapshot(pnoid_t pnode, pentry_t *entries);
 int is_in_pnode(pnoid_t pnode, pkey_t key);
 
 void pnode_recycle();
