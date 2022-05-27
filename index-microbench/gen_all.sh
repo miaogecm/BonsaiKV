@@ -21,7 +21,7 @@ export V_LEN="16_"
 export env="-DSTR_VAL -DVAL_LEN=16"
 
 # count=36000000
-export count=10000
+export count=1000000
 
 # for KEY_TYPE in monoint randint; do
 # 	for WORKLOAD_TYPE in a b c d e; do
@@ -35,7 +35,7 @@ export count=10000
 #   	done
 # done 
 
-for KEY_TYPE in monoint; do
+for KEY_TYPE in randint; do
 	for WORKLOAD_TYPE in a; do
     	echo workload${WORKLOAD_TYPE} > workload_config.inp
     	echo ${KEY_TYPE} >> workload_config.inp
