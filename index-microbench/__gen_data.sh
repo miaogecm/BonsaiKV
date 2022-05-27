@@ -6,7 +6,14 @@ gcc -g gen_data.c -o gen_data.out ${env}
 
 cd ${index_microbench_dir}
 
-python2 ${index_microbench_dir}/gen_workload.py ${index_microbench_dir}/workload_config.inp
+echo $STR_V
+
+if [ $STR_V == "strv_" ]
+then
+    python2 ${index_microbench_dir}/gen_workload_str.py ${index_microbench_dir}/workload_config.inp
+else
+    python2 ${index_microbench_dir}/gen_workload.py ${index_microbench_dir}/workload_config.inp
+fi
 
 suffix=${key_type}'_workload'${workload_type}
 
