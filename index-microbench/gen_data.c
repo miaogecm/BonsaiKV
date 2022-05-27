@@ -33,6 +33,10 @@ static inline uint64_t atoul(const char* str) {
 	return res;
 }
 
+static inline void ultostr(const void* dest, size_t size, uint64_t x) {
+
+}
+
 static inline uint8_t get_op_id(const char* str) {
 	if (str[0] == 'I') {
 		return 0;
@@ -102,7 +106,7 @@ int main(int argc, char* argv[]) {
 #else
 			fprintf(key_out, "%lu, \n", atoul(key));
 #endif
-#ifdef VAL_KEY
+#ifdef STR_VAL
 			fprintf(val_out, "\"%s\", \n", val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
@@ -144,7 +148,7 @@ int main(int argc, char* argv[]) {
 			if (op_id <= 1) {
 				scanf("%s", val);
 			}
-#ifdef VAL_KEY
+#ifdef STR_VAL
 			fprintf(val_out, "\"%s\", \n", val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
