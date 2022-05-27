@@ -21,7 +21,7 @@ op_out=${STR_K}${STR_V}${SAMPLE}${UNIFORM}'op_'${suffix}'.h'
 ./gen_data.out ${index_microbench_dir}/workloads/${load_file} ./data/${load_out} 0 $count 
 ./gen_data.out ${index_microbench_dir}/workloads/${txn_file} ./data/${op_out} 1 $count
 
-lib_name=${SAMPLE}${UNIFORM}'libkvdata_'${suffix}'.so'
+lib_name=${STR_K}${STR_V}${SAMPLE}${UNIFORM}'libkvdata_'${suffix}'.so'
 
 rm kvdata.c
 touch kvdata.c
