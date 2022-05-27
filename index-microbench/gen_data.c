@@ -114,6 +114,7 @@ int main(int argc, char* argv[]) {
 			fprintf(key_out, "%lu, \n", atoul(key));
 #endif
 #ifdef STR_VAL
+			assert(strlen(val) <= VAL_LEN);
 			print_by_char(val_out, val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
@@ -156,6 +157,7 @@ int main(int argc, char* argv[]) {
 				scanf("%s", val);
 			}
 #ifdef STR_VAL
+			assert(strlen(val) <= VAL_LEN);
 			print_by_char(val_out, val);
 #else
 			fprintf(val_out, "%lu, \n", atoul(val));
