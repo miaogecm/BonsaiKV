@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export index_microbench_dir='./'
+export index_microbench_dir='.'
 
 gcc -g gen_data.c -o gen_data.out ${env}
 
 cd ${index_microbench_dir}
 
-python2 ${index_microbench_dir}/gen_workload_str.py ${index_microbench_dir}/workload_config.inp
+python2 ${index_microbench_dir}/gen_workload.py ${index_microbench_dir}/workload_config.inp
 
 suffix=${key_type}'_workload'${workload_type}
 
