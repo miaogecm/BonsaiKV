@@ -245,9 +245,9 @@ static void do_op(long id) {
                     v = 0;
                     ret = bonsai_lookup(__key, &v);
 #ifdef STR_VAL
-                    __val = bonsai_valman_extract_v(size, v);	
+                    __val = bonsai_extract_val(size, v);
                     map_lookup_check(__key, __val, size);
-                    bonsai_valman_free_v(__val);
+                    bonsai_free_val(__val);
 #else 
                     map_lookup_check(__key, &v, 8);
 #endif

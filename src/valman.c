@@ -237,12 +237,12 @@ pval_t bonsai_make_val(enum vclass vclass, void *val) {
     return pval_make_v(vclass, val);
 }
 
-void bonsai_valman_free_v(pval_t victim) {
-    valman_free_v(pval_t victim);
+void bonsai_free_val(pval_t victim) {
+    valman_free_v(victim);
 }
 
-void *bonsai_valman_extract_v(size_t *size, pval_t val) {
-    return valman_extract_v(size_t *size, pval_t val);
+void *bonsai_extract_val(size_t *size, pval_t val) {
+    return valman_extract_v(size, val);
 }
 
 #endif
