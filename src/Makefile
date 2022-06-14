@@ -10,7 +10,7 @@ CFLAGS += -I$(INC_DIR)
 CFLAGS += -march=native -mtune=native -O3
 CFLAGS += -g -ggdb3
 CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
-CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value
+CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value -Wno-strict-aliasing
 CFLAGS += -Wno-unused-function
 CFLAGS += ${LOCAL}
 CFLAGS += -D PNODE_FP

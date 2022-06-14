@@ -29,6 +29,7 @@
 
 #include "index_layer.h"
 #include "stm.h"
+#include "dtx.h"
 
 /* Global variables */
 static struct stm_global* _tinystm;
@@ -40,6 +41,8 @@ static NOINLINE void stm_rollback(stm_tx_t *tx, unsigned int reason);
 static NOINLINE void stm_allocate_rs_entries(stm_tx_t *tx, int extend);
 static NOINLINE void stm_allocate_ws_entries(stm_tx_t *tx, int extend);
 static INLINE r_entry_t* stm_has_read(stm_tx_t *tx, volatile stm_word_t *lock);
+
+void write_set_persist(stm_tx_t *stx, stm_word_t timestamp);
 
 #define PRINT_DEBUG
 
@@ -180,7 +183,7 @@ restart_no_load:
         		}
         		if (w->next == NULL) {
           			/* No: get value from memory */
-                value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN, NULL);
+                	value = (stm_word_t)layer->lookup(layer->index_struct, (const void*)addr, KEY_LEN, NULL);
           			//value = ATOMIC_LOAD(addr);
           			break;
         		}
@@ -406,7 +409,7 @@ static INLINE int stm_wbetl_commit(stm_tx_t *tx)
   	}
 #endif
 
-  //persist_write_set(tx, t);
+  	write_set_persist(tx, t);
 
 //end:
   	return 1;
@@ -696,24 +699,27 @@ void stm_exit_thread(stm_tx_t* tx)
   free(tx);
 }
 
-void dtx_begin() {;}
-void dtx_commit() {;};
+extern int bonsai_insert(pkey_t key, pval_t value);
 
 /*
- * persist_write_set - use durable transaction to persist the execution result
+ * write_set_persist - use durable transaction to persist the execution result
  * of stm.
  */
-void persist_write_set(stm_tx_t *stx, stm_word_t timestamp) {
+void write_set_persist(stm_tx_t *stx, stm_word_t timestamp) {
 	w_entry_t *w = stx->w_set.entries;
+	struct dtx_struct* dtx;
 	int i;
 
-	dtx_begin(); {
+	dtx = dtx_begin(timestamp); {
 		for (i = stx->w_set.nb_entries; i > 0; i--, w++) {
+			bonsai_insert(*((pkey_t*)w->addr), w->value);
+			
     		/* Only drop lock for last covered address in write set */
     		if (w->next == NULL) {
 				/* store new version */
         		//ATOMIC_STORE_REL(w->lock, LOCK_SET_TIMESTAMP(timestamp));
     		}
+    			
   		}
-	} dtx_commit();
+	} dtx_commit(dtx);
 }

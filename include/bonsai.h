@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include "cpu.h"
+
 #include <libpmemobj.h>
 #include <thread.h>
 #include <assert.h>
@@ -20,7 +22,6 @@ extern "C" {
 #include "bitmap.h"
 #include "rwlock.h"
 #include "index_layer.h"
-#include "cpu.h"
 #include "rcu.h"
 #include "valman.h"
 

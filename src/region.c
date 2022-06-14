@@ -7,6 +7,8 @@
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
+#include "cpu.h"
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <libpmem.h>
@@ -21,7 +23,6 @@
 #include "arch.h"
 #include "bonsai.h"
 #include "region.h"
-#include "cpu.h"
 #include "data_layer.h"
 #include "hwconfig.h"
 #include "valman.h"
@@ -73,7 +74,6 @@ static char* pval_region_fpath[NUM_DIMM] = {
 
 int log_region_init(struct log_layer *layer) {
     size_t size_per_dimm = sizeof(struct dimm_log_region);
-	size_t size_per_cpu_log_region = size_per_dimm / NUM_CPU_PER_LOG_DIMM;
 	int dimm, cpu, fd, ret = 0;
     void *vaddr;
 

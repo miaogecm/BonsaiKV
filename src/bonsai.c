@@ -7,6 +7,8 @@
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
+#include "cpu.h"
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
@@ -21,7 +23,6 @@
 #include "hwconfig.h"
 #include "index_layer.h"
 #include "data_layer.h"
-#include "cpu.h"
 #include "rcu.h"
 
 struct bonsai_info* bonsai;
@@ -114,7 +115,8 @@ struct wrapper_argv {
 	void* argv;
 };
 
-static int wrapper(pentry_t e, struct wrapper_argv* w_argv) {
+static scanner_ctl_t wrapper(pentry_t e, void* w_argv_) {
+	struct wrapper_argv* w_argv = (struct wrapper_argv*)w_argv_;
 	scanner_t scanner = w_argv->scanner;
 
 	e.v = valman_make_v(e.v);

@@ -15,3 +15,5 @@ btree
 index-microbench/data/*
 index-microbench/data_lib/*
 index-microbench/workloads/*
+index/data/libkvdata.so
+index/data/kvdata.h 

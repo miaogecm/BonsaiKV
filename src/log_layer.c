@@ -7,6 +7,8 @@
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
+#include "cpu.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -18,7 +20,6 @@
 #include "log_layer.h"
 #include "ordo.h"
 #include "arch.h"
-#include "cpu.h"
 #include "region.h"
 #include "common.h"
 #include "thread.h"
@@ -1069,12 +1070,12 @@ out:
 }
 
 void log_layer_deinit(struct log_layer* layer) {
-	struct cpu_log_region_desc *desc;
+	//struct cpu_log_region_desc *desc;
 	int node, cpu;
 
 	for (node = 0; node < NUM_SOCKET; node++) {
 		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu++) {
-			desc = &layer->desc->descs[cpu];
+			//desc = &layer->desc->descs[cpu];
 		}
 	}
 	

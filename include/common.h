@@ -92,7 +92,7 @@ typedef struct pentry {
 #define unlikely(x) __builtin_expect((unsigned long)(x), 0)
 #endif
 
-#if 1
+#if 0
 #define bonsai_print(fmt, args ...)	 fprintf(stdout, fmt, ##args)
 #else 
 #define bonsai_print(fmt, args ...) do {} while(0)
@@ -115,7 +115,7 @@ typedef struct pentry {
  * strict type-checking.. See the
  * "unnecessary" pointer comparison.
  */
-#define __min(t1, t2, min1, min2, x, y) ({		\
+#define _min(t1, t2, min1, min2, x, y) ({		\
 	t1 min1 = (x);					\
 	t2 min2 = (y);					\
 	(void) (&min1 == &min2);			\
@@ -127,7 +127,7 @@ typedef struct pentry {
  * @y: second value
  */
 #define min(x, y)					\
-	__min(typeof(x), typeof(y),			\
+	_min(typeof(x), typeof(y),			\
 	      __UNIQUE_ID(min1_), __UNIQUE_ID(min2_),	\
 	      x, y)
 

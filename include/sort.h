@@ -201,12 +201,12 @@ do_qsort (void *const pbase, size_t total_elems, size_t size, void *arg)
      of the array to sort, and END_PTR points at the very last element in
      the array (*not* one beyond it!). */
 
-#define min(x, y) ((x) < (y) ? (x) : (y))
+#define __min(x, y) ((x) < (y) ? (x) : (y))
 
   {
     char *const end_ptr = &base_ptr[size * (total_elems - 1)];
     char *tmp_ptr = base_ptr;
-    char *thresh = min(end_ptr, base_ptr + max_thresh);
+    char *thresh = __min(end_ptr, base_ptr + max_thresh);
     char *run_ptr;
 
     /* Find smallest element in first threshold and place it at the

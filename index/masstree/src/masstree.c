@@ -285,7 +285,7 @@ validate_inode(const mtree_inode_t *inode)
 		uint32_t v = inode->child[i]->version;
 
 		if ((v & NODE_DELETED) == 0 && (v & NODE_ISBORDER) != 0) {
-			mtree_leaf_t *leaf = cast_to_leaf(inode->child[i]);
+			//mtree_leaf_t *leaf = cast_to_leaf(inode->child[i]);
 			NOSMP_ASSERT(validate_leaf(leaf));
 		}
 	}
@@ -791,6 +791,7 @@ split_inter_node(masstree_t *tree, mtree_node_t *parent, uint64_t ckey,
 	mtree_inode_t *lnode = cast_to_inode(parent);
 	mtree_inode_t *rnode = internode_create(tree);
 	const unsigned s = NODE_PIVOT + 1, c = NODE_MAX - s;
+	mtree_node_t *pnode;
 
 	ASSERT(node_locked_p(parent));
 	ASSERT(node_locked_p(nchild));
@@ -822,8 +823,10 @@ split_inter_node(masstree_t *tree, mtree_node_t *parent, uint64_t ckey,
 	lnode->nkeys = s - 1;
 
 	/* Insert the child into the correct parent. */
+	{
 	const bool toleft = ckey < *midkey;
-	mtree_node_t *pnode = (mtree_node_t *)(toleft ? lnode : rnode);
+	pnode = (mtree_node_t *)(toleft ? lnode : rnode);
+	}
 	internode_insert(pnode, ckey, nchild);
 
 	NOSMP_ASSERT(validate_inode(lnode));
@@ -1315,10 +1318,10 @@ masstree_get(masstree_t *tree, const void *key, size_t len, const void* actual_k
 	mtree_node_t *root = tree->root;
 	unsigned l = 0, slen, idx, type;
 	mtree_leaf_t *leaf;
-	uint64_t skey, pkey;
-	uint32_t v;
+	uint64_t skey, pkey = 0;
+	uint32_t v = 0;
     int eq = 1, this_eq;
-	void *lv;
+	void *lv = NULL;
 	unsigned int off = 0;
 
 advance:
@@ -1339,7 +1342,7 @@ forward:
 	/* Fetch the value (or pointer to the next layer). */
 	idx = __leaf_find_lv(leaf, skey, slen, &type, &this_eq);
 
-    if (__predict_true(idx != -1)) {
+    if (__predict_true(idx != (unsigned)-1)) {
         lv = leaf->lv[idx];
         /* TODO: Why we need the mfence here? */
         atomic_thread_fence(memory_order_seq_cst);
@@ -1365,7 +1368,7 @@ forward:
 			assert(off < len && off >= len - 8);
 			skey = leaf->keyslice[idx];
 			skey = htobe64(skey);
-			memcpy(actual_key + off, &skey, len - off);
+			memcpy((void*)(actual_key + off), &skey, len - off);
 		}
 		return lv;
 	}
@@ -1376,7 +1379,7 @@ forward:
 		if (actual_key != NULL) {
 			skey = leaf->keyslice[idx];
 			skey = htobe64(skey);
-			memcpy(actual_key + off, &skey, 8);
+			memcpy((void*)(actual_key + off), &skey, 8);
 			off += 8;
 		}
 		goto advance;
@@ -1652,7 +1655,7 @@ masstree_create(const masstree_ops_t *ops)
 void
 masstree_destroy(masstree_t *tree)
 {
-	const masstree_ops_t *ops = tree->ops;
+	//const masstree_ops_t *ops = tree->ops;
 	mtree_leaf_t *root = cast_to_leaf(tree->root);
 
 	/* Diagnostics: check for non-empty tree. */

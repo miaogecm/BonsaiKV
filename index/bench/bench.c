@@ -98,7 +98,7 @@ static void map_load()  {
 #else
         *__key = INT2KEY(load_k_arr[i]);
 #endif
-        hashmap_set(map, __key, KEY_LEN, &load_v_arr[i]);
+        hashmap_set(map, __key, KEY_LEN, (uintptr_t)&load_v_arr[i]);
     }
 }
 
@@ -106,13 +106,13 @@ static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
 #ifdef USE_MAP
     pval_t v = 0;
     assert(hashmap_get(map, &k, KEY_LEN, &v));
-    assert(memcmp(v, exc_v, size) == 0);
+    assert(memcmp((void*)v, (void*)exc_v, size) == 0);
 #endif
 }
 
 static inline uint64_t atoul(const char* str) {
 	uint64_t res = 0;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < strlen(str); i++) {
 		res = res * 10 + str[i] - '0';
@@ -169,8 +169,9 @@ struct scanner_argv {
     pkey_t start;
 };
 
-static scanner_ctl_t scanner(pentry_t e, struct scanner_argv* s_argv) {
-    int cnt = 0;
+static scanner_ctl_t scanner(pentry_t e, void* s_argv_) {
+	struct scanner_argv* s_argv = s_argv_;
+    unsigned int cnt = 0;
     
     memcpy(&s_argv->val_arr[cnt], (pval_t*) e.v, sizeof(pval_t));
     // assert(KEY2INT(e.k) == KEY2INT(s_argv->start) + cnt);
@@ -186,11 +187,9 @@ static scanner_ctl_t scanner(pentry_t e, struct scanner_argv* s_argv) {
 static void do_load(long id) {
     double interval;
 	long i, st, ed;
-    int ret;
     int repeat = 1;
     pkey_t __key;
     pval_t __val;
-    size_t size;
 	//printf("user thread[%ld] do load\n", id);
 
     start_measure();
@@ -211,7 +210,7 @@ static void do_load(long id) {
 #else
                     __val = load_v_arr[i];
 #endif
-                ret = bonsai_insert(__key, __val);
+                bonsai_insert(__key, __val);
             } else {
                 // ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
@@ -273,7 +272,7 @@ static void do_op(long id) {
                     v = 0;
                     ret = bonsai_lookup(__key, &v);
 #ifdef STR_VAL
-                    __val = bonsai_extract_val(&size, v);
+                    __val = (pval_t)bonsai_extract_val(&size, v);
                     map_lookup_check(__key, __val, size);
                     bonsai_free_val(v);
 #else 
@@ -299,7 +298,7 @@ static void do_op(long id) {
                     s_argv.size = size;
                     s_argv.val_arr = (pval_t*) malloc(size * sizeof(pval_t));
                     s_argv.start = __key;
-                    bonsai_scan(__key, scanner, &s_argv);
+                    bonsai_scan(__key, scanner, (void*)&s_argv);
                     free(s_argv.val_arr);
                 } else {
                     // TODO: Implement it
