@@ -28,6 +28,7 @@
 #include <sched.h>
 
 #include "index_layer.h"
+#include "log_layer.h"
 #include "stm.h"
 #include "dtx.h"
 
@@ -713,13 +714,22 @@ void write_set_persist(stm_tx_t *stx, stm_word_t timestamp) {
 	dtx = dtx_begin(timestamp); {
 		for (i = stx->w_set.nb_entries; i > 0; i--, w++) {
 			bonsai_insert(*((pkey_t*)w->addr), w->value);
+
+			if (unlikely(!dtx->t_num)) {
+				//dtx->t_start = ;
+			}	
+
+			//dtx->t_logid[dtx->t_num++] = ;
+			dtx->t_size += sizeof(struct oplog);
+
+			//dtx->t_next = ;
 			
     		/* Only drop lock for last covered address in write set */
     		if (w->next == NULL) {
 				/* store new version */
         		//ATOMIC_STORE_REL(w->lock, LOCK_SET_TIMESTAMP(timestamp));
     		}
-    			
+    	
   		}
 	} dtx_commit(dtx);
 }

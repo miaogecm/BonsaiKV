@@ -12,6 +12,8 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 #include "seqlock.h"
+#include "hwconfig.h"
+#include "region.h"
 
 #define NUM_OPLOG_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
 #define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)

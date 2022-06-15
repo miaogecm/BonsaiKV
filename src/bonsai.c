@@ -218,6 +218,9 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		rcu_init(&bonsai->rcu);
 		fb_init(&bonsai->rcu.fb);
 
+		/* 7. initialize durable transaction */
+		atomic_set(&bonsai->tx_id, 0);
+
 		bonsai->desc->init = 1;
   	} else {
       	bonsai_recover();

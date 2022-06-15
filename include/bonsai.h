@@ -65,6 +65,9 @@ struct bonsai_info {
 
     /* RCU */
     rcu_t rcu;
+
+	/* DTX */
+	atomic_t tx_id;
 }____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))
