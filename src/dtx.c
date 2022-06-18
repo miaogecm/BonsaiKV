@@ -4,7 +4,7 @@
  * Hohai University
  *
  * Author: Miao Cai, mcai@hhu.edu.cn
- * 				 Junru Shen, gnu_emacs@hhu.edu.cn
+ * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  * 
  * A durable transaction implementation.
  */
