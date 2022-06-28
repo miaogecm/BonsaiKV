@@ -136,9 +136,9 @@ static struct vpool *get_vpool() {
 static inline void *pval_ptr(pval_t pval) {
     union pval_desc desc = { .pval = pval };
     if (desc.is_nv) {
-        return DATA(bonsai)->val_region[desc.dimm].d_start + desc.off;
+        return (void*)(DATA(bonsai)->val_region[desc.dimm].d_start + desc.off);
     } else {
-        return (void *) desc.addr;
+        return (void*) desc.addr;
     }
 }
 

@@ -7,6 +7,8 @@
  * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
+#include "cpu.h"
+
 #include <stdlib.h>
 #include <assert.h>
 #include <malloc.h>
@@ -20,7 +22,6 @@
 #include "arch.h"
 #include "index_layer.h"
 #include "ordo.h"
-#include "cpu.h"
 
 #define INODE_FANOUT    16
 
@@ -111,7 +112,7 @@ void do_smo() {
     struct index_layer *i_layer = INDEX(bonsai);
     struct shim_layer* s_layer = SHIM(bonsai);
     unsigned long min_ts;
-    struct smo_log log;
+    struct smo_log log = {0};
     int cpu, min_cpu;
 
     while (1) {
@@ -132,6 +133,8 @@ void do_smo() {
 
         kfifo_get(&s_layer->fifo[min_cpu], &log);
 
+		/* FIXME: init log.v */
+		log.v = NULL;
         i_layer->insert(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN, log.v);
     }
 }
@@ -502,9 +505,9 @@ static int ent_cmp(const void *a, const void *b) {
     return pkey_compare(e1->k, e2->k);
 }
 
-int shim_scan(pkey_t start, scanner_t scanner) {
-    pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent, t;
-    int nr_ents, nr_pents, has_ent, has_pent, cmp;
+int shim_scan(pkey_t start, scanner_t scanner, void* argv) {
+    pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent = NULL, t;
+    int nr_ents, nr_pents = 0, has_ent, has_pent, cmp;
     pnoid_t pno, last_pno = PNOID_NULL;
     unsigned long validmap;
     inode_t *inode, *next;
@@ -581,11 +584,11 @@ scan_inode:
             goto use_ent;
         } else if (has_ent) {
 use_ent:
-            ctl = scanner(*ent);
+            ctl = scanner(*ent, argv);
             ent++;
         } else {
 use_pent:
-            ctl = scanner(*pent);
+            ctl = scanner(*pent, argv);
             nr_pents--;
             pent++;
         }

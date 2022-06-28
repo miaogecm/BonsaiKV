@@ -53,6 +53,13 @@ static lookup_func_t  fn_lookup;
 static lookup_func_t  fn_lowerbound;
 static scan_func_t    fn_scan;
 
+typedef enum {
+    SCAN_NEXT,
+    SCAN_STOP
+} scanner_ctl_t;
+
+typedef scanner_ctl_t (*scanner_t)(pentry_t e, void* argv);
+
 extern int
 bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
             remove_func_t remove, lookup_func_t lookup, scan_func_t scan);
@@ -69,7 +76,7 @@ extern pkey_t bonsai_make_key(const void *key, size_t len);
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
-extern int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr);
+extern int bonsai_scan(pkey_t start, scanner_t scanner, void* argv);
 
 extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -91,7 +98,7 @@ static void map_load()  {
 #else
         *__key = INT2KEY(load_k_arr[i]);
 #endif
-        hashmap_set(map, __key, KEY_LEN, &load_v_arr[i]);
+        hashmap_set(map, __key, KEY_LEN, (uintptr_t)&load_v_arr[i]);
     }
 }
 
@@ -99,13 +106,13 @@ static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
 #ifdef USE_MAP
     pval_t v = 0;
     assert(hashmap_get(map, &k, KEY_LEN, &v));
-    assert(memcmp(v, exc_v, size) == 0);
+    assert(memcmp((void*)v, (void*)exc_v, size) == 0);
 #endif
 }
 
 static inline uint64_t atoul(const char* str) {
 	uint64_t res = 0;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < strlen(str); i++) {
 		res = res * 10 + str[i] - '0';
@@ -156,14 +163,33 @@ static inline double end_measure() {
     return t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
 }
 
+struct scanner_argv {
+    size_t size;
+    pval_t* val_arr;
+    pkey_t start;
+};
+
+static scanner_ctl_t scanner(pentry_t e, void* s_argv_) {
+	struct scanner_argv* s_argv = s_argv_;
+    unsigned int cnt = 0;
+    
+    memcpy(&s_argv->val_arr[cnt], (pval_t*) e.v, sizeof(pval_t));
+    // assert(KEY2INT(e.k) == KEY2INT(s_argv->start) + cnt);
+    cnt++;
+
+    if (cnt == s_argv->size) {
+        return SCAN_STOP;
+    }
+
+    return SCAN_NEXT;
+}
+
 static void do_load(long id) {
     double interval;
 	long i, st, ed;
-    int ret;
     int repeat = 1;
     pkey_t __key;
     pval_t __val;
-
 	//printf("user thread[%ld] do load\n", id);
 
     start_measure();
@@ -184,11 +210,11 @@ static void do_load(long id) {
 #else
                     __val = load_v_arr[i];
 #endif
-                ret = bonsai_insert(__key, __val);
+                bonsai_insert(__key, __val);
             } else {
                 // ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
-            assert(ret == 0);
+            // assert(ret == 0);
         }
     }
     interval = end_measure();
@@ -202,9 +228,10 @@ static void do_op(long id) {
     double interval;
 	long i, repeat = 1;
     int st, ed, opcode;
-    pkey_t __key, __key2;
+    pkey_t __key;
     pval_t __val;
     size_t size;
+    struct scanner_argv s_argv;
     int ret;
 
     st = 1.0 * id / NUM_THREAD * N;
@@ -245,7 +272,7 @@ static void do_op(long id) {
                     v = 0;
                     ret = bonsai_lookup(__key, &v);
 #ifdef STR_VAL
-                    __val = bonsai_extract_val(&size, v);
+                    __val = (pval_t)bonsai_extract_val(&size, v);
                     map_lookup_check(__key, __val, size);
                     bonsai_free_val(v);
 #else 
@@ -259,13 +286,20 @@ static void do_op(long id) {
             case 3:
                 if (in_bonsai) {
 #ifdef STR_KEY
-                    // __key = MK_K(op_arr[i][1], strlen(op_arr[i][1]));
-                    // __key2 = MK_K(op_arr[i][2], strlen(op_arr[i][2]));
+                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
 #else
-                    // __key = INT2KEY(op_arr[i][1]);
-                    // __key2 = INT2KEY(op_arr[i][2]);
+                    __key = INT2KEY(op_k_arr[i]);
 #endif
-                    // bonsai_scan(__key, 8, __key2, 8, val_arr);
+#ifdef STR_VAL
+                    size = atoul(op_v_arr[i]);
+#else
+                    size = op_v_arr[i];
+#endif
+                    s_argv.size = size;
+                    s_argv.val_arr = (pval_t*) malloc(size * sizeof(pval_t));
+                    s_argv.start = __key;
+                    bonsai_scan(__key, scanner, (void*)&s_argv);
+                    free(s_argv.val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);

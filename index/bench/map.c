@@ -130,7 +130,7 @@ static void hashmap_resize(hashmap* m)
 static inline uint32_t hash_data(const unsigned char* data, size_t size)
 {
 	size_t nblocks = size / 8;
-	uint64_t hash = HASHMAP_HASH_INIT;
+	uint64_t last, hash = HASHMAP_HASH_INIT;
 	for (size_t i = 0; i < nblocks; ++i)
 	{
 		hash ^= (uint64_t)data[0] << 0 | (uint64_t)data[1] << 8 |
@@ -141,7 +141,7 @@ static inline uint32_t hash_data(const unsigned char* data, size_t size)
 		data += 8;
 	}
 
-	uint64_t last = size & 0xff;
+	last = size & 0xff;
 	switch (size % 8)
 	{
 	case 7:
@@ -214,11 +214,14 @@ static struct bucket* find_entry(hashmap* m, void* key, size_t ksize, uint32_t h
 
 void hashmap_set(hashmap* m, void* key, size_t ksize, uintptr_t val)
 {
+	uint32_t hash;
+	struct bucket* entry;
+
 	if (m->count + 1 > HASHMAP_MAX_LOAD * m->capacity)
 		hashmap_resize(m);
 
-	uint32_t hash = hash_data(key, ksize);
-	struct bucket* entry = find_entry(m, key, ksize, hash);
+	hash = hash_data(key, ksize);
+	entry = find_entry(m, key, ksize, hash);
 	if (entry->key == NULL)
 	{
 		m->last->next = entry;
@@ -236,11 +239,14 @@ void hashmap_set(hashmap* m, void* key, size_t ksize, uintptr_t val)
 
 bool hashmap_get_set(hashmap* m, void* key, size_t ksize, uintptr_t* out_in)
 {
+	uint32_t hash;
+	struct bucket* entry;
+
 	if (m->count + 1 > HASHMAP_MAX_LOAD * m->capacity)
 		hashmap_resize(m);
 
-	uint32_t hash = hash_data(key, ksize);
-	struct bucket* entry = find_entry(m, key, ksize, hash);
+	hash = hash_data(key, ksize);
+	entry = find_entry(m, key, ksize, hash);
 	if (entry->key == NULL)
 	{
 		m->last->next = entry;
@@ -262,11 +268,14 @@ bool hashmap_get_set(hashmap* m, void* key, size_t ksize, uintptr_t* out_in)
 
 void hashmap_set_free(hashmap* m, void* key, size_t ksize, uintptr_t val, hashmap_callback c, void* usr)
 {
+	uint32_t hash;
+	struct bucket *entry;
+
 	if (m->count + 1 > HASHMAP_MAX_LOAD * m->capacity)
 		hashmap_resize(m);
 
-	uint32_t hash = hash_data(key, ksize);
-	struct bucket *entry = find_entry(m, key, ksize, hash);
+	hash = hash_data(key, ksize);
+	entry = find_entry(m, key, ksize, hash);
 	if (entry->key == NULL)
 	{
 		m->last->next = entry;

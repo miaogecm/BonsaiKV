@@ -297,7 +297,7 @@ static void pnode_verify(pnoid_t pnode) {
     unsigned pos;
     for_each_set_bit(pos, &vmp, PNODE_FANOUT) {
         ent = pnode_ent(pnode, pos);
-        printf("gotcha %lx %u %lu\n", ent, pnode, *(unsigned long *) ent->k.key);
+        bonsai_print("gotcha %lx %u %lu\n", ent, pnode, *(unsigned long *) ent->k.key);
         assert(pkey_compare(ent->k, mno->lfence) >= 0);
         assert(pkey_compare(ent->k, mno->rfence) < 0);
     }
@@ -315,7 +315,7 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     pnoid_t original = *pnode, l, r = PNOID_NULL;
     struct data_layer *layer = DATA(bonsai);
     pentry_t ents[PNODE_FANOUT], *ent;
-    mnode_t *mno, *lmno, *rmno;
+    mnode_t *mno = NULL, *lmno, *rmno;
     unsigned pos, cnt = 0;
 
     /* Recolor only. */
@@ -527,10 +527,10 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
 
 static void pnode_prebuild(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct list_head *pbatch_list, size_t tot) {
     struct data_layer *d_layer = DATA(bonsai);
-
-    pnoid_t head, tail, next, prev = PNOID_NULL;
+    pnoid_t head = PNOID_NULL, tail = PNOID_NULL;
+	pnoid_t next, prev = PNOID_NULL;
     pentry_t ents[PNODE_FANOUT], *ent = ents;
-    mnode_t *head_mno, *tail_mno, *mno;
+    mnode_t *head_mno, *tail_mno = NULL, *mno = NULL;
     pentry_t merged[PNODE_FANOUT], *m;
     int node = pnode_numa_node(pnode);
     pbatch_cursor_t cursor;

@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include "cpu.h"
+
 #include <libpmemobj.h>
 #include <thread.h>
 #include <assert.h>
@@ -20,7 +22,6 @@ extern "C" {
 #include "bitmap.h"
 #include "rwlock.h"
 #include "index_layer.h"
-#include "cpu.h"
 #include "rcu.h"
 #include "valman.h"
 
@@ -64,6 +65,9 @@ struct bonsai_info {
 
     /* RCU */
     rcu_t rcu;
+
+	/* DTX */
+	atomic_t tx_id;
 }____cacheline_aligned;
 
 #define INDEX(bonsai)    	(&(bonsai->i_layer))

@@ -12,13 +12,13 @@
  *                      node0              node1
  */
 #define _GNU_SOURCE
+#include "cpu.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
 
 #include "thread.h"
-#include "cpu.h"
 #include "atomic.h"
 #include "common.h"
 #include "bonsai.h"

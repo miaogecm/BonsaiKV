@@ -7,6 +7,8 @@
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  */
 #define _GNU_SOURCE
+#include "cpu.h"
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
@@ -21,7 +23,6 @@
 #include "hwconfig.h"
 #include "index_layer.h"
 #include "data_layer.h"
-#include "cpu.h"
 #include "rcu.h"
 
 struct bonsai_info* bonsai;
@@ -108,7 +109,28 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
     return ret;
 }
 
-int bonsai_scan(pkey_t low, uint16_t lo_len, pkey_t high, uint16_t hi_len, pval_t* val_arr) {
+struct wrapper_argv {
+	scanner_t scanner;
+	void* argv;
+};
+
+static scanner_ctl_t wrapper(pentry_t e, void* w_argv_) {
+	struct wrapper_argv* w_argv = (struct wrapper_argv*)w_argv_;
+	scanner_t scanner = w_argv->scanner;
+
+	e.v = valman_make_v(e.v);
+	//TODO: free it
+
+	return scanner(e, w_argv->argv);
+}
+
+int bonsai_scan(pkey_t start, scanner_t scanner, void* argv) {
+	struct wrapper_argv w_argv = {scanner, argv};
+
+	shim_scan(start, wrapper, &w_argv);
+
+	try_quiescent();
+
 	return 0;
 }
 
@@ -194,6 +216,9 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		/* 6. initialize RCU */
 		rcu_init(&bonsai->rcu);
 		fb_init(&bonsai->rcu.fb);
+
+		/* 7. initialize durable transaction */
+		atomic_set(&bonsai->tx_id, 0);
 
 		bonsai->desc->init = 1;
   	} else {
