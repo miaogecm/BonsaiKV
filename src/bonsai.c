@@ -100,8 +100,7 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
     ret = shim_lookup(key, &nv_val);
 
     if (likely(!ret)) {
-        //*val = valman_make_v_local(nv_val);
-        *val = valman_make_v(nv_val);
+        *val = valman_make_v_local(nv_val);
     }
 
     try_quiescent();

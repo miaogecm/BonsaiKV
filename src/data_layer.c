@@ -191,7 +191,9 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
         if (local != ent) {
             memcpy(local, ent, sizeof(pentry_t));
         }
-        //valman_pull(local->v);
+        if (local->v) {
+            valman_pull(local->v);
+        }
         barrier();
     }
 
