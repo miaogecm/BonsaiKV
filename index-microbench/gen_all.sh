@@ -36,7 +36,7 @@ export count=10000
 # done 
 
 for KEY_TYPE in randint; do
-	for WORKLOAD_TYPE in a; do
+	for WORKLOAD_TYPE in e; do
     	echo workload${WORKLOAD_TYPE} > workload_config.inp
     	echo ${KEY_TYPE} >> workload_config.inp
 		

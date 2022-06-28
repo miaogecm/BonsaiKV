@@ -30,7 +30,7 @@
 #include "kvdata.h"
 
 #ifndef N
-#define N			1000000
+#define N			10000
 #endif
 
 pkey_t a[N];
@@ -41,7 +41,8 @@ pkey_t a[N];
 
 #define NUM_CPU		12
 
-#define VCLASS  VCLASS_16B
+#define VCLASS      VCLASS_16B
+#define VAL_LEN     16
 
 static void           *index_struct;
 static init_func_t    fn_init;
@@ -164,20 +165,21 @@ static inline double end_measure() {
 }
 
 struct scanner_argv {
-    size_t size;
+    size_t size, cur;
     pval_t* val_arr;
     pkey_t start;
 };
 
 static scanner_ctl_t scanner(pentry_t e, void* s_argv_) {
 	struct scanner_argv* s_argv = s_argv_;
-    unsigned int cnt = 0;
-    
-    memcpy(&s_argv->val_arr[cnt], (pval_t*) e.v, sizeof(pval_t));
-    // assert(KEY2INT(e.k) == KEY2INT(s_argv->start) + cnt);
-    cnt++;
+    size_t size;
+    void *val;
 
-    if (cnt == s_argv->size) {
+    val = bonsai_extract_val(&size, e.v);
+
+    memcpy(&s_argv->val_arr[s_argv->cur++], val, size);
+
+    if (s_argv->cur == s_argv->size) {
         return SCAN_STOP;
     }
 
@@ -295,8 +297,9 @@ static void do_op(long id) {
 #else
                     size = op_v_arr[i];
 #endif
+                    s_argv.cur = 0;
                     s_argv.size = size;
-                    s_argv.val_arr = (pval_t*) malloc(size * sizeof(pval_t));
+                    s_argv.val_arr = (pval_t*) malloc(size * VAL_LEN);
                     s_argv.start = __key;
                     bonsai_scan(__key, scanner, (void*)&s_argv);
                     free(s_argv.val_arr);
