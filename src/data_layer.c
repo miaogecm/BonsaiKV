@@ -775,7 +775,9 @@ int data_layer_init(struct data_layer *layer) {
 	
     init_pnode_pool(layer);
 
+#ifdef STR_VAL
     valman_vpool_init();
+#endif
 	
     layer->epoch = 2;
     for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {

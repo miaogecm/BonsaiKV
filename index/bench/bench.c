@@ -30,7 +30,7 @@
 #include "kvdata.h"
 
 #ifndef N
-#define N			10000
+#define N			1000000
 #endif
 
 pkey_t a[N];
@@ -180,7 +180,12 @@ static scanner_ctl_t scanner(pentry_t e, void* s_argv_) {
     size_t size;
     void *val;
 
+#ifdef STR_VAL
     val = bonsai_extract_val(&size, e.v);
+#else
+    size = sizeof(pval_t);
+    val = &e.v;
+#endif
 
     memcpy(&s_argv->val_arr[s_argv->cur++], val, size);
 

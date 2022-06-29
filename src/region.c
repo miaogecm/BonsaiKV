@@ -183,6 +183,8 @@ void pnode_region_deinit(struct data_layer *layer) {
 	}
 }
 
+#ifdef STR_VAL
+
 int pval_region_init(struct data_layer *layer) {
   	size_t size_per_dimm = valman_vpool_dimm_size();
 	struct data_region *region;
@@ -238,6 +240,8 @@ void pval_region_deinit(struct data_layer *layer) {
 	}
 }
 
+#endif
+
 int data_region_init(struct data_layer *layer) {
     int err;
 
@@ -245,15 +249,19 @@ int data_region_init(struct data_layer *layer) {
         goto out;
     }
 
+#ifdef STR_VAL
     if (unlikely(err = pval_region_init(layer))) {
         goto out;
     }
+#endif
 
 out:
     return err;
 }
 
 void data_region_deinit(struct data_layer *layer) {
+#ifdef STR_VAL
     pval_region_deinit(layer);
+#endif
     pnode_region_deinit(layer);
 }
