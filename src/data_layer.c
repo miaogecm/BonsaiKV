@@ -27,7 +27,7 @@
 
 #define NOT_FOUND               (-1u)
 
-#define PNODE_NUM               (DATA_REGION_SIZE / NUM_DIMM / PNODE_INTERLEAVING_SIZE)
+#define PNODE_NUM               (DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET / PNODE_INTERLEAVING_SIZE)
 
 #define EPOCH_INTERVAL_US       10000
 

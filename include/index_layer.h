@@ -8,8 +8,7 @@ extern "C" {
 #include "kfifo.h"
 #include "data_layer.h"
 
-//#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
-#define INODE_POOL_SIZE                         (1 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
+#define INODE_POOL_SIZE                         (16 * 1024 * 1024 * 1024ul)      /* 2147483648 entries */
 #define INODE_SIZE								sizeof(inode_t)
 #define TOTAL_INODE								(INODE_POOL_SIZE / INODE_SIZE)
 
