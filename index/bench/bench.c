@@ -76,8 +76,13 @@ extern pkey_t bonsai_make_key(const void *key, size_t len);
 
 extern int bonsai_insert(pkey_t key, pval_t value);
 extern int bonsai_remove(pkey_t key);
+extern int bonsai_insert_commit(pkey_t key, pval_t value);
+extern int bonsai_remove_commit(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
 extern int bonsai_scan(pkey_t start, scanner_t scanner, void* argv);
+
+extern void bonsai_dtx_start();
+extern void bonsai_dtx_commit();
 
 extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
@@ -212,7 +217,7 @@ static void do_load(long id) {
 #else
                     __val = load_v_arr[i];
 #endif
-                bonsai_insert(__key, __val);
+                bonsai_insert_commit(__key, __val);
             } else {
                 // ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
             }
@@ -258,7 +263,7 @@ static void do_op(long id) {
 #else
                     __val = op_v_arr[i];
 #endif
-                    ret = bonsai_insert(__key, __val);
+                    ret = bonsai_insert_commit(__key, __val);
                 } else {
                     // ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }

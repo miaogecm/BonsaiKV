@@ -30,7 +30,6 @@
 #include "index_layer.h"
 #include "log_layer.h"
 #include "stm.h"
-#include "dtx.h"
 
 /* Global variables */
 static struct stm_global* _tinystm;
@@ -701,6 +700,14 @@ void stm_exit_thread(stm_tx_t* tx)
 }
 
 extern int bonsai_insert(pkey_t key, pval_t value);
+extern int bonsai_remove(pkey_t key);
+extern int bonsai_insert_commit(pkey_t key, pval_t value);
+extern int bonsai_remove_commit(pkey_t key);
+extern int bonsai_lookup(pkey_t key, pval_t *val);
+extern int bonsai_scan(pkey_t start, scanner_t scanner, void* argv);
+
+extern void bonsai_dtx_start();
+extern void bonsai_dtx_commit();
 
 /*
  * write_set_persist - use durable transaction to persist the execution result
@@ -711,19 +718,10 @@ void write_set_persist(stm_tx_t *stx, stm_word_t timestamp) {
 	struct dtx_struct* dtx;
 	int i;
 
-	dtx = dtx_begin(timestamp); {
+	bonsai_dtx_start(); {
 		for (i = stx->w_set.nb_entries; i > 0; i--, w++) {
 			bonsai_insert(*((pkey_t*)w->addr), w->value);
 
-			if (unlikely(!dtx->t_num)) {
-				//dtx->t_start = ;
-			}	
-
-			//dtx->t_logid[dtx->t_num++] = ;
-			dtx->t_size += sizeof(struct oplog);
-
-			//dtx->t_next = ;
-			
     		/* Only drop lock for last covered address in write set */
     		if (w->next == NULL) {
 				/* store new version */
@@ -731,5 +729,5 @@ void write_set_persist(stm_tx_t *stx, stm_word_t timestamp) {
     		}
     	
   		}
-	} dtx_commit(dtx);
+	} bonsai_dtx_commit();
 }

@@ -22,6 +22,7 @@
 #include "bonsai.h"
 #include "hwconfig.h"
 #include "index_layer.h"
+#include "log_layer.h"
 #include "data_layer.h"
 #include "rcu.h"
 
@@ -41,10 +42,13 @@ pkey_t bonsai_make_key(const void *key, size_t len) {
 
 #endif
 
+#define OUTSIDE_DTX      (-1)
+
 __thread int op_count = 0;
+__thread log_state_t dtx_lst = { .flip = OUTSIDE_DTX };
 
 static inline void try_quiescent() {
-    if (op_count ++ > RCU_MAX_OP) {
+    if (op_count > RCU_MAX_OP) {
         op_count = 0;
         rcu_quiescent(RCU(bonsai));
     }
@@ -62,41 +66,93 @@ void bonsai_offline() {
     rcu_thread_offline(RCU(bonsai));
 }
 
-int bonsai_insert(pkey_t key, pval_t value) {
-  	log_state_t snap;
+void bonsai_dtx_start() {
+    /* Do not support nested durable transaction. */
+    assert(dtx_lst.flip == OUTSIDE_DTX);
+  	oplog_snapshot_lst(&dtx_lst);
+}
+
+static void leave_dtx() {
+    assert(dtx_lst.flip != OUTSIDE_DTX);
+    try_quiescent();
+    dtx_lst.flip = OUTSIDE_DTX;
+}
+
+void bonsai_dtx_rollback() {
+    assert(dtx_lst.flip != OUTSIDE_DTX);
+    oplog_insert(&dtx_lst, MIN_KEY, 0, OP_NOP, TX_ROLLBACK, __this->t_cpu);
+    leave_dtx();
+}
+
+void bonsai_dtx_commit() {
+    assert(dtx_lst.flip != OUTSIDE_DTX);
+    oplog_insert(&dtx_lst, MIN_KEY, 0, OP_NOP, TX_COMMIT, __this->t_cpu);
+    leave_dtx();
+}
+
+static void check_dtx_autostart() {
+    if (dtx_lst.flip == OUTSIDE_DTX) {
+        bonsai_dtx_start();
+    }
+}
+
+static int do_bonsai_insert(pkey_t key, pval_t value, txop_t txop) {
   	logid_t log;
 	int ret;
-	
-  	oplog_snapshot_lst(&snap);
 
-    log = oplog_insert(&snap, key, valman_make_nv(value), OP_INSERT, __this->t_cpu);
+    check_dtx_autostart();
 
-    ret = shim_upsert(&snap, key, log);
+    log = oplog_insert(&dtx_lst, key, valman_make_nv(value), OP_INSERT, txop, __this->t_cpu);
 
-    try_quiescent();
+    ret = shim_upsert(&dtx_lst, key, log);
+
+    op_count++;
+    if (txop != TX_OP) {
+        leave_dtx();
+    }
 
     return ret;
 }
 
-int bonsai_remove(pkey_t key) {
-    log_state_t snap;
+static int do_bonsai_remove(pkey_t key, txop_t txop) {
     logid_t log;
     int ret;
-		
-  	oplog_snapshot_lst(&snap);
 
-    log = oplog_insert(&snap, key, 0, OP_REMOVE, __this->t_cpu);
+    check_dtx_autostart();
 
-    ret = shim_upsert(&snap, key, log);
+    log = oplog_insert(&dtx_lst, key, 0, OP_REMOVE, txop, __this->t_cpu);
 
-    try_quiescent();
+    ret = shim_upsert(&dtx_lst, key, log);
+
+    op_count++;
+    if (txop != TX_OP) {
+        leave_dtx();
+    }
 
     return ret;
+}
+
+int bonsai_insert(pkey_t key, pval_t value) {
+    return do_bonsai_insert(key, value, TX_OP);
+}
+
+int bonsai_insert_commit(pkey_t key, pval_t value) {
+    return do_bonsai_insert(key, value, TX_COMMIT);
+}
+
+int bonsai_remove(pkey_t key) {
+    return do_bonsai_remove(key, TX_OP);
+}
+
+int bonsai_remove_commit(pkey_t key) {
+    return do_bonsai_remove(key, TX_COMMIT);
 }
 
 int bonsai_lookup(pkey_t key, pval_t *val) {
     pval_t nv_val;
     int ret;
+
+    assert(dtx_lst.flip == OUTSIDE_DTX);
 
     ret = shim_lookup(key, &nv_val);
 
@@ -104,6 +160,7 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
         *val = valman_make_v_local(nv_val);
     }
 
+    op_count++;
     try_quiescent();
 
     return ret;
@@ -127,8 +184,11 @@ static scanner_ctl_t wrapper(pentry_t e, void* w_argv_) {
 int bonsai_scan(pkey_t start, scanner_t scanner, void* argv) {
 	struct wrapper_argv w_argv = {scanner, argv};
 
+    assert(dtx_lst.flip == OUTSIDE_DTX);
+
 	shim_scan(start, wrapper, &w_argv);
 
+    op_count++;
 	try_quiescent();
 
 	return 0;

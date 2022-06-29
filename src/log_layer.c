@@ -34,8 +34,9 @@
 #define LCB_FULL_NR     (LCB_FULL_SIZE / sizeof(struct oplog))
 #define LCB_MAX_NR      (LCB_MAX_SIZE / sizeof(struct oplog))
 
-#define OPLOG_TYPE(t)   ((t) & 2)
 #define OPLOG_FLIP(t)   ((t) & 1)
+#define OPLOG_TYPE(t)   ((t) & 6)
+#define OPLOG_TXOP(t)     ((t) & 24)
 
 #define WB_SIGNO        SIGUSR1
 
@@ -247,7 +248,7 @@ static void handle_wb(int signo) {
     }
 }
 
-logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, int cpu) {
+logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop_t txop, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
@@ -265,7 +266,7 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, int 
     id.off = (local_desc->size + end) % NUM_OPLOG_PER_CPU;
 
     log = &local_desc->lcb[local_desc->size++];
-	log->o_type = cpu_to_le8(op | lst->flip);
+	log->o_type = cpu_to_le64(txop | op | lst->flip);
     log->o_stamp = cpu_to_le64(ordo_new_clock(0));
 	log->o_kv.k = key;
 	log->o_kv.v = val;
@@ -388,25 +389,34 @@ static void snapshot_cpu_log(struct cpu_log_snapshot *snap, int cpu) {
     snap->region_end = region->meta.end;
 }
 
-static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, struct cpu_log_snapshot *snap) {
+static size_t fetch_cpu_logs(size_t *nr_logs_processed, uint32_t *new_region_starts,
+                             struct oplog *logs, struct cpu_log_snapshot *snap) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[snap->cpu];
     struct cpu_log_region *region = local_desc->region;
+    struct oplog *plog, *log, *last_commit = logs;
     int target_flip = !layer->lst.flip;
-    struct oplog *plog, *log;
     uint32_t cur, end;
-	size_t size = sizeof(*log);
 
     cur = snap->region_start;
     end = snap->region_end;
 
-    for (log = logs; cur != end; cur = (cur + 1) % NUM_OPLOG_PER_CPU, log++) {
+    *nr_logs_processed = 0;
+
+    for (log = logs; cur != end; cur = (cur + 1) % NUM_OPLOG_PER_CPU, (*nr_logs_processed)++) {
         plog = &region->logs[cur];
 		if (unlikely((int) OPLOG_FLIP(plog->o_type) != target_flip)) {
             break;
         }
-        memcpy(log, plog, size);
+        if (OPLOG_TYPE(plog->o_type) != OP_NOP) {
+            memcpy(log++, plog, sizeof(*log));
+        }
+        if (OPLOG_TXOP(plog->o_type) == TX_COMMIT) {
+            last_commit = log;
+        }
     }
+
+    log = last_commit;
 
     new_region_starts[snap->cpu] = cur;
 
@@ -414,9 +424,10 @@ static size_t fetch_cpu_logs(uint32_t *new_region_starts, struct oplog *logs, st
 }
 
 static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
-    int tot_max = 0, nr_logs_max, nr_logs_fetched, i;
     struct cpu_log_snapshot snapshots[NUM_CPU];
+    size_t nr_logs_fetched, nr_logs_processed;
     struct log_layer *layer = LOG(bonsai);
+    int tot_max = 0, nr_logs_max, i;
     struct oplog *log;
     logs_t fetched;
 
@@ -433,9 +444,9 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     log = fetched.logs = malloc(sizeof(*log) * tot_max);
 
     for (i = 0; i < nr_cpu; i++) {
-        nr_logs_fetched = (int) fetch_cpu_logs(new_region_starts, log, &snapshots[i]);
+        nr_logs_fetched = fetch_cpu_logs(&nr_logs_processed, new_region_starts, log, &snapshots[i]);
         log += nr_logs_fetched;
-        atomic_sub(nr_logs_fetched, &layer->nlogs[cpus[i]].cnt);
+        atomic_sub((int) nr_logs_fetched, &layer->nlogs[cpus[i]].cnt);
     }
 
     fetched.cnt = (int) (log - fetched.logs);
