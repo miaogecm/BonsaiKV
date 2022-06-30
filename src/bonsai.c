@@ -37,7 +37,9 @@ extern void kv_print(void* index_struct);
 #ifdef STR_KEY
 
 pkey_t bonsai_make_key(const void *key, size_t len) {
-    return pkey_generate_v(key, len);
+    pkey_t res = { 0 };
+    memcpy(res.key, key, len);
+    return res;
 }
 
 #endif

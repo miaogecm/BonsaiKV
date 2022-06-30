@@ -30,16 +30,16 @@
 #include "kvdata.h"
 
 #ifndef N
-#define N			1000000
+#define N			36000000
 #endif
 
 pkey_t a[N];
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	2
+#define NUM_THREAD	36
 #endif
 
-#define NUM_CPU		12
+#define NUM_CPU		48
 
 #define VCLASS      VCLASS_16B
 #define VAL_LEN     16
@@ -86,6 +86,8 @@ extern void bonsai_dtx_commit();
 
 extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
+
+#define MK_K(key, len)      bonsai_make_key(key, len)
 
 pthread_t tids[NUM_THREAD];
 
