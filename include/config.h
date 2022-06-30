@@ -11,6 +11,13 @@ extern "C" {
 #define NUM_CPU_PER_SOCKET      (NUM_CPU / NUM_SOCKET)
 #define NUM_DIMM_PER_SOCKET     (NUM_DIMM / NUM_SOCKET)
 
+#define LOG_REGION_SIZE		    73728000000UL                   /* 68.66455078125GB */
+#define DATA_REGION_SIZE	    1536000000UL                    /* 1.430511474609375 MB */
+
+#define INODE_POOL_SIZE         (16 * 1024 * 1024 * 1024ul)     /* 2147483648 entries */
+
+//#define ENABLE_PNODE_REPLICA
+
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
     return NUM_SOCKET * cpu_idx + node;
 }

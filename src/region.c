@@ -24,7 +24,7 @@
 #include "bonsai.h"
 #include "region.h"
 #include "data_layer.h"
-#include "hwconfig.h"
+#include "config.h"
 #include "valman.h"
 
 static char *log_region_fpath[NUM_DIMM] = {

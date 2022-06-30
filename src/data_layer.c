@@ -180,6 +180,7 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
 
     ent = (pentry_t *) pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
+#ifdef ENABLE_PNODE_REPLICA
     epoch = d_layer->epoch;
 
     local = pnoptr_cvt_node(ent, my, node, dimm_idx);
@@ -201,7 +202,10 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
         *e = epoch;
     }
 
-    return local;
+    ent = local;
+#endif
+
+    return ent;
 }
 
 static pnoid_t alloc_pnode(int node) {
@@ -719,6 +723,8 @@ static void init_pnode_pool(struct data_layer *layer) {
     layer->tofree_head = layer->tofree_tail = PNOID_NULL;
 }
 
+#ifdef ENABLE_PNODE_REPLICA
+
 static void timer_handler(int sig) {
     struct data_layer *d_layer = DATA(bonsai);
     d_layer->epoch++;
@@ -763,6 +769,8 @@ void end_invalidate_unref_entries(const unsigned *since) {
     }
 }
 
+#endif
+
 int data_layer_init(struct data_layer *layer) {
     size_t size = (DATA_REGION_SIZE / sizeof(pentry_t)) * sizeof(unsigned);
     int numa_node, ret;
@@ -778,19 +786,20 @@ int data_layer_init(struct data_layer *layer) {
 #ifdef STR_VAL
     valman_vpool_init();
 #endif
-	
+
+#ifdef ENABLE_PNODE_REPLICA
     layer->epoch = 2;
     for (numa_node = 0; numa_node < NUM_SOCKET; numa_node++) {
         tab = numa_alloc_onnode(size, numa_node);
         memset(tab, 0, size);
         layer->epoch_table[numa_node] = tab;
     }
+    register_epoch_timer();
+#endif
 
     spin_lock_init(&layer->plist_lock);
 
     layer->sentinel = PNOID_NULL;
-
-    register_epoch_timer();
 
 	bonsai_print("data_layer_init\n");
 

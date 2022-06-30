@@ -10,7 +10,7 @@ extern "C" {
 #include <sys/syscall.h>
 #include <sys/types.h>
 
-#include "hwconfig.h"
+#include "config.h"
 #include "list.h"
 #include "common.h"
 

@@ -12,7 +12,7 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 #include "seqlock.h"
-#include "hwconfig.h"
+#include "config.h"
 #include "region.h"
 
 #define NUM_OPLOG_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))

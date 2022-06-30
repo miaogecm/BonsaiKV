@@ -11,11 +11,6 @@ extern "C" {
 #include "common.h"
 #include "arch.h"
 
-//#define LOG_REGION_SIZE		38654705664UL  /* 36 GB, 16777216 logs per CPU */
-//#define DATA_REGION_SIZE	25769803776UL  /* 24 GB, 805306368 entries */
-#define LOG_REGION_SIZE		73728000000UL  /* 68.66455078125GB */
-#define DATA_REGION_SIZE	1536000000UL   /* 1.430511474609375 MB */
-
 struct data_region {
 	int d_fd; /* file descriptor */
 	void* d_start; /* memory-mapped address */

@@ -13,7 +13,7 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "region.h"
-#include "hwconfig.h"
+#include "config.h"
 #include "log_layer.h"
 
 #ifdef STR_KEY
@@ -42,8 +42,10 @@ struct data_layer {
 
     struct vpool *vpool;
 
+#ifdef ENABLE_PNODE_REPLICA
 	unsigned epoch;
     unsigned *epoch_table[NUM_SOCKET];
+#endif
 };
 
 typedef struct {
@@ -204,8 +206,13 @@ static inline void pnode_recolor(pnoid_t *pnode, int c) {
     pnode_split_and_recolor(pnode, NULL, NULL, c, c);
 }
 
+#ifdef ENABLE_PNODE_REPLICA
 void begin_invalidate_unref_entries(unsigned *since);
 void end_invalidate_unref_entries(const unsigned *since);
+#else
+static inline void begin_invalidate_unref_entries(unsigned *since) {}
+static inline void end_invalidate_unref_entries(const unsigned *since) {}
+#endif
 
 struct data_layer;
 

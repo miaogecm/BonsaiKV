@@ -20,7 +20,7 @@
 #include <sys/types.h> 
 
 #include "bonsai.h"
-#include "hwconfig.h"
+#include "config.h"
 #include "index_layer.h"
 #include "log_layer.h"
 #include "data_layer.h"
