@@ -33,8 +33,6 @@
 #define N			36000000
 #endif
 
-pkey_t a[N];
-
 #ifndef NUM_THREAD
 #define NUM_THREAD	36
 #endif
