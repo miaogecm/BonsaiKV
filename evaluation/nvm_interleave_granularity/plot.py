@@ -2,9 +2,9 @@
 
 import matplotlib.pyplot as plt
 
-data_files = ('.data/data_256', '.data/data_512',
-              '.data/data_1024', '.data/data_2048',
-              '.data/data_4096')
+data_files = ('data/data_256', 'data/data_512',
+              'data/data_1024', 'data/data_2048',
+              'data/data_4096')
 
 for data_file in data_files:
     with open(data_file, 'r') as f:
@@ -17,7 +17,7 @@ for data_file in data_files:
                 break
             data = data.split()
 
-            plt.plot(x, list(map(float, data[1:])), marker='o', linestyle='-', label=data[0])
+            plt.plot(x, list(map(lambda x: float(x), data[1:])), marker='o', linestyle='-', label=data[0])
 
 plt.legend()
 plt.xticks(x, names, rotation=45)
