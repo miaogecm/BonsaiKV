@@ -35,6 +35,6 @@ touch kvdata.c
 echo '#include "./data/'${load_out}'"'>> ./kvdata.c
 echo '#include "./data/'${op_out}'"'>> ./kvdata.c
 
-gcc -w -shared -o ./data_lib/${lib_name} ./kvdata.c -std=c99
+gcc -w -shared -o ./data_lib/${lib_name} ./kvdata.c -std=c99 -mcmodel=medium
 
 echo "----------done----------"
