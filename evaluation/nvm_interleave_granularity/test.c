@@ -32,7 +32,7 @@ static void *dimms[CONFIG_DIMM_CNT];
 
 void *run_worker(void *task_) {
     struct task_struct *task = task_;
-    int rep = 1, cpu, dimm, i;
+    int rep = 1, cpu, dimm, i, last = 24;
     size_t stride, sum = 0;
     void *pa;
 
@@ -49,6 +49,10 @@ void *run_worker(void *task_) {
                 pa = task->policy->pa_bases[dimm] + task->base / CONFIG_DIMM_CNT + stride;
                 for (i = 0; i < CONFIG_CHUNK_SIZE / CACHELINE_SIZE; i++, pa += CACHELINE_SIZE) {
                     sum += *(unsigned long *) pa;
+                    if (--last == 0) {
+                        asm("lfence");
+                        last = 24;
+                    }
                 }
             }
         }
