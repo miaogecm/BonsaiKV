@@ -2,10 +2,10 @@
 
 . ../common/color.sh
 
-#access_sizes=(256 512 1024 2048 4096)
-#num_threads=(1 2 4 8 16 24)
-access_sizes=(256 512)
-num_threads=(1 2)
+access_sizes=(256 512 1024 2048 4096)
+num_threads=(1 2 4 8 16 24)
+#access_sizes=(256 512)
+#num_threads=(1 2)
 runtime=5
 
 for access_size in "${access_sizes[@]}"; do
@@ -13,7 +13,7 @@ for access_size in "${access_sizes[@]}"; do
     for num_thread in "${num_threads[@]}"; do
 	echo "task=12,op=1,access_size=$access_size,parallel=$num_thread,runtime=$runtime" > /proc/latteste
 	throughput=$(($(dmesg | tail "-$runtime" | awk 'BEGIN{s=0;}{s+=$3;}END{print(s)}') / runtime))
-	echo -e "${COLOR_CYAN}access_size=$access_size,num_thread=$num_thread,throughput=$throughput${COLOR_CLEAR}"
+	echo -e "${COLOR_GREEN}access_size=$access_size,num_thread=$num_thread,throughput=$throughput${COLOR_CLEAR}"
 	echo "$access_size $num_thread $throughput" >> .data
     done
 done
