@@ -2,9 +2,9 @@
 
 import matplotlib.pyplot as plt
 
-data_files = ('cmake-build-debug/data_256', 'cmake-build-debug/data_512',
-              'cmake-build-debug/data_1024', 'cmake-build-debug/data_2048',
-              'cmake-build-debug/data_4096')
+data_files = ('.data/data_256', '.data/data_512',
+              '.data/data_1024', '.data/data_2048',
+              '.data/data_4096')
 
 for data_file in data_files:
     with open(data_file, 'r') as f:
