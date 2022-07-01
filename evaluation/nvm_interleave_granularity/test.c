@@ -32,7 +32,7 @@ static void *dimms[CONFIG_DIMM_CNT];
 
 void *run_worker(void *task_) {
     struct task_struct *task = task_;
-    int rep = 1, cpu, dimm, i, last = 24;
+    int rep = 1, cpu, dimm, i, last = 64;
     size_t stride, sum = 0;
     void *pa;
 
@@ -51,7 +51,7 @@ void *run_worker(void *task_) {
                     sum += *(unsigned long *) pa;
                     if (--last == 0) {
                         asm("lfence");
-                        last = 24;
+                        last = 64;
                     }
                 }
             }

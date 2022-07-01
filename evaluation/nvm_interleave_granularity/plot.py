@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 
-data_files = ('data/data_256', 'data/data_512',
+data_files = ('data/data_64', 'data/data_256', 'data/data_512',
               'data/data_1024', 'data/data_2048',
               'data/data_4096')
 
