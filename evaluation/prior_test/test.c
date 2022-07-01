@@ -70,15 +70,16 @@ void *run_worker(void *task_) {
 
     //sem_wait(task->mutex);
 
-    start_measure();
-
-    if (task->id % 4 == 0) {
+    if (task->id == 0) {
         stride = 64;
     } else {
         stride = 4;
     }
 
     while (rep--) {
+        start_measure();
+        num = 0;
+
         for (off = 0; off < LOCAL_POOL_SIZE; off += stride * CACHELINE_SIZE) {
             p = task->addr + off;
 
@@ -92,12 +93,6 @@ void *run_worker(void *task_) {
                 );
             }
             sfence();
-
-            if (stride == 64) {
-                for (i = 0; i < 8192 * 2; i++) {
-                    asm("nop");
-                }
-            }
 
             // block
 

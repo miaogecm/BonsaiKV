@@ -9,11 +9,6 @@
 
 static char *pool_paths[] = {
         "/mnt/ext4/dimm0/nvm_perf_test",
-        "/mnt/ext4/dimm1/nvm_perf_test",
-        "/mnt/ext4/dimm2/nvm_perf_test",
-        "/mnt/ext4/dimm3/nvm_perf_test",
-        "/mnt/ext4/dimm4/nvm_perf_test",
-        "/mnt/ext4/dimm5/nvm_perf_test",
 };
 
 void *nvm_create_pool(int id, size_t size) {
