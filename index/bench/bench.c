@@ -277,7 +277,7 @@ static void do_op(long id) {
             case 2:
                 if (in_bonsai) {
 #ifdef STR_KEY
-                    __key = MK_K(op_k_arr[i], strlen(op_v_arr[i]));
+                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
 #else
                     __key = INT2KEY(op_k_arr[i]);
 #endif
