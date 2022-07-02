@@ -87,13 +87,7 @@ static inline int pkey_compare(pkey_t a, pkey_t b) {
 #if KEY_LEN != 24
 #error "Unsupported key length!"
 #endif
-    unsigned long pos;
-    __m256i ma, mb;
-    ma = _mm256_loadu_si256((const __m256i *) a.key);
-    mb = _mm256_loadu_si256((const __m256i *) b.key);
-    pos = ffz(_mm256_movemask_epi8(_mm256_cmpeq_epi8(ma, mb)));
-    /* signed compare */
-    return a.key[pos] - b.key[pos];
+    return memcmp(a.key, b.key, KEY_LEN);
 #else
 #if KEY_LEN != 8
 #error "Unsupported key length!"
