@@ -322,6 +322,8 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     mnode_t *mno = NULL, *lmno, *rmno;
     unsigned pos, cnt = 0;
 
+    mno = pnode_meta(original);
+
     /* Recolor only. */
     if (!sibling) {
         l = r = alloc_pnode(lc);
@@ -344,7 +346,6 @@ void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int 
     l = alloc_pnode(lc);
     r = alloc_pnode(rc);
 
-    mno = pnode_meta(original);
     lmno = pnode_meta(l);
     rmno = pnode_meta(r);
 
