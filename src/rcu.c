@@ -6,7 +6,7 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  * 				 Junru Shen, gnu_emacs@hhu.edu.cn
  * 
- * A QSBR (Quiescent State Based Reclamation) based RCU
+ * A QSBR (Quiescent State Based Reclamation) based Safe Memory Reclaimation
  */
 #define _GNU_SOURCE
 #include <stdlib.h>
