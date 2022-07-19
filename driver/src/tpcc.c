@@ -120,7 +120,7 @@ static void* bench_thread_fun(void* arg) {
 
     num_works_left = num_works / num_threads; 
     if (id == 0) {
-        num_works += num_works % num_threads;
+        num_works_left += num_works % num_threads;
     }
 
     pthread_barrier_wait(&barrier);
@@ -174,8 +174,6 @@ extern void tpcc_init(init_func_t init, destroy_func_t destroy,
     }
 
     tpcc.kv = tpcc.init();
-
-    rand_init();
 }
 
 extern void tpcc_destroy() {

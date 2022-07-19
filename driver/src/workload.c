@@ -488,6 +488,7 @@ void order_status(u32 w_id) {
 }
 
 int work(u32 t_id, u32 w_id) {
+#if 0
     int x = get_rand(1, 100);
 
     if (x <= PY_PR) {
@@ -520,10 +521,12 @@ int work(u32 t_id, u32 w_id) {
         stm_commit();
         return WK_OS;
     }
+#endif
 
     stm_start();
     new_order(w_id);
     stm_commit();
+
     return WK_NO;
 }
 

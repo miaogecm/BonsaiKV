@@ -12,7 +12,7 @@ OBJ_FILES = $(addprefix $(OBJS_DIR)/, $(patsubst %.c, %.o, $(notdir $(SRC_FILES)
 
 CFLAGS += -I$(INC_DIR)
 CFLAGS += -g3
-CFLAGS += -O0
+CFLAGS += -O3
 CFLAGS += -Wall
 
 LDFLAGS += -lpthread
@@ -20,7 +20,7 @@ LDFLAGS += -lpthread
 all: sample.out
 
 sample.out: $(SMP_DIR)/main.c libtpcc.a
-	sudo ln -sf $(PROJ_DIR)/libtpcc.a /usr/lib/libtpcc.a
+	#sudo ln -sf $(PROJ_DIR)/libtpcc.a /usr/lib/libtpcc.a
 	$(CC) $< $(CFLAGS) -ltpcc $(LDFLAGS) -o $@
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.c $(OBJS_DIR)

@@ -9,14 +9,12 @@
 #include "limit.h"
 #include "types.h"
 
-static void rand_init() {
-    srand(time(0));
-}
+int gen_rand();
 
 /* rand u32 in [a, b] */
 static inline u32 get_rand(u32 a, u32 b) {
     assert(a <= b);
-    return rand() % (b - a + 1) + a;
+    return gen_rand() % (b - a + 1) + a;
 }
 
 static inline u32 get_rand_except(u32 a, u32 b, u32 c) {
@@ -36,7 +34,7 @@ static inline u32 get_nurand(u32 a, u32 x, u32 y, u32 c) {
 static inline double get_rand_lf(double a, double b) {
     double range = b - a;
     double div = RAND_MAX / range;
-    return a + rand() / div;
+    return a + gen_rand() / div;
 }
 
 static inline void get_rand_str(char* str, u32 min_len, u32 max_len) {

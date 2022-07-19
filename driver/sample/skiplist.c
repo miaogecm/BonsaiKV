@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
+#include "rand.h"
 
 static inline int k_cmp(sl_entry * entry, void* key, int len) {
     if (entry->k_len != len) {
@@ -13,8 +14,6 @@ static inline int k_cmp(sl_entry * entry, void* key, int len) {
     }
     return memcmp(entry->key, key, len);
 }
-
-int seeded = 0;
 
 void sl_free_entry(sl_entry * entry);
 
@@ -26,7 +25,7 @@ void sl_free_entry(sl_entry * entry);
 int grand (int max) {
     int result = 1;
 
-    while (result < max && (random() > RAND_MAX / 2)) {
+    while (result < max && (gen_rand() > RAND_MAX / 2)) {
         ++ result;
     }
 
@@ -36,12 +35,6 @@ int grand (int max) {
 // Returns a sentinel node representing the head node of a new skip list.
 // Also seeds the random number generator the first time it is called.
 sl_entry * sl_init() {
-    // Seed the random number generator if we haven't yet
-    if (!seeded) {
-        srand((unsigned int) time(NULL));
-        seeded = 1;
-    }
-
     // Construct and return the head sentinel
     sl_entry * head = calloc(1, sizeof(sl_entry)); // Calloc will zero out next
     if (!head) return NULL; // Out-of-memory check

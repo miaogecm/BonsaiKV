@@ -82,8 +82,8 @@ int s_scan(void* index_struct, const void *low, const void *high, size_t len, si
 
 int main() {
     tpcc_init(s_init, s_destroy, s_insert, s_update, s_remove, s_lookup, s_scan);
-    tpcc_set_env(2, 100000, 6);
-    tpcc_load(1);
-    tpcc_bench(1);
+    tpcc_set_env(20, 100000, 48);
+    tpcc_load(20);
+    tpcc_bench(20);
     tpcc_destroy();
 }
