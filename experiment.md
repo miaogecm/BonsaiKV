@@ -1,6 +1,6 @@
 ### Bonsai实验设计
 
-### 1. Setup
+### 1. Experiment Setup
 
 #### 1.1 对比KVS
 
@@ -20,10 +20,9 @@ Telecommunication Application Transaction Processing: TATP
 
 ### 2. Overview
 
-+ Evaluating three core technique performance
++ Evaluating four core technique performance
 + Evaluating three data-intensive benchmarks
 + Performance interference evaluation
-+ Sensitivity study
 
 ### 3. Experiment
 
@@ -36,18 +35,19 @@ Telecommunication Application Transaction Processing: TATP
 
 + baseline
 + baseline+log batch
-+ baseline+log batch+in-DRAM LCB
-+ baseline+log batch+in-DRAM LCB+thread throttling
++ baseline+log batch+volatile LCB
++ baseline+log batch+volatile LCB+thread throttling
++ log checkpoint time threshold study
 
 #### 3.3 Evaluating CLP-based data stripping
 
-different data strip size: 256B-4KB
++ different data strip size: 256B-4KB
++ optane prefetch vs. cache line prefetch
 
 #### 3.4 Evaluating data coherence protocol
 
-remote write reduction
-
-
++ remote memory write reduction
++ data validity threshold study
 
 #### 3.5 Read-intensive benchmark
 
@@ -61,15 +61,9 @@ YCSB-A, TPC-C, TATP
 
 YCSB-E
 
-#### 3.8 Performance interference study 
+#### 3.8 Performance interference study
 
-LCB size: 1KB-4KB
-
-#### 3.9. Sensitivity study
-
-(1) log checkpoint time threshold
-
-(2) data validity threshold
+log batch size: 256B-4KB
 
 
 

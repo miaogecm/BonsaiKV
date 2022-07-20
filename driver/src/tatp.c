@@ -156,7 +156,7 @@ void tatp_loadSpecialFacility_CallForwarding(int start, int end) {
     }
 }
 
-
+/* read transaction */
 void getSubscriberData() {
     /**
      SELECT s_id, sub_nbr,
@@ -230,6 +230,7 @@ void getSubscriberData() {
     bench_lookup(Subscriber, s.k, 33, col_arr, size_arr, varr);
 }
 
+/* read transaction */
 void getNewDestination() {
     /**
      SELECT cf.numberx
@@ -247,6 +248,7 @@ void getNewDestination() {
     return;
 }
 
+/* read transaction */
 void getAccessData() {
     /**
     SELECT data1, data2, data3, data4
@@ -270,6 +272,7 @@ void getAccessData() {
     bench_lookup(Access_Info, a.k, 4, col_arr, size_arr, varr);
 }
 
+/* write transaction */
 void updateSubscribeData() {
     /**
     UPDATE Subscriber
@@ -318,6 +321,7 @@ void updateSubscribeData() {
     }
 }
 
+/* write transaction */
 void updateLocation() {
     /**
     UPDATE Subscriber
@@ -327,6 +331,7 @@ void updateLocation() {
     /* scan is need */
 }
 
+/* write transaction */
 void insertCallForwarding() {
     /**
     SELECT <s_id bind subid s_id>
@@ -344,6 +349,7 @@ void insertCallForwarding() {
    /* scan is need */
 }
 
+/* write transaction */
 void deleteCallForwarding() {
     /**
     SELECT <s_id bind subid s_id>
