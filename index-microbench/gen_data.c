@@ -18,7 +18,7 @@
  * scan     3
  */
 
-#define MAX_LEN	256
+#define MAX_LEN	2048
 #define MAX_N	100000000
 uint8_t op_codes[MAX_N];
 
@@ -58,6 +58,9 @@ static inline uint8_t get_op_id(const char* str) {
 	assert(0);
 }
 
+char key[MAX_LEN];
+char val[MAX_LEN];
+
 int main(int argc, char* argv[]) {
 	char* input_file, *output_file, *type, *num_n;
 	char type_file[100];
@@ -67,9 +70,6 @@ int main(int argc, char* argv[]) {
 	uint8_t op_id;
 
 	char op[10];
-	
-	char key[MAX_LEN];
-	char val[MAX_LEN];
 	
 	input_file = argv[1];
 	output_file = argv[2];
