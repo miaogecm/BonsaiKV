@@ -167,7 +167,7 @@ retry:
 #define inode_prefetch(prefetcher, t) \
     inode_prefetch_(prefetcher, t, __UNIQUE_ID(prefetch_ptr))
 
-static inline inode_t *inode_seek(pkey_t key, int w, pkey_t *ilfence) {
+static inline inode_t *inode_seek(pkey_t key, int w, int may_lookup_pnode, pkey_t *ilfence) {
     struct index_layer *i_layer = INDEX(bonsai);
     inode_t *inode;
     pnoid_t pnode;
@@ -186,7 +186,9 @@ static inline inode_t *inode_seek(pkey_t key, int w, pkey_t *ilfence) {
         inode_prefetch(cache_prefetchr_high, inode);
     }
 
-    pnode_prefetch_meta(pnode);
+    if (may_lookup_pnode) {
+        pnode_prefetch_meta(pnode);
+    }
 
     return inode;
 }
@@ -456,7 +458,7 @@ int shim_upsert(log_state_t *lst, pkey_t key, logid_t log) {
     int ret;
 
 relookup:
-    inode = inode_seek(key, 1, NULL);
+    inode = inode_seek(key, 1, 0, NULL);
 
     ret = inode_crab_and_lock(&inode, key, NULL);
     if (unlikely(ret == -EAGAIN)) {
@@ -515,7 +517,7 @@ int shim_scan(pkey_t start, int range, pval_t *values) {
     unsigned pos;
     pkey_t fence;
 
-    inode = inode_seek(start, 0, NULL);
+    inode = inode_seek(start, 0, 0, NULL);
 
 scan_inode:
     seq = read_seqcount_begin(&inode->seq);
@@ -632,7 +634,7 @@ int shim_lookup(pkey_t key, pval_t *val) {
     pkey_t max;
     int ret;
 
-    inode = inode_seek(key, 0, NULL);
+    inode = inode_seek(key, 0, 1, NULL);
 
 retry:
     seq = read_seqcount_begin(&inode->seq);
@@ -680,7 +682,7 @@ done:
 }
 
 pnoid_t shim_pnode_of(pkey_t key) {
-    return inode_seek(key, 0, NULL)->pno;
+    return inode_seek(key, 0, 0, NULL)->pno;
 }
 
 static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence, pnoid_t pno) {
@@ -775,7 +777,7 @@ int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end) {
     prfence = pnode_get_lfence(start);
 
 relookup:
-    inode = inode_seek(prfence, 1, &ilfence);
+    inode = inode_seek(prfence, 1, 0, &ilfence);
 
     ret = inode_crab_and_lock(&inode, prfence, &ilfence);
     if (unlikely(ret == -EAGAIN)) {
