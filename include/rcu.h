@@ -44,18 +44,12 @@ typedef struct {
     struct rcu_cb_queue cb[RCU_MAX_THREAD_NUM];
 } rcu_t;
 
-static inline void rcu_thread_online(rcu_t *rcu) {
-    fb_thread_online(&rcu->fb);
-}
-
-static inline void rcu_thread_offline(rcu_t *rcu) {
-    fb_thread_offline(&rcu->fb);
-}
-
 void rcu_init(rcu_t *rcu);
 void call_rcu(rcu_t *rcu, rcu_cb_t cb, void *aux);
 void rcu_quiescent(rcu_t *rcu);
 int  rcu_now(rcu_t *rcu);
 void rcu_synchronize(rcu_t *rcu, int since);
+void rcu_thread_online(rcu_t *rcu);
+void rcu_thread_offline(rcu_t *rcu);
 
 #endif //BONSAI_RCU_H

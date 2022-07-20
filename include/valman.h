@@ -37,6 +37,8 @@ size_t valman_vpool_dimm_size();
 
 void valman_vpool_init();
 
+int valman_pval_is_remote(pval_t pval);
+
 #else
 
 static inline pval_t valman_make_nv_cpu(pval_t val, int cpu) {

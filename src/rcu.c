@@ -135,3 +135,15 @@ void rcu_synchronize(rcu_t *rcu, int since) {
         usleep(1000);
     }
 }
+
+void rcu_thread_online(rcu_t *rcu) {
+    fb_thread_online(&rcu->fb);
+}
+
+void rcu_thread_offline(rcu_t *rcu) {
+    while (rcu->cb[my_tid].next_head || rcu->cb[my_tid].curr_head || rcu->cb[my_tid].prev_head) {
+        usleep(1000);
+        rcu_quiescent(rcu);
+    }
+    fb_thread_offline(&rcu->fb);
+}

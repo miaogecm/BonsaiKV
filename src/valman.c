@@ -151,8 +151,18 @@ static inline pval_t pval_nv_to_node(pval_t pval, int node) {
     return desc.pval;
 }
 
+int valman_pval_is_remote(pval_t pval) {
+    union pval_desc desc = { .pval = pval };
+    assert(desc.is_nv);
+    return dimm_to_node(desc.dimm) != cpu_to_node(__this->t_cpu);
+}
+
 static inline pval_t pval_nv_to_local(pval_t pval) {
+#ifdef ENABLE_PNODE_REPLICA
     return pval_nv_to_node(pval, cpu_to_node(__this->t_cpu));
+#else
+    return pval;
+#endif
 }
 
 static inline pval_t pval_next_free(pval_t pval) {
