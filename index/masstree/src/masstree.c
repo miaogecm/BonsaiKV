@@ -312,7 +312,7 @@ stable_version(mtree_node_t *node)
 		SPINLOCK_BACKOFF(bcount);
 		v = node->version;
 	}
-	atomic_thread_fence(memory_order_seq_cst);
+	//atomic_thread_fence(memory_order_seq_cst);
 	return v;
 }
 
@@ -1318,7 +1318,7 @@ masstree_get(masstree_t *tree, const void *key, size_t len, const void* actual_k
 	mtree_node_t *root = tree->root;
 	unsigned l = 0, slen, idx, type;
 	mtree_leaf_t *leaf;
-	uint64_t skey, pkey = 0;
+	uint64_t skey, pkey = 0, last_layer_skey = 0;
 	uint32_t v = 0;
     int eq = 1, this_eq;
 	void *lv = NULL;
@@ -1330,6 +1330,9 @@ advance:
 	 * the MTREE_LAYER flag on slice-length if looking for a later.
 	 */
 	skey = eq ? fetch_word64(key, len, &l, &slen) : ULONG_MAX;
+    if (!eq) {
+        l++;
+    }
 retry:
 	/* Find the leaf given the slice-key. */
 	leaf = find_leaf(root, skey, &v);
@@ -1345,7 +1348,7 @@ forward:
     if (__predict_true(idx != (unsigned)-1)) {
         lv = leaf->lv[idx];
         /* TODO: Why we need the mfence here? */
-        atomic_thread_fence(memory_order_seq_cst);
+        //atomic_thread_fence(memory_order_seq_cst);
     } else {
         // pkey = leaf->keyslice[PERM_KEYIDX(leaf->permutation, 0)] - 1;
 		pkey = leaf->lfence - 1;
@@ -1376,6 +1379,7 @@ forward:
 		/* Advance the key and move to the next layer. */
 		ASSERT((slen & MTREE_LAYER) != 0);
 		root = lv;
+        last_layer_skey = leaf->keyslice[idx];
 		if (actual_key != NULL) {
 			skey = leaf->keyslice[idx];
 			skey = htobe64(skey);
@@ -1386,8 +1390,21 @@ forward:
 	}
     if (__predict_true(type == MTREE_GOPREV)) {
         ASSERT(!eq);
-        skey = pkey;
 		assert(pkey == leaf->lfence - 1);
+        if (__predict_false(pkey == -1ul)) {
+            unsigned long new_key[len / sizeof(unsigned long)];
+
+            assert(len % sizeof(unsigned long) == 0);
+            assert(last_layer_skey > 0);
+            assert(l >= 2);
+
+            memset(new_key, -1, len);
+            memcpy(new_key, key, sizeof(unsigned long) * (l - 2));
+            new_key[l - 2] = htobe64(last_layer_skey - 1);
+
+            return masstree_get(tree, new_key, len, actual_key);
+        }
+        skey = pkey;
 		// printf("goto prev: %lu\n", pkey);
 		// leaf = leaf->prev;
         goto retry;
