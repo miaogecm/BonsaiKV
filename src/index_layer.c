@@ -85,10 +85,10 @@ static void init_inode_pool(struct inode_pool *pool) {
     void *start = memalign(PAGE_SIZE, INODE_POOL_SIZE);
     inode_t *curr;
     for (curr = start; curr != start + INODE_POOL_SIZE; curr++) {
-        curr->next = curr + 1 - (inode_t *) start;
+        curr->next_free = curr + 1 - (inode_t *) start;
     }
 	curr = start;
-    curr[TOTAL_INODE - 1].next = NULL_OFF;
+    curr[TOTAL_INODE - 1].next_free = NULL_OFF;
     pool->start = pool->freelist = start;
 }
 
@@ -252,7 +252,7 @@ static inline inode_t *inode_alloc() {
 
     do {
         get = pool->freelist;
-    } while (!cmpxchg2(&pool->freelist, get, inode_off2ptr(get->next)));
+    } while (!cmpxchg2(&pool->freelist, get, inode_off2ptr(get->next_free)));
 
     return get;
 }
