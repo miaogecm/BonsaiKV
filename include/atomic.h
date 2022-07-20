@@ -229,14 +229,14 @@ static inline int atomic_inc_and_zero(atomic_t *v)
  * atomic_cmpxchg - atomic compare and swap
  * @v: pointer of type atomic_t
  * @old: old value
- * @new: new value
+ * @newval: newval value
  *
  * Atomically compare @v with @old,
  * and returns *v.
  */
-static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
+static inline int atomic_cmpxchg(atomic_t *v, int old, int newval)
 {
-    return cmpxchg(&v->counter, old, new);
+    return cmpxchg(&v->counter, old, newval);
 }
 
 /**
@@ -425,15 +425,15 @@ static inline u64 atomic64_fetch_sub(u64 i, atomic64_t *v)
 #define atomic64_inc_return(v)  (atomic64_add_return(1, (v)))
 #define atomic64_dec_return(v)  (atomic64_sub_return(1, (v)))
 
-static inline u64 atomic64_cmpxchg(atomic64_t *v, u64 old, u64 new)
+static inline u64 atomic64_cmpxchg(atomic64_t *v, u64 old, u64 newval)
 {
-	return cmpxchg(&v->counter, old, new);
+	return cmpxchg(&v->counter, old, newval);
 }
 
 #define atomic64_try_cmpxchg atomic64_try_cmpxchg
-static __always_inline int atomic64_try_cmpxchg(atomic64_t *v, const u64 *old, u64 new)
+static __always_inline int atomic64_try_cmpxchg(atomic64_t *v, const u64 *old, u64 newval)
 {
-	return cmpxchg2(&v->counter, *old, new);
+	return cmpxchg2(&v->counter, *old, newval);
 }
 
 /**

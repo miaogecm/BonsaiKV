@@ -17,7 +17,6 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 #include "spinlock.h"
-#include "log_layer.h"
 #include "arch.h"
 #include "bitmap.h"
 #include "rwlock.h"
@@ -171,6 +170,10 @@ static inline uint8_t pkey_get_signature(pkey_t k) {
         res = 0;
     }
     return res;
+}
+
+static inline int oplog_cmp(const struct oplog *a, const struct oplog *b) {
+    return pkey_compare(a->o_kv.k, b->o_kv.k) ? : (a->o_stamp == b->o_stamp ? 0 : (a->o_stamp < b->o_stamp ? -1 : 1));
 }
 
 extern int bonsai_init(char* index_name, init_func_t init, destory_func_t destory,

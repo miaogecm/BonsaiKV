@@ -69,7 +69,7 @@ struct __kfifo {
 
 #define __STRUCT_KFIFO_COMMON(datatype, recsize, ptrtype) \
 	union { \
-		struct __kfifo	kfifo; \
+		struct __kfifo	_kfifo; \
 		datatype	*type; \
 		const datatype	*const_type; \
 		char		(*rectype)[recsize]; \
@@ -141,7 +141,7 @@ struct kfifo_rec_ptr_2 __STRUCT_KFIFO_PTR(unsigned char, 2, void);
 #define INIT_KFIFO(fifo) \
 (void)({ \
 	typeof(&(fifo)) __tmp = &(fifo); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	__kfifo->in = 0; \
 	__kfifo->out = 0; \
 	__kfifo->mask = __is_kfifo_ptr(__tmp) ? 0 : ARRAY_SIZE(__tmp->buf) - 1;\
@@ -192,13 +192,13 @@ static inline int __kfifo_int_must_check_helper(int val)
  * Return %true if fifo is initialized, otherwise %false.
  * Assumes the fifo was 0 before.
  */
-#define kfifo_initialized(fifo) ((fifo)->kfifo.mask)
+#define kfifo_initialized(fifo) ((fifo)->_kfifo.mask)
 
 /**
  * kfifo_esize - returns the size of the element managed by the fifo
  * @fifo: address of the fifo to be used
  */
-#define kfifo_esize(fifo)	((fifo)->kfifo.esize)
+#define kfifo_esize(fifo)	((fifo)->_kfifo.esize)
 
 /**
  * kfifo_recsize - returns the size of the record length field
@@ -210,7 +210,7 @@ static inline int __kfifo_int_must_check_helper(int val)
  * kfifo_size - returns the size of the fifo in elements
  * @fifo: address of the fifo to be used
  */
-#define kfifo_size(fifo)	((fifo)->kfifo.mask + 1)
+#define kfifo_size(fifo)	((fifo)->_kfifo.mask + 1)
 
 /**
  * kfifo_reset - removes the entire fifo content
@@ -223,7 +223,7 @@ static inline int __kfifo_int_must_check_helper(int val)
 #define kfifo_reset(fifo) \
 (void)({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
-	__tmp->kfifo.in = __tmp->kfifo.out = 0; \
+	__tmp->_kfifo.in = __tmp->_kfifo.out = 0; \
 })
 
 /**
@@ -237,7 +237,7 @@ static inline int __kfifo_int_must_check_helper(int val)
 #define kfifo_reset_out(fifo)	\
 (void)({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
-	__tmp->kfifo.out = __tmp->kfifo.in; \
+	__tmp->_kfifo.out = __tmp->_kfifo.in; \
 })
 
 /**
@@ -247,7 +247,7 @@ static inline int __kfifo_int_must_check_helper(int val)
 #define kfifo_len(fifo) \
 ({ \
 	typeof((fifo) + 1) __tmpl = (fifo); \
-	__tmpl->kfifo.in - __tmpl->kfifo.out; \
+	__tmpl->_kfifo.in - __tmpl->_kfifo.out; \
 })
 
 /**
@@ -257,7 +257,7 @@ static inline int __kfifo_int_must_check_helper(int val)
 #define	kfifo_is_empty(fifo) \
 ({ \
 	typeof((fifo) + 1) __tmpq = (fifo); \
-	__tmpq->kfifo.in == __tmpq->kfifo.out; \
+	__tmpq->_kfifo.in == __tmpq->_kfifo.out; \
 })
 
 /**
@@ -267,7 +267,7 @@ static inline int __kfifo_int_must_check_helper(int val)
 #define	kfifo_is_full(fifo) \
 ({ \
 	typeof((fifo) + 1) __tmpq = (fifo); \
-	kfifo_len(__tmpq) > __tmpq->kfifo.mask; \
+	kfifo_len(__tmpq) > __tmpq->_kfifo.mask; \
 })
 
 /**
@@ -294,7 +294,7 @@ __kfifo_uint_must_check_helper( \
 (void)({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__kfifo_skip_r(__kfifo, __recsize); \
 	else \
@@ -312,7 +312,7 @@ __kfifo_uint_must_check_helper( \
 ({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(!__recsize) ? kfifo_len(__tmp) * sizeof(*__tmp->type) : \
 	__kfifo_len_r(__kfifo, __recsize); \
 }) \
@@ -333,7 +333,7 @@ __kfifo_uint_must_check_helper( \
 __kfifo_int_must_check_helper( \
 ({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	__is_kfifo_ptr(__tmp) ? \
 	__kfifo_alloc(__kfifo, size, sizeof(*__tmp->type)) : \
 	-EINVAL; \
@@ -347,7 +347,7 @@ __kfifo_int_must_check_helper( \
 #define kfifo_free(fifo) \
 ({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__is_kfifo_ptr(__tmp)) \
 		__kfifo_free(__kfifo); \
 })
@@ -366,7 +366,7 @@ __kfifo_int_must_check_helper( \
 #define kfifo_init(fifo, buffer, size) \
 ({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	__is_kfifo_ptr(__tmp) ? \
 	__kfifo_init(__kfifo, buffer, size, sizeof(*__tmp->type)) : \
 	-EINVAL; \
@@ -390,7 +390,7 @@ __kfifo_int_must_check_helper( \
 	typeof(*__tmp->const_type) __val = (val); \
 	unsigned int __ret; \
 	size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__ret = __kfifo_in_r(__kfifo, &__val, sizeof(__val), \
 			__recsize); \
@@ -400,7 +400,7 @@ __kfifo_int_must_check_helper( \
 			(__is_kfifo_ptr(__tmp) ? \
 			((typeof(__tmp->type))__kfifo->data) : \
 			(__tmp->buf) \
-			)[__kfifo->in & __tmp->kfifo.mask] = \
+			)[__kfifo->in & __tmp->_kfifo.mask] = \
 				*(typeof(__tmp->type))&__val; \
 			smp_wmb(); \
 			__kfifo->in++; \
@@ -428,7 +428,7 @@ __kfifo_uint_must_check_helper( \
 	typeof(__tmp->ptr) __val = (val); \
 	unsigned int __ret; \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__ret = __kfifo_out_r(__kfifo, __val, sizeof(*__val), \
 			__recsize); \
@@ -439,7 +439,7 @@ __kfifo_uint_must_check_helper( \
 				(__is_kfifo_ptr(__tmp) ? \
 				((typeof(__tmp->type))__kfifo->data) : \
 				(__tmp->buf) \
-				)[__kfifo->out & __tmp->kfifo.mask]; \
+				)[__kfifo->out & __tmp->_kfifo.mask]; \
 			smp_wmb(); \
 			__kfifo->out++; \
 		} \
@@ -467,7 +467,7 @@ __kfifo_uint_must_check_helper( \
 	typeof(__tmp->ptr) __val = (val); \
 	unsigned int __ret; \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__ret = __kfifo_out_peek_r(__kfifo, __val, sizeof(*__val), \
 			__recsize); \
@@ -478,7 +478,7 @@ __kfifo_uint_must_check_helper( \
 				(__is_kfifo_ptr(__tmp) ? \
 				((typeof(__tmp->type))__kfifo->data) : \
 				(__tmp->buf) \
-				)[__kfifo->out & __tmp->kfifo.mask]; \
+				)[__kfifo->out & __tmp->_kfifo.mask]; \
 			smp_wmb(); \
 		} \
 	} \
@@ -504,7 +504,7 @@ __kfifo_uint_must_check_helper( \
 	typeof(__tmp->ptr_const) __buf = (buf); \
 	unsigned long __n = (n); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ?\
 	__kfifo_in_r(__kfifo, __buf, __n, __recsize) : \
 	__kfifo_in(__kfifo, __buf, __n); \
@@ -553,7 +553,7 @@ __kfifo_uint_must_check_helper( \
 	typeof(__tmp->ptr) __buf = (buf); \
 	unsigned long __n = (n); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ?\
 	__kfifo_out_r(__kfifo, __buf, __n, __recsize) : \
 	__kfifo_out(__kfifo, __buf, __n); \
@@ -607,7 +607,7 @@ __kfifo_uint_must_check_helper( \
 	unsigned int __len = (len); \
 	unsigned int *__copied = (copied); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ? \
 	__kfifo_from_user_r(__kfifo, __from, __len,  __copied, __recsize) : \
 	__kfifo_from_user(__kfifo, __from, __len, __copied); \
@@ -635,7 +635,7 @@ __kfifo_uint_must_check_helper( \
 	unsigned int __len = (len); \
 	unsigned int *__copied = (copied); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ? \
 	__kfifo_to_user_r(__kfifo, __to, __len, __copied, __recsize) : \
 	__kfifo_to_user(__kfifo, __to, __len, __copied); \
@@ -662,7 +662,7 @@ __kfifo_uint_must_check_helper( \
 	int __nents = (nents); \
 	unsigned int __len = (len); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ? \
 	__kfifo_dma_in_prepare_r(__kfifo, __sgl, __nents, __len, __recsize) : \
 	__kfifo_dma_in_prepare(__kfifo, __sgl, __nents, __len); \
@@ -684,7 +684,7 @@ __kfifo_uint_must_check_helper( \
 	typeof((fifo) + 1) __tmp = (fifo); \
 	unsigned int __len = (len); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__kfifo_dma_in_finish_r(__kfifo, __len, __recsize); \
 	else \
@@ -713,7 +713,7 @@ __kfifo_uint_must_check_helper( \
 	int __nents = (nents); \
 	unsigned int __len = (len); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ? \
 	__kfifo_dma_out_prepare_r(__kfifo, __sgl, __nents, __len, __recsize) : \
 	__kfifo_dma_out_prepare(__kfifo, __sgl, __nents, __len); \
@@ -735,7 +735,7 @@ __kfifo_uint_must_check_helper( \
 	typeof((fifo) + 1) __tmp = (fifo); \
 	unsigned int __len = (len); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	if (__recsize) \
 		__kfifo_dma_out_finish_r(__kfifo, __recsize); \
 	else \
@@ -761,7 +761,7 @@ __kfifo_uint_must_check_helper( \
 	typeof(__tmp->ptr) __buf = (buf); \
 	unsigned long __n = (n); \
 	const size_t __recsize = sizeof(*__tmp->rectype); \
-	struct __kfifo *__kfifo = &__tmp->kfifo; \
+	struct __kfifo *__kfifo = &__tmp->_kfifo; \
 	(__recsize) ? \
 	__kfifo_out_peek_r(__kfifo, __buf, __n, __recsize) : \
 	__kfifo_out_peek(__kfifo, __buf, __n); \

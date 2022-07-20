@@ -207,7 +207,7 @@ static unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long
 	return _find_next_bit(addr, size, offset, ~0UL);
 }
 
-static inline unsigned long find_next_zero_bit_le(const void *addr,
+static inline unsigned long find_next_zero_bit_le(const unsigned long *addr,
 		unsigned long size, unsigned long offset)
 {
 	return find_next_zero_bit(addr, size, offset);

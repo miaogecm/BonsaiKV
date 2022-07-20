@@ -147,8 +147,8 @@ static void memcpy_nt(void *dst, void *src, size_t len, int fence) {
 	unsigned char *from, *to;
 	size_t remain = len & (CACHELINE_SIZE - 1);
 
-	from = src;
-	to = dst;
+	from = (unsigned char *) src;
+	to = (unsigned char *) dst;
 	i = len / CACHELINE_SIZE;
 
 	for (; i > 0; i--) {

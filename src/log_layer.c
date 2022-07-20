@@ -91,11 +91,22 @@ struct fetch_workset {
     uint32_t new_region_starts[NUM_CPU];
 };
 
+struct sort_contrib {
+    int cnt;
+    struct oplog *start;
+};
+
 struct clustering_workset {
     /* The input of the cluster work. Collected logs for each worker. */
     logs_t *per_worker_logs;
 
     pbatch_op_t *pbatch_ops[NUM_PFLUSH_WORKER][NUM_SOCKET];
+
+    struct oplog *local_samples[NUM_PFLUSH_WORKER];
+    int local_sample_cnt[NUM_PFLUSH_WORKER];
+    struct oplog global_samples[NUM_PFLUSH_WORKER];
+
+    struct sort_contrib sort_contribs[NUM_PFLUSH_WORKER][NUM_PFLUSH_WORKER];
 
     struct flush_load per_worker_per_socket_loads[NUM_PFLUSH_WORKER][NUM_SOCKET];
 
@@ -510,68 +521,120 @@ static int fetch_work(void *arg) {
     return 0;
 }
 
-/* Inline the sort function to reduce overhead caused by frequently making indirect call to cmp. */
-#define num_cmp(x, y)           ((x) == (y) ? 0 : ((x) < (y) ? -1 : 1))
-#define sort_cmp(a, b, arg)     (pkey_compare(((struct oplog *) (a))->o_kv.k, ((struct oplog *) (b))->o_kv.k) \
-                                 ? : num_cmp(((struct oplog *) (a))->o_stamp, ((struct oplog *) (b))->o_stamp))
-#include "sort.h"
+static int lower_bound(struct oplog haystack[], int nr, struct oplog *needle) {
+    int mid, l = 0, r = nr;
 
-static void collaboratively_sort_logs(logs_t *logs, pthread_barrier_t *barrier, int wid) {
-	int phase, n = NUM_PFLUSH_WORKER, i, left, oid, cnt, ocnt, delta;
-    struct oplog *ent, *oent, *nent, *nptr, *data, *odata, **get;
+    while (l < r) {
+        mid = l + (r - l) / 2;
 
-    data = logs[wid].logs;
-    cnt = logs[wid].cnt;
-
-    do_qsort(data, cnt, sizeof(struct oplog), NULL);
-
-	if (unlikely(!cnt))
-		usleep(200);
-	
-	for (phase = 0; phase < n; phase++) {
-        /* Wait for the last phase to be done. */
-	    pthread_barrier_wait(barrier);
-
-        /* Am I the left half in this phase? */
-        left = wid % 2 == phase % 2;
-        delta = left ? 1 : -1;
-        oid = wid + delta;
-        if (oid < 0 || oid >= NUM_PFLUSH_WORKER) {
-            pthread_barrier_wait(barrier);
-            continue;
+        if (oplog_cmp(needle, &haystack[mid]) <= 0) {
+            r = mid;
+        } else {
+            l = mid + 1;
         }
+    }
 
-        ocnt = logs[oid].cnt;
-        odata = logs[oid].logs;
+    if (l < nr && oplog_cmp(&haystack[l], needle) < 0) {
+        l++;
+    }
 
-        ent = left ? data : (data + cnt - 1);
-        oent = left ? odata : (odata + ocnt - 1);
+    return l;
+}
 
-        nent = malloc(sizeof(struct oplog) * cnt);
-        nptr = left ? nent : (nent + cnt - 1);
+void sort_oplogs(struct oplog *oplogs, int nr);
 
-        for (i = 0; i < cnt; i++) {
-            if (unlikely(ent - data == cnt || ent < data)) {
-                get = &oent;
-            } else if (unlikely(oent - odata == ocnt || oent < odata)) {
-                get = &ent;
-            } else {
-                if (!pkey_compare(ent->o_kv.k, oent->o_kv.k)) {
-                    get = &ent;
-                } else {
-                    get = (!left ^ (pkey_compare(ent->o_kv.k, oent->o_kv.k) < 0)) ? &ent : &oent;
-                }
+static void collaboratively_sort_logs(struct clustering_workset *ws,
+                                      logs_t *logs, pthread_barrier_t *barrier, int wid) {
+    struct oplog collected_samples[NUM_PFLUSH_WORKER * NUM_PFLUSH_WORKER], *local_sample, *cur_sample;
+    struct oplog *data = logs[wid].logs, *cur, *start, *p, *merged;
+    int nr_collected_sample, nr_global_sample, remain;
+    int cnt = logs[wid].cnt, nr_local_sample, i, j;
+    int total, curp[NUM_PFLUSH_WORKER], min_idx;
+    struct sort_contrib *cb;
+
+    /* local sort */
+    sort_oplogs(data, cnt);
+
+    /* local sampling */
+    nr_local_sample = min(NUM_PFLUSH_WORKER, cnt);
+    local_sample = malloc(sizeof(struct oplog) * nr_local_sample);
+    for (i = 0, cur = data; i < nr_local_sample; i++, cur += cnt / nr_local_sample) {
+        local_sample[i] = *cur;
+    }
+    ws->local_samples[wid] = local_sample;
+    ws->local_sample_cnt[wid] = nr_local_sample;
+
+    pthread_barrier_wait(barrier);
+
+    /* global sampling */
+    if (wid == 0) {
+        /* collect all local samples */
+        nr_collected_sample = 0;
+        for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+            for (j = 0; j < ws->local_sample_cnt[i]; j++) {
+                collected_samples[nr_collected_sample++] = ws->local_samples[i][j];
             }
-            *nptr = **get;
-            *get += delta;
-            nptr += delta;
         }
 
-	    pthread_barrier_wait(barrier);
+        /* sort these local samples */
+        sort_oplogs(collected_samples, nr_collected_sample);
 
-        free(data);
-        logs[wid].logs = data = nent;
-	}
+        /* sample globally */
+        nr_global_sample = min(nr_collected_sample, NUM_PFLUSH_WORKER);
+        for (i = 0, cur_sample = collected_samples;
+             i < nr_global_sample;
+             i++, cur_sample += nr_collected_sample / nr_global_sample) {
+            ws->global_samples[i] = *cur_sample;
+        }
+        for (; i < NUM_PFLUSH_WORKER; i++) {
+            ws->global_samples[i].o_kv.k = MAX_KEY;
+        }
+    }
+
+    pthread_barrier_wait(barrier);
+
+    /* local contribution calculation */
+    start = data;
+    remain = cnt;
+    for (i = 1; i < NUM_PFLUSH_WORKER; i++) {
+        cb = &ws->sort_contribs[wid][i - 1];
+        cb->start = start;
+        cb->cnt = lower_bound(start, remain, &ws->global_samples[i]);
+        start += cb->cnt;
+        remain -= cb->cnt;
+    }
+    cb = &ws->sort_contribs[wid][NUM_PFLUSH_WORKER - 1];
+    cb->start = start;
+    cb->cnt = remain;
+
+    pthread_barrier_wait(barrier);
+
+    /* local merge */
+    total = 0;
+    for (i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        total += ws->sort_contribs[i][wid].cnt;
+        curp[i] = 0;
+    }
+    p = merged = malloc(total * sizeof(*merged));
+    for (i = 0; i < total; i++) {
+        min_idx = -1;
+        for (j = 0; j < NUM_PFLUSH_WORKER; j++) {
+            if (curp[j] < ws->sort_contribs[j][wid].cnt && (min_idx == -1 || oplog_cmp(&ws->sort_contribs[j][wid].start[curp[j]], &ws->sort_contribs[min_idx][wid].start[curp[min_idx]]) < 0)) {
+                min_idx = j;
+            }
+        }
+        *p++ = ws->sort_contribs[min_idx][wid].start[curp[min_idx]];
+        curp[min_idx]++;
+    }
+
+    /* save result */
+    logs[wid].logs = merged;
+    logs[wid].cnt = total;
+
+    pthread_barrier_wait(barrier);
+
+    /* cleanup */
+    free(data);
 
 	bonsai_print("[pflush worker %d] collaboratively_sort_logs: got %d logs\n", wid, logs[wid].cnt);
 }
@@ -742,7 +805,7 @@ static int cluster_work(void *arg) {
     int wid = desc->wid;
 
     /* Sort them collaboratively. */
-    collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
+    collaboratively_sort_logs(ws, ws->per_worker_logs, &ws->barrier, wid);
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
     merge_and_cluster_logs(ws->pbatch_ops[wid],

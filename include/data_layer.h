@@ -111,7 +111,7 @@ static inline pbatch_op_t *pbatch_cursor_get(pbatch_cursor_t *cursor) {
 static inline void pbatch_list_create(struct list_head *list, pbatch_op_t *start, size_t len) {
     pbatch_node_t *node;
     assert(len);
-    node = malloc(sizeof(*node));
+    node = (pbatch_node_t *) malloc(sizeof(*node));
     node->start = start;
     node->len = len;
     INIT_LIST_HEAD(&node->list);
@@ -153,7 +153,7 @@ static inline void pbatch_list_split(struct list_head *dst, pbatch_cursor_t *cur
     assert(!pbatch_cursor_is_end(cursor));
     if (cursor->i) {
         /* Split the node itself. */
-        next = malloc(sizeof(*next));
+        next = (pbatch_node_t *) malloc(sizeof(*next));
         next->start = node->start + cursor->i;
         next->len = node->len - cursor->i;
         node->len = cursor->i;
