@@ -142,9 +142,11 @@ void do_smo() {
 
         kfifo_get(&s_layer->fifo[min_cpu], &log);
 
-		/* FIXME: init log.v */
-		log.v = NULL;
-        i_layer->insert(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN, log.v);
+        if (log.v) {
+            i_layer->insert(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN, log.v);
+        } else {
+            i_layer->remove(i_layer->index_struct, pkey_to_str(log.k).key, KEY_LEN);
+        }
     }
 }
 
@@ -163,6 +165,26 @@ retry:
     }
 
     wakeup_smo();
+}
+
+static inline int index_upsert(pkey_t k, void *v) {
+#ifdef ASYNC_SMO
+    smo_append(k, v);
+    return 0;
+#else
+    struct index_layer *i_layer = INDEX(bonsai);
+    return i_layer->insert(i_layer->index_struct, pkey_to_str(k).key, KEY_LEN, v);
+#endif
+}
+
+static inline int index_remove(pkey_t k) {
+#ifdef ASYNC_SMO
+    smo_append(k, NULL);
+    return 0;
+#else
+    struct index_layer *i_layer = INDEX(bonsai);
+    return i_layer->remove(i_layer->index_struct, pkey_to_str(k).key, KEY_LEN);
+#endif
 }
 
 #define inode_prefetch_(prefetcher, t, prefetch_ptr) do { \
@@ -434,7 +456,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
 
     /* Insert into upper index. */
     pack_pptr(&pptr, n, inode->pno);
-    i_layer->insert(i_layer->index_struct, pkey_to_str(fence).key, KEY_LEN, pptr);
+    index_upsert(fence, pptr);
 }
 
 static unsigned inode_find_(logid_t *log, inode_t *inode, pkey_t key, uint8_t *fgprt, uint32_t validmap) {
@@ -698,7 +720,7 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
     /* update pno */
     inode->pno = pno;
     pack_pptr(&pptr, inode, pno);
-    i_layer->insert(i_layer->index_struct, pkey_to_str(ilfence).key, KEY_LEN, pptr);
+    index_upsert(ilfence, pptr);
 
     /* update pfence */
     if (prev && prev->pno == pno) {
@@ -736,7 +758,7 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode, stru
         prev->fence = inode->fence;
         write_seqcount_end(&prev->seq);
 
-        ret = i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
+        ret = index_remove(old_fence);
         assert(!ret);
 
         inode_free(rec, inode);
