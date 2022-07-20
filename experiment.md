@@ -1,6 +1,6 @@
 ### Bonsai实验设计
 
-### 1. Setup
+### 1. Experiment Setup
 
 #### 1.1 对比KVS
 
