@@ -90,6 +90,7 @@ struct cpu_log_region_desc {
         WBS_DELAY,
         WBS_REQUEST
     } wb_state;
+    void *wb_new_buf;
     int wb_done;
 };
 

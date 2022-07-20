@@ -215,7 +215,7 @@ struct oplog *oplog_get(logid_t logid) {
     return oplog;
 }
 
-static void write_back(int cpu, int dimm_unlock) {
+static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
 	struct log_layer* layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
@@ -241,10 +241,16 @@ static void write_back(int cpu, int dimm_unlock) {
         pthread_mutex_unlock(local_desc->dimm_lock);
     }
 
-    lcb = malloc(LCB_MAX_SIZE * sizeof(*lcb));
+    if (!wb_new_buf_in_signal) {
+        /* Not in signal. */
+        lcb = malloc(LCB_MAX_SIZE * sizeof(*lcb));
+        call_rcu(RCU(bonsai), free, local_desc->lcb);
+    } else {
+        lcb = wb_new_buf_in_signal;
+        /* TODO: Delay-free local_desc->lcb (@call_rcu is non-reentrant, so we can not use it here.) */
+    }
 
     local_desc->size = 0;
-    call_rcu(RCU(bonsai), free, local_desc->lcb);
 
     write_seqcount_begin(&local_desc->seq);
     region->meta.end = end;
@@ -261,7 +267,7 @@ static void handle_wb(int signo) {
 
     switch (local_desc->wb_state) {
         case WBS_ENABLE:
-            write_back(cpu, 0);
+            write_back(cpu, 0, local_desc->wb_new_buf);
             local_desc->wb_done = 1;
             break;
 
@@ -300,14 +306,14 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
     if (unlikely(local_desc->size >= LCB_FULL_NR
 			&& local_desc->size % 4 == 0)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
-            write_back(cpu, 1);
+            write_back(cpu, 1, NULL);
         } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {
-            write_back(cpu, 0);
+            write_back(cpu, 0, NULL);
         }
     }
 
     if (cmpxchg_local(&local_desc->wb_state, WBS_DELAY, WBS_ENABLE) == WBS_REQUEST) {
-        write_back(cpu, 0);
+        write_back(cpu, 0, NULL);
         local_desc->wb_state = WBS_ENABLE;
         local_desc->wb_done = 1;
     }
@@ -387,6 +393,7 @@ static void force_wb() {
 
 		desc = &layer->desc->descs[ti->t_cpu];
 		desc->wb_done = 0;
+        desc->wb_new_buf = malloc(LCB_MAX_SIZE * sizeof(struct oplog));
 
 		ret = pthread_kill(bonsai->tids[ti->t_id], WB_SIGNO);
 		if (unlikely(ret)) {
