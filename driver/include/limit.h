@@ -41,4 +41,6 @@ extern int num_w;
 #define MIN_AMOUNT  1
 #define MAX_AMOUNT  5000
 
+#define NUM_SUBSCRIBER  100
+
 #endif

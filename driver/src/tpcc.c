@@ -3,16 +3,12 @@
  * New-order, Payment, Order-status, Deliver, Stock-level
  */
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #include "types.h"
-#include "schema.h"
+#include "schema_tpcc.h"
 #include "workload.h"
 #include "limit.h"
 #include "rand.h"
@@ -120,7 +116,7 @@ static void __new_order(u32 w_id, u32 d_id, u32 c_id, u32 ol_size,
     }
 }
 
-void new_order(u32 w_id) {
+void tpcc_new_order(u32 w_id) {
     u32 d_id, c_id;
     u32 ol_cnt;
     u32 *w_arr, *i_arr, *q_arr;
@@ -254,7 +250,7 @@ static void __payment_by_name(u32 t_id, u32 w_id, u32 d_id, u32 c_w_id, u32 c_d_
     }
 }
 
-void payment(u32 t_id, u32 w_id) {
+void tpcc_payment(u32 t_id, u32 w_id) {
     u32 d_id = get_d_id();
     u32 c_w_id;
     u32 c_d_id;
@@ -352,7 +348,7 @@ static void __delivery(u32 w_id, u32 carrier_id, u64 d_date) {
     }
 }
 
-void delivery(u32 w_id) {
+void tpcc_delivery(u32 w_id) {
     u32 carrier_id = get_carrier();
     __delivery(w_id, carrier_id, get_timestamp());
 }
@@ -395,7 +391,7 @@ static void __stock_level(u32 w_id, u32 d_id, u32 threshold) {
     }
 }
 
-void stock_level(u32 w_id) {
+void tpcc_stock_level(u32 w_id) {
     u32 d_id = get_d_id();
     u32 threshold = get_th();
     __stock_level(w_id, d_id, threshold);
@@ -479,7 +475,7 @@ static void __order_status_by_name(u32 w_id, u32 d_id, char* c_last) {
     }
 }
 
-void order_status(u32 w_id) {
+void tpcc_order_status(u32 w_id) {
     u32 d_id = get_d_id();
     u32 c_id;
     char c_last[16];
@@ -492,7 +488,7 @@ void order_status(u32 w_id) {
     }
 }
 
-int work(u32 t_id, u32 w_id) {
+int tpcc_work(u32 t_id, u32 w_id) {
 #if 0
     int x = get_rand(1, 100);
 
@@ -529,13 +525,13 @@ int work(u32 t_id, u32 w_id) {
 #endif
 
     stm_start();
-    new_order(w_id);
+    tpcc_new_order(w_id);
     stm_commit();
 
     return WK_NO;
 }
 
-void load_warehouse() {
+void tpcc_load_warehouse() {
     struct warehouse __w;
     
     char name[10];
@@ -560,7 +556,7 @@ void load_warehouse() {
     }
 }
 
-void load_district(u32 w_id) {
+void tpcc_load_district(u32 w_id) {
     struct district __d;
     
     char name[10];
@@ -585,7 +581,7 @@ void load_district(u32 w_id) {
     }
 }
 
-void load_customer(u32 t_id, u32 w_id, u32 d_id) {
+void tpcc_load_customer(u32 t_id, u32 w_id, u32 d_id) {
     int i;
     struct customer __c;
     struct history __h;
@@ -641,7 +637,7 @@ void load_customer(u32 t_id, u32 w_id, u32 d_id) {
     }
 }
 
-void load_order(u32 w_id, u32 d_id) {
+void tpcc_load_order(u32 w_id, u32 d_id) {
     struct order __o;
     struct orderline __ol;
     struct neworder __no;
@@ -680,7 +676,7 @@ void load_order(u32 w_id, u32 d_id) {
     }
 }
 
-void load_item(u32 w_id) {
+void tpcc_load_item(u32 w_id) {
     struct item __i;
     
     char i_data[50], __i_data[50];
@@ -702,7 +698,7 @@ void load_item(u32 w_id) {
     }
 }
 
-void load_stock(u32 w_id) {
+void tpcc_load_stock(u32 w_id) {
     struct stock __s;
     
     char s_data[50], __s_data[50];

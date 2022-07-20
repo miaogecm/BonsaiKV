@@ -69,6 +69,6 @@ extern void bench_init(init_func_t init, destroy_func_t destroy,
 extern void bench_destroy();
 extern void bench_set_env(int __num_w, int __num_works, int __num_cpu);
 extern void bench_load(int __num_threads);
-extern void bench_bench(int __num_threads);
+extern void run_bench(int __num_threads);
 
 #endif

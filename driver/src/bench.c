@@ -29,6 +29,8 @@ static int num_threads;
 static int num_works;
 static int num_cpu;
 
+static int run_tpcc = 1;
+
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;
@@ -62,7 +64,7 @@ static inline double end_measure() {
     return t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
 }
 
-static void* load_thread_fun(void* arg) {
+static void* tpcc_load_thread_fun(void* arg) {
     int id = (long)arg;
     double interval;
     int st, ed;
@@ -75,18 +77,18 @@ static void* load_thread_fun(void* arg) {
     start_measure();
 
     if (id == 0) {
-        load_item();
-        load_warehouse();
+        tpcc_load_item();
+        tpcc_load_warehouse();
     }
     
     st = 1.0 * id / num_threads * (num_w + 1);
     ed = 1.0 * (id + 1) / num_threads * (num_w + 1);
     for (i = st; i < ed; i++) {
-        load_stock(i);
-        load_district(i);
+        tpcc_load_stock(i);
+        tpcc_load_district(i);
         for (j = 1; j <= NUM_D; j++) {
-            load_customer(id, i, j);
-            load_order(i, j);
+            tpcc_load_customer(id, i, j);
+            tpcc_load_order(i, j);
         }
     }
 
@@ -102,11 +104,55 @@ static void* load_thread_fun(void* arg) {
     return NULL;
 }
 
+static void* tatp_load_thread_fun(void *arg) {
+    int id = (long) arg;
+    double interval;
+
+    bind_to_cpu(id % num_cpu);
+    pthread_barrier_wait(&barrier);
+    start_measure();
+
+    if (id <= num_threads / 10) { 
+        int numThreadsInsertingSubscribers = num_threads / 10 + 1;
+        int numSubscribersPerThread = NUM_SUBSCRIBER / numThreadsInsertingSubscribers;
+        int start = id * numSubscribersPerThread;
+        int end = (id + 1) * numSubscribersPerThread;
+        tatp_loadSubscriber(start, end);
+    } else if (num_threads / 10 < id && id <= num_threads / 10 + num_threads / 4) {
+        int numThreadsInsertingSubscribers = num_threads / 4;
+        int numSubscribersPerThread = NUM_SUBSCRIBER / numThreadsInsertingSubscribers;
+        int newId = id - num_threads / 10 - 1;
+        int start = newId * numSubscribersPerThread;
+        int end = (newId + 1) * numSubscribersPerThread;
+        tatp_loadAccessInfo(start, end);
+    } else {
+        int numThreadsInsertingSubscribers = num_threads - num_threads / 4 - num_threads / 10 - 1;
+        int numSubscribersPerThread = NUM_SUBSCRIBER / numThreadsInsertingSubscribers;
+        int newId = id - (num_threads / 10 + num_threads / 4) - 1;
+        int start = newId * numSubscribersPerThread;
+        int end = (newId + 1) * numSubscribersPerThread;
+        tatp_loadSpecialFacility_CallForwarding(start, end);
+    }
+
+    interval = end_measure();
+    printf("load[%d] finished in %.3lf seconds\n", id, interval);
+
+    pthread_barrier_wait(&barrier);
+
+    if (id == 0) {
+        interval = end_measure();
+        printf("LOAD: %.3lf seconds elapsed\n", interval);
+    }
+    return NULL;
+}
+
 static void* load_thread_parent_fun(void *arg) {
-    long i;
+	long i;
 	bind_to_cpu(0);
-    for (i = 0; i < num_threads; i++) {
-		pthread_create(&tids[i], NULL, load_thread_fun, (void*)i);
+
+	for (i = 0; i < num_threads; i++) {
+		pthread_create(&tids[i], NULL, 
+			run_tpcc ? tpcc_load_thread_fun : tatp_load_thread_fun, (void*)i);
         pthread_setname_np(tids[i], "load_thread");
 	}
 	for (i = 0; i < num_threads; i++) {
@@ -132,7 +178,8 @@ static void* bench_thread_fun(void* arg) {
     start_measure();
 
     while(num_works_left--) {
-        work(id, get_w_id());
+        if (run_tpcc) tpcc_work(id, get_w_id());
+		else tatp_work(id);
     }
 
     interval = end_measure();
@@ -203,7 +250,7 @@ extern void bench_load(int __num_threads) {
     pthread_join(load_thread_parent, NULL);
 }
 
-extern void bench_bench(int __num_threads) {
+extern void run_bench(int __num_threads) {
     pthread_t bench_thread_parent;
 
     num_threads = __num_threads;

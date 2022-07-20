@@ -1,5 +1,5 @@
-#ifndef SCHEMA_H
-#define SCHEMA_H
+#ifndef SCHEMA_TPCC_H
+#define SCHEMA_TPCC_H
 
 #include <stdarg.h>
 

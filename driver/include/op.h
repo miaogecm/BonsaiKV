@@ -23,7 +23,7 @@
         }})
 
 #define bench_update(kv_type, key, num_v, col_arr, size_arr, v_arr) \
-        ({int i; void* __ptr; \
+        ({int i; \
         for (i = 0; i < num_v; i++) { \
             key.col = col_arr[i]; \
             bench.update(bench_kv, &key, sizeof(key), v_arr[i], size_arr[i]); \

@@ -84,6 +84,6 @@ int main() {
     bench_init(s_init, s_destroy, s_insert, s_update, s_remove, s_lookup, s_scan);
     bench_set_env(20, 100000, 48);
     bench_load(20);
-    bench_bench(20);
+    run_bench(20);
     bench_destroy();
 }
