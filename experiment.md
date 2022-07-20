@@ -37,7 +37,7 @@ Telecommunication Application Transaction Processing: TATP
 + baseline+log batch
 + baseline+log batch+volatile LCB
 + baseline+log batch+volatile LCB+thread throttling
-+ log checkpoint time threshold
++ log checkpoint time threshold study
 
 #### 3.3 Evaluating CLP-based data stripping
 
@@ -47,7 +47,7 @@ Telecommunication Application Transaction Processing: TATP
 #### 3.4 Evaluating data coherence protocol
 
 + remote memory write reduction
-+ data validity threshold impact
++ data validity threshold study
 
 #### 3.5 Read-intensive benchmark
 
@@ -63,7 +63,7 @@ YCSB-E
 
 #### 3.8 Performance interference study
 
-LCB size: 1KB-4KB
+log batch size: 256B-4KB
 
 
 
