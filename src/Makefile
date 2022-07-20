@@ -2,50 +2,73 @@ CUR_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 include $(CUR_DIR)/../Makefile.inc
 
+#SANITIZER_FLAG = -fsanitize=address
+
 # - nvm configuration
-CFLAGS += -DTS_NVM_IS_PMDK
+FLAGS += -DTS_NVM_IS_PMDK
 
+FLAGS += -I$(INC_DIR)
+FLAGS += -march=native -mtune=native -mcmodel=medium -O3
+FLAGS += -shared -fPIC
+FLAGS += -g -ggdb3
+FLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
+FLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value -Wno-strict-aliasing
+FLAGS += -Wno-unused-function
+FLAGS += ${LOCAL}
+FLAGS += $(SANITIZER_FLAG)
+
+CFLAGS += $(FLAGS)
 CFLAGS += -std=gnu99
-CFLAGS += -I$(INC_DIR)
-CFLAGS += -march=native -mtune=native -mcmodel=medium -O3
-CFLAGS += -g -ggdb3
-CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
-CFLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value -Wno-strict-aliasing
-CFLAGS += -Wno-unused-function
-CFLAGS += ${LOCAL}
-CFLAGS += -D PNODE_FP
-#CFLAGS += -fsanitize=address
 
-LDFLAGS += -pthread -lpmem -lpmemobj -lnuma 
+CXXFLAGS += $(FLAGS)
+CXXFLAGS += -std=gnu++14
 
-DEPS_DIR  := $(CUR_DIR)/.deps
-DEPCFLAGS = -MD -MF $(DEPS_DIR)/$*.d -MP
+LDFLAGS += -shared -lpmem -lpmemobj -lnuma
+LDFLAGS += -lrt -lm -lpthread -lstdc++
+LDFLAGS += $(SANITIZER_FLAG)
 
-SRC_FILES = $(wildcard *.c)
-OBJS_DIR  = $(CUR_DIR)/.objs
-OBJ_FILES = $(addprefix $(OBJS_DIR)/, $(SRC_FILES:.c=.o))
+C_DEPS_DIR  := $(CUR_DIR)/.c.deps
+C_DEPFLAGS = -MD -MF $(C_DEPS_DIR)/$*.d -MP
 
-all: libbonsai.a
+CXX_DEPS_DIR  := $(CUR_DIR)/.cxx.deps
+CXX_DEPFLAGS = -MD -MF $(CXX_DEPS_DIR)/$*.d -MP
 
-$(OBJS_DIR)/%.o: %.c $(DEPS_DIR) $(OBJS_DIR)
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -c -o $@ $<
+C_SRC_FILES = $(wildcard *.c)
+C_OBJS_DIR  = $(CUR_DIR)/.c.objs
+C_OBJ_FILES = $(addprefix $(C_OBJS_DIR)/, $(C_SRC_FILES:.c=.o))
 
-$(OBJS_DIR):
-	$(Q)mkdir -p $(OBJS_DIR)
+CXX_SRC_FILES = $(wildcard *.cc)
+CXX_OBJS_DIR  = $(CUR_DIR)/.cxx.objs
+CXX_OBJ_FILES = $(addprefix $(CXX_OBJS_DIR)/, $(CXX_SRC_FILES:.cc=.o))
 
-$(DEPS_DIR):
-	$(Q)mkdir -p $(DEPS_DIR)
+all: libbonsai.so
 
-$(INC_DIR)/numa_config.h:
-	$(Q)$(TOOLS_DIR)/topology.py > $@
+$(C_OBJS_DIR)/%.o: %.c $(C_DEPS_DIR) $(C_OBJS_DIR)
+	$(CC) $(CFLAGS) $(C_DEPFLAGS) -c -o $@ $<
 
-libbonsai.a: $(OBJ_FILES)
+$(CXX_OBJS_DIR)/%.o: %.cc $(CXX_DEPS_DIR) $(CXX_OBJS_DIR)
+	$(CXX) $(CXXFLAGS) $(CXX_DEPFLAGS) -c -o $@ $<
+
+$(C_OBJS_DIR):
+	$(Q)mkdir -p $(C_OBJS_DIR)
+
+$(CXX_OBJS_DIR):
+	$(Q)mkdir -p $(CXX_OBJS_DIR)
+
+$(C_DEPS_DIR):
+	$(Q)mkdir -p $(C_DEPS_DIR)
+
+$(CXX_DEPS_DIR):
+	$(Q)mkdir -p $(CXX_DEPS_DIR)
+
+libbonsai.so: $(C_OBJ_FILES) $(CXX_OBJ_FILES)
 	$(Q)/bin/rm -f $@
-	$(Q)$(AR) cru $@ $^
+	$(CC) $^ $(LDFLAGS) -o $@
 
 clean:
-	$(Q)rm -f libbonsai.a
-	$(Q)rm -rf $(CUR_DIR)/.deps*
-	$(Q)rm -rf $(CUR_DIR)/.objs*
+	$(Q)rm -f libbonsai.so
+	$(Q)rm -rf $(CUR_DIR)/.c.deps*
+	$(Q)rm -rf $(CUR_DIR)/.cxx.deps*
+	$(Q)rm -rf $(CUR_DIR)/.c.objs*
+	$(Q)rm -rf $(CUR_DIR)/.cxx.objs*
 	$(Q)echo > $(CUR_DIR)/log
-	#$(Q)rm -f $(INC_DIR)/numa_config.h

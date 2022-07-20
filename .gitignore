@@ -2,10 +2,13 @@
 *.o
 *.out
 .vscode
-.deps
+.c.deps
+.cxx.deps
 log
 *.a
-.objs
+*.so
+.c.objs
+.cxx.objs
 .DS_Store
 core
 perf*

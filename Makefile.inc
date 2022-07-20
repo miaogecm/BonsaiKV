@@ -11,8 +11,7 @@ AR = ar
 CC = gcc
 CXX = g++
 MAKE = make
-
-# CFLAGS += -DLONG_KEY
+LD = ld
 
 # -jN
 ifeq ($(strip $(NJOB)), )
