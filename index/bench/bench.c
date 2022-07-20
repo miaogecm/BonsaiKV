@@ -77,7 +77,7 @@ extern int bonsai_remove(pkey_t key);
 extern int bonsai_insert_commit(pkey_t key, pval_t value);
 extern int bonsai_remove_commit(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
-extern int bonsai_scan(pkey_t start, scanner_t scanner, void* argv);
+extern int bonsai_scan(pkey_t start, int range, pval_t *values);
 
 extern void bonsai_dtx_start();
 extern void bonsai_dtx_commit();
@@ -169,33 +169,6 @@ static inline double end_measure() {
     return t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
 }
 
-struct scanner_argv {
-    size_t size, cur;
-    pval_t* val_arr;
-    pkey_t start;
-};
-
-static scanner_ctl_t scanner(pentry_t e, void* s_argv_) {
-	struct scanner_argv* s_argv = s_argv_;
-    size_t size;
-    void *val;
-
-#ifdef STR_VAL
-    val = bonsai_extract_val(&size, e.v);
-#else
-    size = sizeof(pval_t);
-    val = &e.v;
-#endif
-
-    memcpy(&s_argv->val_arr[s_argv->cur++], val, size);
-
-    if (s_argv->cur == s_argv->size) {
-        return SCAN_STOP;
-    }
-
-    return SCAN_NEXT;
-}
-
 static void do_load(long id) {
     double interval;
 	long i, st, ed;
@@ -243,7 +216,6 @@ static void do_op(long id) {
     pkey_t __key;
     pval_t __val;
     size_t size;
-    struct scanner_argv s_argv;
     int ret;
 
     st = 1.0 * id / NUM_THREAD * N;
@@ -307,12 +279,7 @@ static void do_op(long id) {
 #else
                     size = op_v_arr[i];
 #endif
-                    s_argv.cur = 0;
-                    s_argv.size = size;
-                    s_argv.val_arr = (pval_t*) malloc(size * VAL_LEN);
-                    s_argv.start = __key;
-                    bonsai_scan(__key, scanner, (void*)&s_argv);
-                    free(s_argv.val_arr);
+                    bonsai_scan(__key, size, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);

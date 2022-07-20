@@ -505,13 +505,12 @@ static int ent_cmp(const void *a, const void *b) {
     return pkey_compare(e1->k, e2->k);
 }
 
-int shim_scan(pkey_t start, scanner_t scanner, void* argv) {
+int shim_scan(pkey_t start, int range, pval_t *values) {
     pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent = NULL, t;
-    int nr_ents, nr_pents = 0, has_ent, has_pent, cmp;
+    int nr_ents, nr_pents = 0, has_ent, has_pent, cmp, nr_value = 0;
     pnoid_t pno, last_pno = PNOID_NULL;
     unsigned long validmap;
     inode_t *inode, *next;
-    scanner_ctl_t ctl;
     unsigned int seq;
     unsigned pos;
     pkey_t fence;
@@ -584,15 +583,15 @@ scan_inode:
             goto use_ent;
         } else if (has_ent) {
 use_ent:
-            ctl = scanner(*ent, argv);
+            values[nr_value++] = ent->v;
             ent++;
         } else {
 use_pent:
-            ctl = scanner(*pent, argv);
+            values[nr_value++] = pent->v;
             nr_pents--;
             pent++;
         }
-        if (ctl == SCAN_STOP) {
+        if (nr_value >= range) {
             goto out;
         }
 merge_sort:

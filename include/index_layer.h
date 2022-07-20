@@ -13,12 +13,6 @@ extern "C" {
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
-typedef enum {
-    SCAN_NEXT,
-    SCAN_STOP
-} scanner_ctl_t;
-typedef scanner_ctl_t (*scanner_t)(pentry_t e, void* argv);
-
 typedef void* (*init_func_t)(void);
 typedef void (*destory_func_t)(void*);
 typedef int (*insert_func_t)(void* index_struct, const void *key, size_t len, const void* value);
@@ -64,7 +58,7 @@ struct shim_layer {
 int shim_sentinel_init(pnoid_t sentinel_pnoid);
 int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);
-int shim_scan(pkey_t start, scanner_t scanner, void* argv);
+int shim_scan(pkey_t start, int range, pval_t *values);
 int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end);
 pnoid_t shim_pnode_of(pkey_t key);
 

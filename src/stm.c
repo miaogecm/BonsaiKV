@@ -704,7 +704,6 @@ extern int bonsai_remove(pkey_t key);
 extern int bonsai_insert_commit(pkey_t key, pval_t value);
 extern int bonsai_remove_commit(pkey_t key);
 extern int bonsai_lookup(pkey_t key, pval_t *val);
-extern int bonsai_scan(pkey_t start, scanner_t scanner, void* argv);
 
 extern void bonsai_dtx_start();
 extern void bonsai_dtx_commit();
