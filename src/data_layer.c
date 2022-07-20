@@ -249,12 +249,12 @@ static inline void pnode_persist(pnoid_t pnode, int fence) {
     }
 }
 
-static void gen_fgprt(pnoid_t pnode) {
+static void gen_fgprt(pnoid_t pnode, const pentry_t *ents) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap;
     unsigned pos;
     for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
-        mno->fgprt[pos] = pkey_get_signature(pnode_ent(pnode, pos)->k);
+        mno->fgprt[pos] = pkey_get_signature(ents[pos].k);
     }
 }
 
@@ -264,7 +264,7 @@ static void pnode_init_from_arr(pnoid_t pnode, const pentry_t *ents, unsigned n)
     for (i = 0; i < n; i++) {
         *pnode_ent(pnode, i) = ents[i];
     }
-    gen_fgprt(pnode);
+    gen_fgprt(pnode, ents);
 }
 
 static void arr_init_from_pnode(pentry_t *ents, pnoid_t pnode, unsigned *n) {
