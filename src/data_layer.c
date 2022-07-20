@@ -29,8 +29,6 @@
 
 #define PNODE_NUM               (DATA_REGION_SIZE / NUM_DIMM_PER_SOCKET / PNODE_INTERLEAVING_SIZE)
 
-#define EPOCH_INTERVAL_US       10000
-
 struct oplog;
 
 typedef struct mnode {
@@ -744,8 +742,8 @@ static int register_epoch_timer() {
         goto out;
 	}
 
-	value.it_interval.tv_sec = 0;
-	value.it_interval.tv_usec = EPOCH_INTERVAL_US;
+	value.it_interval.tv_sec = REPLICA_EPOCH_INTERVAL;
+	value.it_interval.tv_usec = 0;
     value.it_value = value.it_interval;
 
     ret = setitimer(ITIMER_REAL, &value, NULL);

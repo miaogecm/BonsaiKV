@@ -16,7 +16,8 @@ extern "C" {
 
 #define INODE_POOL_SIZE         (16 * 1024 * 1024 * 1024ul)     /* 2147483648 entries */
 
-//#define ENABLE_PNODE_REPLICA
+#define ENABLE_PNODE_REPLICA
+#define REPLICA_EPOCH_INTERVAL  1                               /* seconds */
 
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
     return NUM_SOCKET * cpu_idx + node;
