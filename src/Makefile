@@ -23,7 +23,7 @@ CFLAGS += -std=gnu99
 CXXFLAGS += $(FLAGS)
 CXXFLAGS += -std=gnu++14
 
-LDFLAGS += -shared -lpmem -lpmemobj -lnuma
+LDFLAGS += -shared -lpmem -lpmemobj -lnuma -ljemalloc
 LDFLAGS += -lrt -lm -lpthread -lstdc++
 LDFLAGS += $(SANITIZER_FLAG)
 
