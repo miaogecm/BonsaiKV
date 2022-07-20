@@ -59,8 +59,11 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid);
 int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);
 int shim_scan(pkey_t start, int range, pval_t *values);
-int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end);
+int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end, void *rec);
 pnoid_t shim_pnode_of(pkey_t key);
+
+void *shim_create_recycle_chain();
+void shim_recycle(void *rec);
 
 void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init,
                       insert_func_t insert, update_func_t update, remove_func_t remove,

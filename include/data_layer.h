@@ -186,7 +186,7 @@ static inline int pnode_color(pnoid_t pno) {
 pnoid_t pnode_sentinel_init();
 
 void pnode_split_and_recolor(pnoid_t *pnode, pnoid_t *sibling, pkey_t *cut, int lc, int rc);
-void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list);
+void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list, void *rec);
 
 pnoid_t pnode_next(pnoid_t pnode);
 pkey_t pnode_get_lfence(pnoid_t pnode);

@@ -35,9 +35,14 @@
 typedef struct inode {
     /* header, 6-8 words */
     uint16_t validmap;
-    uint16_t flipmap;
-    uint16_t has_pfence;
     uint16_t deleted;
+    union {
+        struct {
+            uint16_t flipmap;
+            uint16_t has_pfence;
+        };
+        uint32_t next_free;
+    };
 
     uint32_t next;
     pnoid_t  pno;
@@ -61,6 +66,10 @@ typedef struct inode {
     char     padding1[2 * CACHELINE_SIZE - sizeof(pkey_t)];
 #endif
 } inode_t;
+
+struct inode_recycle_chain {
+    struct inode *head, *tail;
+};
 
 struct pptr {
     union {
@@ -248,15 +257,12 @@ static inline inode_t *inode_alloc() {
     return get;
 }
 
-static inline void inode_free(inode_t *inode) {
-    struct shim_layer *s_layer = SHIM(bonsai);
-    struct inode_pool *pool = &s_layer->pool;
-    inode_t *head;
-
-    do {
-        head = pool->freelist;
-        inode->next = inode_ptr2off(head);
-    } while (!cmpxchg2(&pool->freelist, head, inode));
+static inline void inode_free(struct inode_recycle_chain *rec, inode_t *inode) {
+    inode->next_free = inode_ptr2off(rec->head);
+    rec->head = inode;
+    if (unlikely(!rec->tail)) {
+        rec->tail = inode;
+    }
 }
 
 static int shim_layer_init() {
@@ -703,7 +709,7 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
     inode->has_pfence = 1;
 }
 
-static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
+static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode, struct inode_recycle_chain *rec) {
     struct index_layer *i_layer = INDEX(bonsai);
     unsigned long validmap;
     int ret;
@@ -733,7 +739,7 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode) {
         ret = i_layer->remove(i_layer->index_struct, pkey_to_str(old_fence).key, KEY_LEN);
         assert(!ret);
 
-        call_rcu(RCU(bonsai), (rcu_cb_t) inode_free, inode);
+        inode_free(rec, inode);
 
         return -ENOENT;
     }
@@ -759,14 +765,15 @@ static inline void sync_moveon(inode_t **prev, inode_t **inode, int lock_next) {
 }
 
 /* If you can make sure that the whole @inode is under @pno, you can call @sync_inode. */
-static void sync_inode(log_state_t *lst, inode_t *prev, inode_t *inode, pkey_t ilfence, pnoid_t pno) {
+static void sync_inode(log_state_t *lst, inode_t *prev, inode_t *inode, pkey_t ilfence, pnoid_t pno,
+                       struct inode_recycle_chain *rec) {
     /* Sync the pno pointer inside inode, and the index layer. And pfence. */
     sync_inode_pno(prev, inode, ilfence, pno);
     /* Cleanup old log entries inside @inode. */
-    sync_inode_logs(lst, prev, inode);
+    sync_inode_logs(lst, prev, inode, rec);
 }
 
-int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end) {
+int shim_sync(log_state_t *lst, pnoid_t start, pnoid_t end, void *rec) {
     inode_t *inode, *prev = NULL;
     /* PNOID_NULL here means @start's predecessor. */
     pnoid_t pno = PNOID_NULL;
@@ -834,7 +841,7 @@ relookup:
              * smaller than prfence. We can sync it.
              */
             if (likely(pno != PNOID_NULL)) {
-                sync_inode(lst, prev, inode, ilfence, pno);
+                sync_inode(lst, prev, inode, ilfence, pno, rec);
             }
 
             ilfence = inode->fence;
@@ -862,7 +869,7 @@ next_pno:
              *                  ^
              *                  prfence
              */
-            sync_inode(lst, prev, inode, ilfence, pno);
+            sync_inode(lst, prev, inode, ilfence, pno, rec);
 
             ilfence = inode->fence;
             sync_moveon(&prev, &inode, 1);
@@ -877,6 +884,30 @@ next_pno:
     }
 
     return 0;
+}
+
+void *shim_create_recycle_chain() {
+    struct inode_recycle_chain *rec = malloc(sizeof(*rec));
+    rec->head = rec->tail = NULL;
+    return rec;
+}
+
+void shim_recycle(void *rec_) {
+    struct inode_pool *pool = &SHIM(bonsai)->pool;
+    struct inode_recycle_chain *rec = rec_;
+    inode_t *head;
+
+    if (unlikely(!rec->head)) {
+        goto out;
+    }
+
+    do {
+        head = pool->freelist;
+        rec->tail->next_free = inode_ptr2off(head);
+    } while (!cmpxchg2(&pool->freelist, head, rec->head));
+
+out:
+    free(rec);
 }
 
 void index_layer_init(char* index_name, struct index_layer* layer, init_func_t init,

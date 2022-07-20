@@ -621,7 +621,7 @@ static void pnode_prebuild(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct l
     delay_free_pnode(pnode);
 }
 
-void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list) {
+void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_list, void *rec) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap;
     pnoid_t start, end;
@@ -641,7 +641,7 @@ void pnode_run_batch(log_state_t *lst, pnoid_t pnode, struct list_head *pbatch_l
     }
 
     /* Sync with shim layer. */
-    shim_sync(lst, start, end);
+    shim_sync(lst, start, end, rec);
 }
 
 pnoid_t pnode_next(pnoid_t pnode) {

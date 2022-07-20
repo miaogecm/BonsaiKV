@@ -95,6 +95,8 @@ struct clustering_workset {
     /* The input of the cluster work. Collected logs for each worker. */
     logs_t *per_worker_logs;
 
+    pbatch_op_t *pbatch_ops[NUM_PFLUSH_WORKER][NUM_SOCKET];
+
     struct flush_load per_worker_per_socket_loads[NUM_PFLUSH_WORKER][NUM_SOCKET];
 
     /* The output of the clustering work. Loads for each NUMA node. */
@@ -116,6 +118,7 @@ struct load_balance_workset {
 struct flush_workset {
     /* The input of the flush work. Loads for each worker. */
     struct flush_load *per_worker_loads;
+    void *shim_recycle_chains[NUM_PFLUSH_WORKER];
 };
 
 struct pflush_worksets {
@@ -141,6 +144,14 @@ static void flush_load_dump(struct flush_load* fll) {
     printf("load size: %lu\n", fll->load);
     cluster_dump(&fll->cluster);
     printf("----------flush load dump end----------\n");
+}
+
+static void flush_load_destroy(struct flush_load *load) {
+    struct cluster *cl, *tmp;
+    list_for_each_entry_safe(cl, tmp, &load->cluster, list) {
+        pbatch_list_destroy(&cl->pbatch_list);
+        free(cl);
+    }
 }
 
 static void flush_load_move(struct flush_load *dst, struct flush_load *src) {
@@ -590,7 +601,8 @@ static void pbatch_op_add(struct flush_load *per_socket_loads,
     per_socket_loads[*numa_node].load++;
 }
 
-static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *logs,
+static void merge_and_cluster_logs(pbatch_op_t **per_socket_pbatch_ops,
+                                   struct flush_load *per_socket_loads, logs_t *logs,
                                    pthread_barrier_t *barrier, int wid) {
     int i, next_wid, total = logs[wid].cnt, numa_node = 0;
     struct list_head pbatch_lists[NUM_SOCKET];
@@ -604,11 +616,14 @@ static void merge_and_cluster_logs(struct flush_load *per_socket_loads, logs_t *
     }
 
     if (unlikely(!total)) {
+        for (i = 0; i < NUM_SOCKET; i++) {
+            per_socket_pbatch_ops[i] = NULL;
+        }
 		goto out;
     }
 
     for (i = 0; i < NUM_SOCKET; i++) {
-        ops = malloc(total * sizeof(*ops));
+        per_socket_pbatch_ops[i] = ops = malloc(total * sizeof(*ops));
         INIT_LIST_HEAD(&pbatch_lists[i]);
         pbatch_list_create(&pbatch_lists[i], ops, total);
         pbatch_cursor_init(&cursors[i], &pbatch_lists[i]);
@@ -708,7 +723,8 @@ static int cluster_work(void *arg) {
     collaboratively_sort_logs(ws->per_worker_logs, &ws->barrier, wid);
     
     /* Merge and cluster the per_worker_logs. (per_worker_logs -> per-worker per-socket loads) */
-    merge_and_cluster_logs(ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
+    merge_and_cluster_logs(ws->pbatch_ops[wid],
+                           ws->per_worker_per_socket_loads[wid], ws->per_worker_logs, &ws->barrier, wid);
     // flush_load_dump(&ws->per_worker_per_socket_loads[wid][0]);
 
     /* Do global inter-worker cluster. (per-worker per-socket loads -> per-socket loads) */
@@ -891,9 +907,11 @@ static int flush_work(void *arg) {
     log_state_t *lst = &LOG(bonsai)->lst;
     struct cluster *c, *tmp;
 
+    ws->shim_recycle_chains[desc->wid] = shim_create_recycle_chain();
+
     list_for_each_entry_safe(c, tmp, &load->cluster, list) {
         // pbatch_list_dump(&c->pbatch_list);
-        pnode_run_batch(lst, c->pnode, &c->pbatch_list);
+        pnode_run_batch(lst, c->pnode, &c->pbatch_list, ws->shim_recycle_chains[desc->wid]);
         // pbatch_list_dump(&c->pbatch_list);
 
         pbatch_list_destroy(&c->pbatch_list);
@@ -955,7 +973,21 @@ static void flush_stage(struct pflush_worksets *worksets, struct flush_load *per
 static void cleanup_stage(struct pflush_worksets *worksets) {
     cleanup_logs(worksets->fetch_ws.new_region_starts);
 
+    for (int i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        shim_recycle(worksets->flush_ws.shim_recycle_chains[i]);
+    }
+
     pnode_recycle();
+
+    for (int i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        flush_load_destroy(&worksets->flush_ws.per_worker_loads[i]);
+    }
+
+    for (int i = 0; i < NUM_PFLUSH_WORKER; i++) {
+        for (int j = 0; j < NUM_SOCKET; j++) {
+            free(worksets->clustering_ws.pbatch_ops[i][j]);
+        }
+    }
 }
 
 /*
