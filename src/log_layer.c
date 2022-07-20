@@ -129,6 +129,21 @@ struct pflush_worksets {
     struct flush_workset        flush_ws;
 };
 
+static void check_flush_load(struct flush_load *load) {
+    struct cluster *cluster;
+    pbatch_cursor_t cursor;
+    pbatch_op_t *op;
+    list_for_each_entry(cluster, &load->cluster, list) {
+        pbatch_cursor_init(&cursor, &cluster->pbatch_list);
+        while (!pbatch_cursor_is_end(&cursor)) {
+            op = pbatch_cursor_get(&cursor);
+            assert(pkey_compare(op->key, pnode_get_lfence(cluster->pnode)) >= 0);
+            assert(pkey_compare(op->key, pnode_get_rfence(cluster->pnode)) < 0);
+            pbatch_cursor_inc(&cursor);
+        }
+    }
+}
+
 static void cluster_dump(struct list_head* list) {
     struct cluster* cl;
     printf("----------cluster dump start----------\n");
@@ -139,10 +154,10 @@ static void cluster_dump(struct list_head* list) {
     printf("----------cluster dump end----------\n");
 }
 
-static void flush_load_dump(struct flush_load* fll) {
+static void flush_load_dump(struct flush_load* load) {
     printf("----------flush load dump start----------\n");
-    printf("load size: %lu\n", fll->load);
-    cluster_dump(&fll->cluster);
+    printf("load size: %lu\n", load->load);
+    cluster_dump(&load->cluster);
     printf("----------flush load dump end----------\n");
 }
 
