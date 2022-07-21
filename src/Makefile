@@ -3,6 +3,7 @@ CUR_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(CUR_DIR)/../Makefile.inc
 
 #SANITIZER_FLAG = -fsanitize=address
+#PCM_FLAG = -lpcm
 
 # - nvm configuration
 FLAGS += -DTS_NVM_IS_PMDK
@@ -26,6 +27,7 @@ CXXFLAGS += -std=gnu++14
 LDFLAGS += -shared -lpmem -lpmemobj -lnuma -ljemalloc
 LDFLAGS += -lrt -lm -lpthread -lstdc++
 LDFLAGS += $(SANITIZER_FLAG)
+LDFLAGS += $(PCM_FLAG)
 
 C_DEPS_DIR  := $(CUR_DIR)/.c.deps
 C_DEPFLAGS = -MD -MF $(C_DEPS_DIR)/$*.d -MP
