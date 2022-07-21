@@ -85,6 +85,8 @@ struct desc_workset {
 };
 
 struct fetch_workset {
+    int fetch_task[NUM_PFLUSH_WORKER][NUM_CPU];
+
     /* The output of the fetch work. Collected logs for each worker. */
     logs_t per_worker_logs[NUM_PFLUSH_WORKER];
 
@@ -498,6 +500,32 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
     return fetched;
 }
 
+static void fetch_task_alloc(int fetch_task[][NUM_CPU]) {
+    int nr_active_cpu[NUM_SOCKET] = { 0 }, active_cpus[NUM_SOCKET][NUM_CPU_PER_SOCKET], cpu, node;
+    int i, j, k, nr_cpu_per_socket, nr_remain;
+    struct log_layer *layer = LOG(bonsai);
+
+    memset(fetch_task, -1, sizeof(int) * NUM_CPU * NUM_PFLUSH_WORKER);
+
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        if (atomic_read(&layer->nlogs[cpu].cnt) > 0) {
+            node = cpu_to_node(cpu);
+            active_cpus[node][nr_active_cpu[node]++] = cpu;
+        }
+    }
+
+    for (node = 0; node < NUM_SOCKET; node++) {
+        nr_cpu_per_socket = nr_active_cpu[node] / NUM_PFLUSH_WORKER_PER_NODE;
+        nr_remain = nr_active_cpu[node] % NUM_PFLUSH_WORKER_PER_NODE;
+        k = 0;
+        for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
+            for (j = 0; j < nr_cpu_per_socket + (i < nr_remain ? 1 : 0); j++) {
+                fetch_task[worker_id(node, i)][j] = active_cpus[node][k++];
+            }
+        }
+    }
+}
+
 /*
  * Fetch worker
  * O: per_worker_logs
@@ -505,18 +533,17 @@ static logs_t fetch_logs(uint32_t *new_region_starts, int nr_cpu, int *cpus) {
 static int fetch_work(void *arg) {
     struct pflush_work_desc *desc = arg;
     struct fetch_workset *ws = desc->workset;
-    int tot = NUM_CPU / NUM_PFLUSH_WORKER;
-    int wid = desc->wid, wnr, numa_node;
-    int i, nr_cpu, cpus[tot];
+    int wid = desc->wid, nr_cpu;
 
-    numa_node = worker_numa_node(wid);
-    wnr = worker_nr(wid);
-
-    for (i = tot * wnr, nr_cpu = 0; tot--; i++, nr_cpu++) {
-        cpus[nr_cpu] = node_idx_to_cpu(numa_node, i);
+    flockfile(stdout);
+    bonsai_print("fetch worker [%d]: ", wid);
+    for (nr_cpu = 0; nr_cpu < NUM_CPU && ws->fetch_task[wid][nr_cpu] != -1; nr_cpu++) {
+        bonsai_print("%d ", ws->fetch_task[wid][nr_cpu]);
     }
+    bonsai_print("\n");
+    funlockfile(stdout);
 
-    ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, cpus);
+    ws->per_worker_logs[wid] = fetch_logs(ws->new_region_starts, nr_cpu, ws->fetch_task[wid]);
 
     return 0;
 }
@@ -1032,6 +1059,7 @@ static void init_stage(struct pflush_worksets *worksets) {
 }
 
 static void fetch_stage(struct pflush_worksets *worksets, logs_t **per_worker_logs) {
+    fetch_task_alloc(worksets->fetch_ws.fetch_task);
     launch_workers(worksets, fetch_work, &worksets->fetch_ws);
     *per_worker_logs = worksets->fetch_ws.per_worker_logs;
 }

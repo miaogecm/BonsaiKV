@@ -1,5 +1,8 @@
 #include <iostream>
 #include <pcm/cpucounters.h>
+#include "config.h"
+
+#ifdef USE_PCM
 
 using namespace pcm;
 
@@ -52,3 +55,5 @@ uint64_t pcm_get_nr_remote_pmem_access_packet() {
 }
 
 }
+
+#endif

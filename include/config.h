@@ -21,6 +21,8 @@ extern "C" {
 
 //#define ASYNC_SMO
 
+//#define USE_PCM
+
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
     return NUM_SOCKET * cpu_idx + node;
 }
