@@ -35,7 +35,7 @@ typedef struct mnode {
     /* cacheline 0 */
     __le64       validmap;
     __le8        fgprt[PNODE_FANOUT];
-    char         padding[16];
+    char         padding1[16];
 
     /* cacheline 1 */
     pnoid_t      next; /* pnode list next */
@@ -45,6 +45,18 @@ typedef struct mnode {
 	} u;
     /* [lfence, rfence) */
     pkey_t       lfence, rfence;
+#ifdef STR_KEY
+    char         padding2[8];
+#else
+    char         padding2[40];
+#endif
+
+    /* cacheline 2 (volatile) */
+    int          node_version;
+    int          perm_version;
+    spinlock_t   perm_lock;
+    seqcount_t   perm_seq;
+    uint8_t      perm_arr[PNODE_FANOUT];
 } mnode_t;
 
 typedef struct dnode {
@@ -213,13 +225,23 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i, int replica) {
 static pnoid_t alloc_pnode(int node) {
     struct data_layer *d_layer = DATA(bonsai);
     union pnoid_u id;
+    mnode_t *mno;
 
     do {
         id.id = ACCESS_ONCE(d_layer->free_list);
-    } while (!cmpxchg2(&d_layer->free_list, id.id, pnode_meta(id.id)->u.node));
+    } while (!cmpxchg2(&d_layer->free_list, id.id, (mno = pnode_meta(id.id))->u.node));
     id.numa_node = node;
 
+    mno->node_version = 1;
+    mno->perm_version = 0;
+    spin_lock_init(&mno->perm_lock);
+    seqcount_init(&mno->perm_seq);
+
     return id.id;
+}
+
+static inline void pnode_inc_version(mnode_t *mno) {
+    mno->node_version++;
 }
 
 static void delay_free_pnode(pnoid_t pnode) {
@@ -492,6 +514,8 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
     flush_ents(pnode, changemap);
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 
+    pnode_inc_version(mno);
+
 	return insert_cnt;
 }
 
@@ -528,6 +552,9 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
     /* flush validmap and fgprt */
     mno->validmap = validmap;
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
+
+    /* It contains a mfence. */
+    pnode_inc_version(mno);
 
     *start = *end = pnode;
 }
@@ -700,17 +727,87 @@ void pnode_recycle() {
 	d_layer->tofree_head = d_layer->tofree_tail = PNOID_NULL;
 }
 
-int pnode_snapshot(pnoid_t pnode, pentry_t *entries) {
+void sort_perm_arr(uint8_t *perm, pentry_t *base, int n);
+
+static int generate_perm_arr(pnoid_t pnode, int ver) {
     mnode_t *mnode = pnode_meta(pnode);
+    pentry_t entries[PNODE_FANOUT];
     unsigned long validmap;
     unsigned pos;
-    int cnt = 0;
+    int n = 0;
 
-    /* Snapshot the validmap first. */
-    validmap = ACCESS_ONCE(mnode->validmap);
-
+    validmap = mnode->validmap;
     for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
-        entries[cnt++] = *pnode_ent(pnode, pos, 0);
+        entries[n++] = *pnode_ent(pnode, pos, 0);
+    }
+
+    if (unlikely(ACCESS_ONCE(mnode->node_version) != ver)) {
+        return -EAGAIN;
+    }
+
+    memset(mnode->perm_arr, -1, PNODE_FANOUT);
+    sort_perm_arr(mnode->perm_arr, entries, n);
+    mnode->perm_version = ver;
+
+    return 0;
+}
+
+int pnode_snapshot(pnoid_t pnode, pentry_t *entries, pval_t *values) {
+    int cnt, ver, pver, ret, i, j, *permute = pnode_permute(pnode);
+    mnode_t *mnode = pnode_meta(pnode);
+    uint8_t perm_arr[PNODE_FANOUT];
+    void *addrs[PNODE_NUM_BLK];
+    unsigned seq;
+
+    for (i = 0; i < (int) PNODE_NUM_BLK; i++) {
+        addrs[i] = pnode_dimm_addr(pnode, permute[i]);
+    }
+
+    for (i = 0; i < PNODE_INTERLEAVING_SIZE; i += CACHELINE_SIZE) {
+        for (j = 0; j < (int) PNODE_NUM_BLK; j++) {
+            cache_prefetchr_high(addrs[j] + i);
+        }
+    }
+
+get_perm_arr:
+    seq = read_seqcount_begin(&mnode->perm_seq);
+    pver = mnode->perm_version;
+    memcpy(perm_arr, mnode->perm_arr, PNODE_FANOUT);
+    if (unlikely(read_seqcount_retry(&mnode->perm_seq, seq))) {
+        goto get_perm_arr;
+    }
+
+get_entries:
+    ver = mnode->node_version;
+    barrier();
+
+    if (ver != pver) {
+        spin_lock(&mnode->perm_lock);
+        write_seqcount_begin(&mnode->perm_seq);
+        ret = generate_perm_arr(pnode, ver);
+        if (likely(!ret)) {
+            pver = mnode->perm_version;
+            memcpy(perm_arr, mnode->perm_arr, PNODE_FANOUT);
+        }
+        write_seqcount_end(&mnode->perm_seq);
+        spin_unlock(&mnode->perm_lock);
+        if (unlikely(ret == -EAGAIN)) {
+            goto get_entries;
+        }
+    }
+
+    cnt = 0;
+    for (i = 0; i < PNODE_FANOUT && perm_arr[i] != (uint8_t) -1; i++) {
+        if (entries) {
+            entries[cnt++] = *pnode_ent(pnode, perm_arr[i], 0);
+        } else {
+            values[cnt++] = pnode_ent(pnode, perm_arr[i], 0)->v;
+        }
+    }
+
+    barrier();
+    if (unlikely(mnode->node_version != ver)) {
+        goto get_entries;
     }
 
     return cnt;

@@ -12,10 +12,13 @@
 
 extern "C" {
 
-void sort_oplogs(struct oplog *oplogs, int nr) {
+void sort_perm_arr(uint8_t *perm, pentry_t *base, int n) {
     /* STL sort is a lot faster than glibc sort... */
-    std::sort(oplogs, oplogs + nr, [](const struct oplog &v1, const struct oplog &v2) {
-        return oplog_cmp(&v1, &v2) < 0;
+    for (int i = 0; i < n; i++) {
+        perm[i] = i;
+    }
+    std::sort(perm, perm + n, [base] (const uint8_t &v1, const uint8_t &v2) {
+        return pkey_compare(base[v1].k, base[v2].k);
     });
 }
 

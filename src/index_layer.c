@@ -582,12 +582,21 @@ scan_inode:
 
     qsort(ents, nr_ents, sizeof(*ents), ent_cmp);
 
+    /* Not have same pno as the last ino, re-retrieve the pnode. */
     if (pno != last_pno) {
-        /* Not have same pno as the last ino, re-retrieve the pnode. */
-        pent = pents;
-        nr_pents = pnode_snapshot(pno, pent);
-        qsort(pent, nr_pents, sizeof(*pent), ent_cmp);
         last_pno = pno;
+
+        /* Fast Path: All the logs are flushed to this pnode. */
+        if (!pkey_compare(fence, pnode_get_rfence(pno))) {
+            nr_value += pnode_snapshot(pno, NULL, values + nr_value);
+            if (nr_value >= range) {
+                goto out;
+            }
+            goto go_next;
+        }
+
+        pent = pents;
+        nr_pents = pnode_snapshot(pno, pent, NULL);
     }
 
     /* [start, fence) */
@@ -629,6 +638,7 @@ merge_sort:
         has_pent = nr_pents > 0 && pkey_compare(pent->k, fence) < 0;
     } while (has_ent || has_pent);
 
+go_next:
     if (unlikely(!next)) {
         goto out;
     }
