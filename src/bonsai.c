@@ -274,7 +274,10 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 
 	/* 6. initialize pflush thread */
 	bonsai_pflushd_thread_init();
+
+#ifdef ASYNC_SMO
 	bonsai_smo_thread_init();
+#endif
 
 	bonsai_print("bonsai is initialized successfully!\n");
 

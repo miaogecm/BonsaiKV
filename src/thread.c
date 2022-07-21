@@ -149,8 +149,7 @@ static void thread_work(struct workqueue_struct* wq) {
 		return;
 
 	list_for_each_entry_safe(work, tmp, &wq->head, list) {
-		__this->t_work = work;
-		ret = work->exec(work->exec_arg);
+        ret = work->exec(work->exec_arg);
 		workqueue_del(work);
 
 		if (unlikely(ret)) 
@@ -173,6 +172,12 @@ static void pflush_thread_exit(struct thread_info* thread) {
 	bonsai_print("pflush thread[%d] exit\n", thread->t_id);
 }
 
+static inline void thread_bind_cpu() {
+    if (__this->t_bind) {
+        bind_to_cpu(__this->t_cpu);
+    }
+}
+
 static void pflush_worker(struct thread_info* this) {
 	struct log_layer *layer = LOG(bonsai);
 
@@ -180,7 +185,7 @@ static void pflush_worker(struct thread_info* this) {
 	__this->t_pid = gettid();
 	__this->t_state = S_RUNNING;
 
-	bind_to_cpu(__this->t_cpu);
+    thread_bind_cpu();
 
 	bonsai_print("pflush worker thread[%d] pid[%d] start on cpu[%d]\n", 
 			__this->t_id, __this->t_pid, get_cpu());
@@ -237,7 +242,7 @@ static void pflush_master(struct thread_info* this) {
 	__this->t_pid = gettid();
 	__this->t_state = S_RUNNING;
 
-	bind_to_cpu(__this->t_cpu);
+    thread_bind_cpu();
 	
 	bonsai_print("pflush master thread[%d] pid[%d] start on cpu[%d]\n", 
 		__this->t_id, __this->t_pid, get_cpu());
@@ -301,7 +306,7 @@ static void smo_worker(struct thread_info* this) {
 	this->t_pid = gettid();
 	this->t_state = S_RUNNING;
 
-	bind_to_cpu(this->t_cpu);
+    thread_bind_cpu();
 
 	bonsai_print("smo thread[%d] pid[%d] start on cpu[%d]\n",
                  this->t_id, this->t_pid, get_cpu());
@@ -318,6 +323,12 @@ static void smo_worker(struct thread_info* this) {
 	}
 
 	smo_thread_exit(this);
+}
+
+static inline void thread_alloc_cpu(struct thread_info *ti, int node) {
+    int cpu = alloc_cpu_onnode(node);
+    ti->t_bind = cpu >= 0;
+    ti->t_cpu = abs(cpu);
 }
 
 void bonsai_self_thread_init() {
@@ -349,20 +360,24 @@ void bonsai_self_thread_exit() {
 int bonsai_user_thread_init(pthread_t tid) {
 	struct thread_info* thread;
 
-	thread = malloc(sizeof(struct thread_info));
-	thread->t_id = atomic_add_return(1, &tids);
-	thread->t_pid = gettid();
-  	thread->t_cpu = get_cpu();
-	thread->t_state = S_RUNNING;
-	thread->t_epoch = bonsai->desc->epoch;
-	thread->t_stm = stm_init_thread();
+    thread = malloc(sizeof(struct thread_info));
+    thread->t_id = atomic_add_return(1, &tids);
+    thread->t_pid = gettid();
+    thread->t_cpu = get_cpu();
+    thread->t_bind = 1;
+    thread->t_state = S_RUNNING;
+    thread->t_stm = stm_init_thread();
 
 	spin_lock(&bonsai->list_lock);
   	list_add(&thread->list, &bonsai->thread_list);
 	spin_unlock(&bonsai->list_lock);
 
 	bonsai->tids[thread->t_id] = tid;
+#ifdef ASYNC_SMO
 	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - NUM_SMO_THREAD - 1] = thread;
+#else
+	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - 1] = thread;
+#endif
 
 	/* quiescent state based RCU */
 	fb_set_tid(thread->t_id);
@@ -396,11 +411,10 @@ int bonsai_pflushd_thread_init() {
     /* init master on node 0 */
     thread = malloc(sizeof(struct thread_info));
     thread->t_id = atomic_add_return(1, &tids);
-    thread->t_cpu = alloc_cpu_onnode(0);
     thread->t_state = S_UNINIT;
+    thread_alloc_cpu(thread, 0);
     init_workqueue(thread, &thread->t_wq);
-    thread->t_data = NULL;
-	spin_lock(&bonsai->list_lock);
+    spin_lock(&bonsai->list_lock);
     list_add(&thread->list, &bonsai->thread_list);
 	spin_unlock(&bonsai->list_lock);
     bonsai->pflush_master = thread;
@@ -410,11 +424,10 @@ int bonsai_pflushd_thread_init() {
         for (i = 0; i < NUM_PFLUSH_WORKER_PER_NODE; i++) {
             thread = malloc(sizeof(struct thread_info));
             thread->t_id = atomic_add_return(1, &tids);
-            thread->t_cpu = alloc_cpu_onnode(node);
             thread->t_state = S_UNINIT;
+            thread_alloc_cpu(thread, node);
             init_workqueue(thread, &thread->t_wq);
-            thread->t_data = NULL;
-			spin_lock(&bonsai->list_lock);
+            spin_lock(&bonsai->list_lock);
             list_add(&thread->list, &bonsai->thread_list);
 			spin_unlock(&bonsai->list_lock);
             bonsai->pflush_workers[node][i] = thread;
@@ -453,12 +466,11 @@ int bonsai_smo_thread_init() {
 
 	thread = malloc(sizeof(struct thread_info));
 	thread->t_id = atomic_add_return(1, &tids);
-	thread->t_cpu = alloc_cpu_onnode(0);
 	thread->t_state = S_UNINIT;
+    thread_alloc_cpu(thread, 0);
 	init_workqueue(thread, &thread->t_wq);
-	thread->t_data = NULL;
 
-  	INIT_LIST_HEAD(&thread->list);
+    INIT_LIST_HEAD(&thread->list);
 	spin_lock(&bonsai->list_lock);
 	list_add(&thread->list, &bonsai->thread_list);
 	spin_unlock(&bonsai->list_lock);
