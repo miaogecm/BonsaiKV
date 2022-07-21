@@ -46,7 +46,7 @@ union logid_u {
     logid_t id;
     struct {
         uint32_t cpu : 7;
-        uint32_t off : 25;
+        uint32_t nr  : 25;
     };
 };
 
@@ -191,9 +191,9 @@ static inline size_t max_load_per_socket(size_t avg_load) {
     return avg_load + avg_load / 8;
 }
 
-static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t off) {
+static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t nr) {
     uint32_t d1 = (meta->end - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
-    uint32_t d2 = (off - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
+    uint32_t d2 = (nr - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
     return (int) (d2 - d1);
 }
 
@@ -216,12 +216,12 @@ struct oplog *oplog_get(logid_t logid) {
         seq = read_seqcount_begin(&desc->seq);
 
         meta = ACCESS_ONCE(desc->region->meta);
-        overflow = oplog_overflow_size(&meta, id.off);
+        overflow = oplog_overflow_size(&meta, id.nr);
 
         if (unlikely(overflow >= 0)) {
             oplog = &desc->lcb[overflow];
         } else {
-            oplog = &desc->region->logs[id.off];
+            oplog = &desc->region->logs[id.nr];
         }
     } while (read_seqcount_retry(&desc->seq, seq));
 
@@ -240,7 +240,7 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
     valman_persist_cpu(cpu);
 
     lcb = local_desc->lcb;
-    len = local_desc->size;
+    len = local_desc->lcb_size;
 
     while ((c = min(NUM_OPLOG_PER_CPU- end, len))) {
         memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
@@ -263,7 +263,7 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
         /* TODO: Delay-free local_desc->lcb (@call_rcu is non-reentrant, so we can not use it here.) */
     }
 
-    local_desc->size = 0;
+    local_desc->lcb_size = 0;
 
     write_seqcount_begin(&local_desc->seq);
     region->meta.end = end;
@@ -305,22 +305,22 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
     local_desc->wb_state = WBS_DELAY;
     barrier();
 
-    assert(local_desc->size < LCB_MAX_NR);
+    assert(local_desc->lcb_size < LCB_MAX_NR);
 
     id.cpu = cpu;
-    id.off = (local_desc->size + end) % NUM_OPLOG_PER_CPU;
+    id.nr = (local_desc->lcb_size + end) % NUM_OPLOG_PER_CPU;
 
-    log = &local_desc->lcb[local_desc->size++];
+    log = &local_desc->lcb[local_desc->lcb_size++];
 	log->o_type = cpu_to_le64(txop | op | lst->flip);
     log->o_stamp = cpu_to_le64(ordo_new_clock(0));
 	log->o_kv.k = key;
 	log->o_kv.v = val;
 
-    if (unlikely(local_desc->size >= LCB_FULL_NR
-			&& local_desc->size % 4 == 0)) {
+    if (unlikely(local_desc->lcb_size >= LCB_FULL_NR
+			&& local_desc->lcb_size % 4 == 0)) {
         if (pthread_mutex_trylock(local_desc->dimm_lock)) {
             write_back(cpu, 1, NULL);
-        } else if (unlikely(local_desc->size >= LCB_MAX_NR)) {
+        } else if (unlikely(local_desc->lcb_size >= LCB_MAX_NR)) {
             write_back(cpu, 0, NULL);
         }
     }
@@ -1208,7 +1208,7 @@ int log_layer_init(struct log_layer* layer) {
 
                 desc = &layer->desc->descs[cpu];
                 desc->region = &layer->dimm_regions[dimm]->regions[i];
-                desc->size = 0;
+                desc->lcb_size = 0;
                 desc->lcb = malloc(LCB_MAX_SIZE * sizeof(*desc->lcb));
                 desc->wb_state = WBS_ENABLE;
                 desc->dimm_lock = dimm_lock;
