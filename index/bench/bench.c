@@ -29,6 +29,10 @@
 
 #include "kvdata.h"
 
+#include "pcm.h"
+
+#define REMOTE_PMEM_ACCESS_STATISTIC
+
 #ifndef N
 #define N			36000000
 #endif
@@ -321,6 +325,12 @@ void* thread_fun(void* arg) {
 	bind_to_cpu(id);
     bonsai_debug("user thread[%ld] start on cpu[%d]\n", id, get_cpu());
 
+#ifdef REMOTE_PMEM_ACCESS_STATISTIC
+    if (id == 0) {
+        pcm_on();
+    }
+#endif
+
     if (in_bonsai) {
         bonsai_user_thread_init(tids[id]);
     }
@@ -335,10 +345,25 @@ void* thread_fun(void* arg) {
 
     do_barrier(id, "load");
 
+#ifdef REMOTE_PMEM_ACCESS_STATISTIC
+    if (id == 0) {
+        pcm_start();
+    }
+#endif
+
     pthread_barrier_wait(&barrier);
 
     bonsai_online();
+
     do_op(id);
+
+#ifdef REMOTE_PMEM_ACCESS_STATISTIC
+    if (id == 0) {
+        uint64_t nr = pcm_get_nr_remote_pmem_access_packet();
+        printf("remote pmem traffic: %lu packets\n", nr);
+    }
+#endif
+
     bonsai_offline();
 
     pthread_barrier_wait(&barrier);
