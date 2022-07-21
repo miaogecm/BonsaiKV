@@ -166,7 +166,7 @@ static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int d
     return d_layer->pno_region[dst_dimm].d_start + (ptr - (void *) d_layer->pno_region[src_dimm].d_start);
 }
 
-static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
+static pentry_t *pnode_ent(pnoid_t pno, unsigned i, int replica) {
     struct data_layer *d_layer = DATA(bonsai);
 
     unsigned blknr = i / PNODE_NUM_ENT_PER_BLK + 1, blkoff = i % PNODE_NUM_ENT_PER_BLK;
@@ -177,6 +177,10 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i) {
     pentry_t *local, *ent;
 
     ent = (pentry_t *) pnode_dimm_addr(pno, dimm_idx) + blkoff;
+
+    if (!replica) {
+        return ent;
+    }
 
 #ifdef ENABLE_PNODE_REPLICA
     epoch = d_layer->epoch;
@@ -262,7 +266,7 @@ static void pnode_init_from_arr(pnoid_t pnode, const pentry_t *ents, unsigned n)
     unsigned i;
     pnode_meta(pnode)->validmap = (1ul << n) - 1;
     for (i = 0; i < n; i++) {
-        *pnode_ent(pnode, i) = ents[i];
+        *pnode_ent(pnode, i, 0) = ents[i];
     }
     gen_fgprt(pnode, ents);
 }
@@ -273,7 +277,7 @@ static void arr_init_from_pnode(pentry_t *ents, pnoid_t pnode, unsigned *n) {
 
     /* Collect all the entries. */
     for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
-        ents[cnt++] = *pnode_ent(pnode, pos);
+        ents[cnt++] = *pnode_ent(pnode, pos, 0);
     }
 
     /* Sort them. */
@@ -298,7 +302,7 @@ static void pnode_verify(pnoid_t pnode) {
     pentry_t *ent;
     unsigned pos;
     for_each_set_bit(pos, &vmp, PNODE_FANOUT) {
-        ent = pnode_ent(pnode, pos);
+        ent = pnode_ent(pnode, pos, 0);
         bonsai_print("gotcha %lx %u %lu\n", ent, pnode, *(unsigned long *) ent->k.key);
         assert(pkey_compare(ent->k, mno->lfence) >= 0);
         assert(pkey_compare(ent->k, mno->rfence) < 0);
@@ -401,7 +405,7 @@ static unsigned pnode_find_(pentry_t *ent, pnoid_t pnode, pkey_t key, uint8_t *f
     cmp |= (unsigned long) _mm_movemask_pi8(_mm_cmpeq_pi8(x8, y8)) << 32;
     cmp &= validmap;
     for_each_set_bit(pos, &cmp, PNODE_FANOUT) {
-        *ent = *pnode_ent(pnode, pos);
+        *ent = *pnode_ent(pnode, pos, 1);
         if (likely(!pkey_compare(key, ent->k))) {
             return pos;
         }
@@ -432,7 +436,7 @@ static void flush_ents(pnoid_t pnode, unsigned long changemap) {
     changemap = (changemap | (changemap >> 1) | (changemap >> 2) | (changemap >> 3)) & 0x1111111111111111;
 #endif
     for_each_set_bit(pos, &changemap, PNODE_FANOUT) {
-        bonsai_flush(pnode_ent(pnode, pos), sizeof(pentry_t), 0);
+        bonsai_flush(pnode_ent(pnode, pos, 0), sizeof(pentry_t), 0);
     }
 }
 
@@ -467,7 +471,7 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
 
         /* Update */
         if (op->type == PBO_INSERT && pos != NOT_FOUND) {
-            pnode_ent(pnode, pos)->v = op->val;
+            pnode_ent(pnode, pos, 0)->v = op->val;
             __set_bit(pos, &changemap);
 
             op->done = 1;
@@ -509,7 +513,7 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
         pos = find_first_zero_bit(&validmap, PNODE_FANOUT);
         assert(pos < PNODE_FANOUT);
 
-        e = pnode_ent(pnode, pos);
+        e = pnode_ent(pnode, pos, 0);
         e->k = op->key;
         e->v = op->val;
 
@@ -706,7 +710,7 @@ int pnode_snapshot(pnoid_t pnode, pentry_t *entries) {
     validmap = ACCESS_ONCE(mnode->validmap);
 
     for_each_set_bit(pos, &validmap, PNODE_FANOUT) {
-        entries[cnt++] = *pnode_ent(pnode, pos);
+        entries[cnt++] = *pnode_ent(pnode, pos, 0);
     }
 
     return cnt;
