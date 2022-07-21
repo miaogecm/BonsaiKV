@@ -31,7 +31,7 @@
 
 #include "pcm.h"
 
-#define REMOTE_PMEM_ACCESS_STATISTIC
+//#define REMOTE_PMEM_ACCESS_STATISTIC
 
 #ifndef N
 #define N			36000000
