@@ -26,6 +26,7 @@
 
 #include "bench.h"
 #include "valman.h"
+#include "common.h"
 
 #include "kvdata.h"
 
