@@ -194,7 +194,9 @@ void bonsai_deinit() {
 	bonsai_self_thread_exit();
 
 	bonsai_pflushd_thread_exit();
+#ifdef ASYNC_SMO
   bonsai_smo_thread_exit();
+#endif
 	
 	index_layer_deinit(&bonsai->i_layer);
   log_layer_deinit(&bonsai->l_layer);
