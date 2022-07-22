@@ -71,7 +71,7 @@ static inline int alloc_cpu_onnode(int node) {
 			return cpu;
 		}
 	}
-    return -node_idx_to_cpu(node, 0);
+    return -node_idx_to_cpu(node, 0) - 1;
 }
 
 #ifdef __cplusplus

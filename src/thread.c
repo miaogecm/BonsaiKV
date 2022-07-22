@@ -330,7 +330,7 @@ static void smo_worker(struct thread_info* this) {
 static inline void thread_alloc_cpu(struct thread_info *ti, int node) {
     int cpu = alloc_cpu_onnode(node);
     ti->t_bind = cpu >= 0;
-    ti->t_cpu = abs(cpu);
+    ti->t_cpu = cpu >= 0 ? cpu : (-cpu - 1);
 }
 
 void bonsai_self_thread_init() {
