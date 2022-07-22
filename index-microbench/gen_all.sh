@@ -14,14 +14,15 @@ export SAMPLE="sample_"
 # export STR_K="strk_"
 # export K_LEN="16_"
 
-export STR_V="strv_"
-export V_LEN="16_"
+export STR_V="no"
+#export V_LEN="16_"
 
 # export env="-DSTR_KEY -DKEY_LEN=16 -DSTR_VAL -DVAL_LEN=16"
-export env="-DSTR_VAL -DVAL_LEN=16"
+#export env="-DSTR_VAL -DVAL_LEN=16"
+export env="-DSTR_KEY -DKEY_LEN=24"
 
 # count=36000000
-export count=1000000
+export count=48000000
 
 # for KEY_TYPE in monoint randint; do
 # 	for WORKLOAD_TYPE in a b c d e; do

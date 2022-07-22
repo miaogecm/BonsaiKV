@@ -16,8 +16,8 @@ extern "C" {
 
 #define INODE_POOL_SIZE         (16 * 1024 * 1024 * 1024ul)     /* 2147483648 entries */
 
-#define ENABLE_PNODE_REPLICA
-#define REPLICA_EPOCH_INTERVAL  1                               /* seconds */
+//#define ENABLE_PNODE_REPLICA
+//#define REPLICA_EPOCH_INTERVAL  1                               /* seconds */
 
 //#define ASYNC_SMO
 

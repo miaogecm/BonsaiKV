@@ -20,7 +20,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-#define USE_MAP
+//#define USE_MAP
 #include "map.c"
 #include "spinlock.h"
 
@@ -34,11 +34,11 @@
 //#define REMOTE_PMEM_ACCESS_STATISTIC
 
 #ifndef N
-#define N			36000000
+#define N			48000000
 #endif
 
 #ifndef NUM_THREAD
-#define NUM_THREAD	36
+#define NUM_THREAD	48
 #endif
 
 #define NUM_CPU		48
