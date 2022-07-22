@@ -41,6 +41,19 @@ static inline void bind_to_cpu(int cpu) {
     }
 }
 
+static inline void bind_to_node(int node) {
+    cpu_set_t mask;
+    int idx, cpu;
+    CPU_ZERO(&mask);
+    for (idx = 0; idx < NUM_CPU_PER_SOCKET; idx++) {
+        cpu = node_idx_to_cpu(node, idx);
+        CPU_SET(cpu, &mask);
+    }
+    if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
+        perror("bind node failed\n");
+    }
+}
+
 static inline int get_numa_node(int cpu) {
 	return cpu_to_node((cpu != NOCPU) ? cpu : get_cpu());
 }

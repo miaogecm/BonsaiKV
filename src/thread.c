@@ -175,6 +175,8 @@ static void pflush_thread_exit(struct thread_info* thread) {
 static inline void thread_bind_cpu() {
     if (__this->t_bind) {
         bind_to_cpu(__this->t_cpu);
+    } else {
+        bind_to_node(cpu_to_node(__this->t_cpu));
     }
 }
 
