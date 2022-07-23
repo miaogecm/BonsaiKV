@@ -36,7 +36,8 @@ for line in f_config :
 
 ycsb_dir = 'YCSB/'
 workload_dir = 'workload_spec/'
-output_dir='workloads/'
+#output_dir='workloads/'
+output_dir='/mnt/tmpfs/workloads/'
 
 workload = args[0]
 key_type = args[1]
