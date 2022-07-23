@@ -20,23 +20,23 @@
 #include <string.h>
 #include <sys/time.h>
 
-//#define USE_MAP
-#include "map.c"
 #include "spinlock.h"
 
 #include "bench.h"
 #include "valman.h"
 #include "common.h"
 
-#include "kvdata.h"
+#include "compressor.h"
+#include "decompressor.h"
 
 #include "pcm.h"
 
 //#define REMOTE_PMEM_ACCESS_STATISTIC
 
-#ifndef N
-#define N			48000000
-#endif
+#define LOAD_PATH   "../../index-microbench/workloads/load"
+#define OP_PATH     "../../index-microbench/workloads/op"
+
+static ycsb_decompressor_t load_dec, op_dec;
 
 #ifndef NUM_THREAD
 #define NUM_THREAD	48
@@ -96,31 +96,6 @@ pthread_t tids[NUM_THREAD];
 
 int in_bonsai;
 
-hashmap* map;
-
-static void map_load()  {
-    int i;
-    pkey_t* __key;
-
-    for (i = 0; i < N; i ++) {
-        __key = malloc(sizeof(pkey_t));
-#ifdef STR_KEY
-        *__key = MK_K(load_k_arr[i], strlen(load_k_arr[i]));
-#else
-        *__key = INT2KEY(load_k_arr[i]);
-#endif
-        hashmap_set(map, __key, KEY_LEN, (uintptr_t)&load_v_arr[i]);
-    }
-}
-
-static void map_lookup_check(pkey_t k, pval_t exc_v, size_t size) {
-#ifdef USE_MAP
-    pval_t v = 0;
-    assert(hashmap_get(map, &k, KEY_LEN, &v));
-    assert(memcmp((void*)v, (void*)exc_v, size) == 0);
-#endif
-}
-
 static inline uint64_t atoul(const char* str) {
 	uint64_t res = 0;
 	unsigned int i;
@@ -174,78 +149,61 @@ static inline double end_measure() {
     return t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1e6;
 }
 
-static void do_load(long id) {
-    double interval;
-	long i, st, ed;
-    int repeat = 1;
-    pkey_t __key;
-    pval_t __val;
-	//printf("user thread[%ld] do load\n", id);
-
-    start_measure();
-
-    st = 1.0 * id / NUM_THREAD * N;
-    ed = 1.0 * (id + 1) / NUM_THREAD * N;
-
-    while(repeat--) {
-        for (i = st; i < ed; i ++) {
-            if (in_bonsai) {
-#ifdef STR_KEY
-                __key = MK_K(load_k_arr[i], strlen(load_k_arr[i]));
-#else
-                __key = INT2KEY(load_k_arr[i]);
-#endif
 #ifdef STR_VAL
-                    __val = bonsai_make_val(VCLASS, load_v_arr[i]);
-#else
-                    __val = load_v_arr[i];
-#endif
-                bonsai_insert_commit(__key, __val);
-            } else {
-                // ret = fn_insert(index_struct, load_arr[i][0], 8, (void *) load_arr[i][1]);
-            }
-            // assert(ret == 0);
-        }
-    }
-    interval = end_measure();
-    printf("user thread[%ld] load finished in %.3lf seconds\n", id, interval);
+static inline char *get_val(pkey_t key) {
+    return "";
 }
+#else
+static inline uint64_t get_val(pkey_t key) {
+    return 0;
+}
+#endif
 
-static void do_op(long id) {
-#if 1
+static void do_op(const char *name, ycsb_decompressor_t *dec, long id) {
 	pval_t v = 0;
-	pval_t* val_arr = malloc(sizeof(pval_t*) * N);
+	pval_t* val_arr;
     double interval;
 	long i, repeat = 1;
-    int st, ed, opcode;
-    pkey_t __key;
-    pval_t __val;
+    int st, ed;
+    enum op_type op;
+    pkey_t pkey;
+    pval_t pval;
     size_t size;
-    int ret;
+    int ret, nr, range;
+#ifdef STR_KEY
+    uint64_t key;
+#else
+    char *key;
+#endif
 
-    st = 1.0 * id / NUM_THREAD * N;
-    ed = 1.0 * (id + 1) / NUM_THREAD * N;
+    nr = ycsb_decompressor_get_nr(dec);
+
+    val_arr = malloc(sizeof(pval_t*) * nr);
+
+    st = 1.0 * id / NUM_THREAD * nr;
+    ed = 1.0 * (id + 1) / NUM_THREAD * nr;
 
     start_measure();
 
     while(repeat--) {
         for (i = st; i < ed; i ++) {
-            opcode = type_arr[i];
-            switch (opcode) {
-            case 0:
-            case 1:
-                if (in_bonsai) {
+            op = ycsb_decompressor_get(dec, &key, &range, i);
 #ifdef STR_KEY
-                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
+            pkey = MK_K(key, strlen(key));
 #else
-                    __key = INT2KEY(op_k_arr[i]);
+            pkey = INT2KEY(key);
 #endif
+
+            switch (op) {
+            case OP_INSERT:
+            case OP_UPDATE:
+                if (in_bonsai) {
 #ifdef STR_VAL
-                    __val = bonsai_make_val(VCLASS, op_v_arr[i]);
+                    pval = bonsai_make_val(VCLASS, get_val(pkey));
 #else
-                    __val = op_v_arr[i];
+                    pval = get_val(pkey);
 #endif
-                    ret = bonsai_insert_commit(__key, __val);
+                    ret = bonsai_insert_commit(pkey, pval);
                 } else {
                     // ret = fn_insert(index_struct, op_arr[i][1], 8, (void *) op_arr[i][2]);
                 }
@@ -253,19 +211,12 @@ static void do_op(long id) {
                 break;
             case 2:
                 if (in_bonsai) {
-#ifdef STR_KEY
-                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
-#else
-                    __key = INT2KEY(op_k_arr[i]);
-#endif
-                    v = 0;
-                    ret = bonsai_lookup(__key, &v);
+                    ret = bonsai_lookup(pkey, &v);
 #ifdef STR_VAL
-                    __val = (pval_t)bonsai_extract_val(&size, v);
-                    map_lookup_check(__key, __val, size);
+                    pval = (pval_t)bonsai_extract_val(&size, v);
                     bonsai_free_val(v);
-#else 
-                    map_lookup_check(__key, &v, 8);
+#else
+
 #endif
                 } else {
                     // v = (pval_t) fn_lookup(index_struct, op_arr[i][1], 8, NULL);
@@ -274,17 +225,7 @@ static void do_op(long id) {
                 break;
             case 3:
                 if (in_bonsai) {
-#ifdef STR_KEY
-                    __key = MK_K(op_k_arr[i], strlen(op_k_arr[i]));
-#else
-                    __key = INT2KEY(op_k_arr[i]);
-#endif
-#ifdef STR_VAL
-                    size = atoul(op_v_arr[i]);
-#else
-                    size = op_v_arr[i];
-#endif
-                    bonsai_scan(__key, size, val_arr);
+                    bonsai_scan(pkey, range, val_arr);
                 } else {
                     // TODO: Implement it
                     assert(0);
@@ -299,12 +240,11 @@ static void do_op(long id) {
     }
 
     interval = end_measure();
-    printf("user thread[%ld]: workload finished in %.3lf seconds\n", id, interval);
+    printf("user thread[%ld]: %s finished in %.3lf seconds\n", name, id, interval);
 
 	printf("user thread[%ld]---------------------end---------------------\n", id);
 
 	free(val_arr);
-#endif
 }
 
 static void do_barrier(long id, const char* name) {
@@ -339,7 +279,7 @@ void* thread_fun(void* arg) {
     pthread_barrier_wait(&barrier);
 
     bonsai_online();
-    do_load(id);
+    do_op("load", &load_dec, id);
     bonsai_offline();
 
     pthread_barrier_wait(&barrier);
@@ -356,7 +296,7 @@ void* thread_fun(void* arg) {
 
     bonsai_online();
 
-    do_op(id);
+    do_op("op", &op_dec, id);
 
 #ifdef REMOTE_PMEM_ACCESS_STATISTIC
     if (id == 0) {
@@ -399,8 +339,17 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
           insert_func_t insert, update_func_t update, remove_func_t remove,
           lookup_func_t lookup, lookup_func_t lowerbound, scan_func_t scan) {
     pthread_t user_thread_parent;
+    int cpu, is_str_key;
     char *use_bonsai;
-    int cpu;
+
+#ifdef STR_KEY
+    is_str_key = 1;
+#else
+    is_str_key = 0;
+#endif
+
+    ycsb_decompressor_init(&load_dec, LOAD_PATH, is_str_key);
+    ycsb_decompressor_init(&op_dec, OP_PATH, is_str_key);
 
     use_bonsai = getenv("bonsai");
     in_bonsai = use_bonsai && !strcmp(use_bonsai, "yes");
@@ -451,6 +400,9 @@ int bench(char* index_name, init_func_t init, destory_func_t destory,
     } else {
         destory(index_struct);
     }
+
+    ycsb_decompressor_deinit(&load_dec);
+    ycsb_decompressor_deinit(&op_dec);
 
 out:
 	return 0;

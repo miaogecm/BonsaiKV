@@ -10,7 +10,7 @@ BENCH_SRCS	= $(PWD)/../bench/bench.c
 
 all: $(TARGETS)
 
-masstree: index.o tree.o bench.o $(LIB_DIR)/libbonsai.so
+masstree: index.o tree.o bench.o $(LIB_DIR)/libbonsai.so $(COMPRESSOR_DIR)/libdecompressor.so
 	$(CC) $^ $(LDFLAGS) -o $@
 
 index.o: $(IDX_SRCS)

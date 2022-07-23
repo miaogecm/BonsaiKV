@@ -2,7 +2,9 @@ CUR_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 include $(CUR_DIR)/../Makefile.inc
 
-CFLAGS += -I$(INC_DIR) -I$(CUR_DIR)/bench
+COMPRESSOR_DIR := $(CUR_DIR)/../index-microbench/compressor
+
+CFLAGS += -I$(INC_DIR) -I$(CUR_DIR)/bench -I$(COMPRESSOR_DIR)
 CFLAGS += -march=native -mtune=native -mcmodel=medium -O3
 CFLAGS += -g -ggdb3
 CFLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
