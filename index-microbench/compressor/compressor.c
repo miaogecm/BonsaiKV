@@ -10,7 +10,7 @@ static FILE *in, *out;
 static char buf[4096];
 
 static inline void append(enum op_type type, char *key, int range) {
-    uint16_t n = -1;
+    static uint16_t tick = -1;
 
     if (is_str_key) {
         memset(op_string_key.key, 0, STR_KEY_LEN);
@@ -26,7 +26,7 @@ static inline void append(enum op_type type, char *key, int range) {
         fwrite(&op_integer_key, sizeof(op_integer_key), 1, out);
     }
 
-    if (n-- == 0) {
+    if (tick-- == 0) {
         printf("\rfinished: %d ops", finished);
         fflush(stdout);
     }
