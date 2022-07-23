@@ -13,6 +13,6 @@ CFLAGS += -Wno-unused-function
 CFLAGS += ${THRDS} ${MAXN}
 CFLAGS += ${LOCAL}
 
-#LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -lkvdata -fsanitize=address
-LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -lkvdata
+#LDFLAGS += -pthread -lpmem -lpmemobj -lnuma -fsanitize=address
+LDFLAGS += -pthread -lpmem -lpmemobj -lnuma
 LDFLAGS += -lrt -lm -lpthread -lstdc++
