@@ -12,7 +12,7 @@ void ycsb_decompressor_init(ycsb_decompressor_t *dec, const char *path, int is_s
     struct stat info;
     stat(path, &info);
     dec->size = info.st_size;
-    dec->start = mmap(NULL, info.st_size, PROT_READ, MAP_FILE, fd, 0);
+    dec->start = mmap(NULL, info.st_size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0);
     dec->is_str_key = is_str_key;
 }
 
