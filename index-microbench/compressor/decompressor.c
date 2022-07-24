@@ -31,11 +31,11 @@ enum op_type ycsb_decompressor_get(ycsb_decompressor_t *dec, void *key, int *ran
         struct op_string_key *k = dec->start;
         *(char **) key = k[i].key;
         *range = k[i].range;
-        return k->type;
+        return k[i].type;
     } else {
         struct op_integer_key *k = dec->start;
         *(uint64_t *) key = k[i].key;
         *range = k[i].range;
-        return k->type;
+        return k[i].type;
     }
 }

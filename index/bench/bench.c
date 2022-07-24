@@ -168,12 +168,11 @@ static void do_op(const char *name, ycsb_decompressor_t *dec, long id) {
     enum op_type op;
     pkey_t pkey;
     pval_t pval;
-    size_t size;
     int ret, nr, range;
 #ifdef STR_KEY
-    uint64_t key;
-#else
     char *key;
+#else
+    uint64_t key;
 #endif
 
     nr = ycsb_decompressor_get_nr(dec);
@@ -209,7 +208,7 @@ static void do_op(const char *name, ycsb_decompressor_t *dec, long id) {
                 }
                 assert(ret == 0);
                 break;
-            case 2:
+            case OP_READ:
                 if (in_bonsai) {
                     ret = bonsai_lookup(pkey, &v);
 #ifdef STR_VAL
@@ -223,7 +222,7 @@ static void do_op(const char *name, ycsb_decompressor_t *dec, long id) {
                 }
                 asm volatile("" : : "r"(v) : "memory");
                 break;
-            case 3:
+            case OP_SCAN:
                 if (in_bonsai) {
                     bonsai_scan(pkey, range, val_arr);
                 } else {
