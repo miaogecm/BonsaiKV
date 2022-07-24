@@ -240,7 +240,7 @@ static void do_op(const char *name, ycsb_decompressor_t *dec, long id) {
     }
 
     interval = end_measure();
-    printf("user thread[%ld]: %s finished in %.3lf seconds\n", name, id, interval);
+    printf("user thread[%ld]: %s finished in %.3lf seconds\n", id, name, interval);
 
 	printf("user thread[%ld]---------------------end---------------------\n", id);
 
