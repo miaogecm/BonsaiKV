@@ -28,14 +28,14 @@ Telecommunication Application Transaction Processing: TATP
 
 ### 3. Experiment
 
-#### 3.1 Evaluating indexing technique performance
+#### 3.1 Evaluating indexing technique
 
 + **collabrative**: comparing with DRAM-only indexing (performance & DRAM consumption)
   + FlatStore is not open-source. Stop checkpointing to obtain a FlatStore-like DRAM-only index.
   + Use YCSB Workload C (Read-only), 24B K + 8B V, uniform distribution.
 
 
-#### 3.2 Evaluating persistence technique framework
+#### 3.2 Evaluating persistence technique
 
 + baseline
 + baseline+log batch
@@ -44,7 +44,7 @@ Telecommunication Application Transaction Processing: TATP
 + log checkpoint time threshold study
 + Use YCSB Load, 24B K + 8B V, uniform distribution.
 
-#### 3.3 Evaluating scalability technique stripping
+#### 3.3 Evaluating scalability technique
 
 + different data strip size: 256B-4KB
 
