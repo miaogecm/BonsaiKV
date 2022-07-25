@@ -119,7 +119,7 @@ void kv_stop_test(void *context) {
     bonsai_barrier();
 }
 
-void *kv_thread_create_context(void *context) {
+void *kv_thread_create_context(void *context, int id) {
     assert(context == NULL);
     bonsai_user_thread_init(pthread_self());
     return NULL;
@@ -185,8 +185,11 @@ int kv_del(void *tcontext, void *key, size_t key_len) {
 int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len) {
     pkey_t pkey = get_pkey(key, key_len);
     pval_t pval;
+    int ret;
     assert(tcontext == NULL);
-    return bonsai_lookup(pkey, &pval);
+    ret = bonsai_lookup(pkey, &pval);
+    valman_free_v(pval);
+    return ret;
 }
 
 void kv_scan(void *tcontext, void *key, size_t key_len, int range, void *values) {

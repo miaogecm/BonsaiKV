@@ -72,7 +72,7 @@ static void* run_task(void* arg) {
 
     bind_to_cpu(cpu_of(task->id));
 
-    tcontext = task->kv->kv_thread_create_context(task->context);
+    tcontext = task->kv->kv_thread_create_context(task->context, task->id);
 
     for (stage = 0; stage < task->nr_stage; stage++) {
         if (task->id == 0) {
