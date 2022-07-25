@@ -149,18 +149,21 @@ void kv_txn_commit(void *tcontext) {
 }
 
 static inline pkey_t get_pkey(void *key, size_t key_len) {
-    assert(key_len == KEY_LEN);
 #ifdef STR_KEY
+    assert(key_len <= KEY_LEN);
     return bonsai_make_key(key, key_len);
 #else
-    return INT2KEY(*(unsigned long *) key);
+    assert(key_len == sizeof(unsigned long));
+    return INT2KEY(__builtin_bswap64(*(unsigned long *) key));
 #endif
 }
 
 static inline pval_t get_pval(void *val, size_t val_len) {
 #ifdef STR_VAL
-    assert(val_len == VAL_LEN);
-    return bonsai_make_val(VCLASS, val);
+    uint8_t val_[VAL_LEN] = { 0 };
+    assert(val_len <= VAL_LEN);
+    memcpy(val_, val, val_len);
+    return bonsai_make_val(VCLASS, val_);
 #else
     assert(val_len == sizeof(unsigned long));
     return *(unsigned long *) val;

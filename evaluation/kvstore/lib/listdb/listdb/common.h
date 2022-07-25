@@ -17,11 +17,11 @@
 #define L0_CACHE_T_LINEAR_PROBING 4
 //#define LISTDB_L0_CACHE L0_CACHE_T_DOUBLE_HASHING
 
-#ifdef LISTDB_L0_CACHE
+//#ifdef LISTDB_L0_CACHE
 #ifndef LISTDB_L0_CACHE_PROBING_DISTANCE
 #define LISTDB_L0_CACHE_PROBING_DISTANCE 1
 #endif
-#endif
+//#endif
 
 #ifndef LISTDB_STRING_KEY
 #include "listdb/core/integer_key.h"

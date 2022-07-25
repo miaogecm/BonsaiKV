@@ -11,6 +11,7 @@ log
 .cxx.objs
 .DS_Store
 core
+!core/
 perf*
 kv
 .idea
