@@ -15,7 +15,7 @@ perf*
 kv
 .idea
 btree
-index-microbench/data/*
-index-microbench/data_lib/*
-index-microbench/workloads/*
+evaluation/kvstore/tools/index-microbench/data/*
+evaluation/kvstore/tools/index-microbench/data_lib/*
+evaluation/kvstore/tools/index-microbench/workloads/*
 index/data/*
