@@ -28,14 +28,14 @@ Telecommunication Application Transaction Processing: TATP
 
 ### 3. Experiment
 
-#### 3.1 Evaluating unified collaborative index performance
+#### 3.1 Evaluating indexing technique performance
 
 + **collabrative**: comparing with DRAM-only indexing (performance & DRAM consumption)
   + FlatStore is not open-source. Stop checkpointing to obtain a FlatStore-like DRAM-only index.
   + Use YCSB Workload C (Read-only), 24B K + 8B V, uniform distribution.
 
 
-#### 3.2 Evaluating decoupled log-structure framework
+#### 3.2 Evaluating persistence technique framework
 
 + baseline
 + baseline+log batch
@@ -44,7 +44,7 @@ Telecommunication Application Transaction Processing: TATP
 + log checkpoint time threshold study
 + Use YCSB Load, 24B K + 8B V, uniform distribution.
 
-#### 3.3 Evaluating CLP-based data stripping
+#### 3.3 Evaluating scalability technique stripping
 
 + different data strip size: 256B-4KB
 
@@ -54,29 +54,22 @@ Telecommunication Application Transaction Processing: TATP
 
 + Use YCSB Custom Workload (100% Scan), 24B K + 8B V, uniform distribution
 
-#### 3.4 Evaluating data coherence protocol
-
 + remote p-memory read reduction and throughput
 + data validity threshold study (throughput, hit rate)
 + MESI
 
-#### 3.5 Read-intensive benchmark
+#### 3.4 Read-intensive benchmark
 
 YCSB-B, YCSB-C, YCSB-D
 
-#### 3.6 Write-intensive benchmark
+#### 3.5 Write-intensive benchmark
 
 YCSB-A, TPC-C, TATP
 
-#### 3.7 Scan-intensive benchmark
+#### 3.6 Scan-intensive benchmark
 
 YCSB-E
 
-#### 3.8 Performance interference study
+#### 3.7 Performance interference study
 
 log batch size: 256B-4KB
-
-
-
-
-
