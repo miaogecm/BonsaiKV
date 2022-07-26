@@ -9,7 +9,7 @@ struct kvstore {
     void (*kv_destroy_context)(void *context);
     void (*kv_start_test)(void *context);
     void (*kv_stop_test)(void *context);
-    void *(*kv_thread_create_context)(void *context);
+    void *(*kv_thread_create_context)(void *context, int id);
     void (*kv_thread_destroy_context)(void *tcontext);
     void (*kv_thread_start_test)(void *tcontext);
     void (*kv_thread_stop_test)(void *tcontext);

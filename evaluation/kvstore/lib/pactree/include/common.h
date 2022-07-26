@@ -10,7 +10,7 @@
 #include <iostream>
 #include <libpmemobj.h>
 #define MULTIPOOL
-#define MAX_NUMA 1
+#define MAX_NUMA 2
 //#define STRINGKEY
 #define WORKER_THREAD_PER_NUMA 1
 #define KEYLENGTH 32

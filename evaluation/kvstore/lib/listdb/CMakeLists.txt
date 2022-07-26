@@ -230,3 +230,18 @@ endforeach()
 #target_link_libraries(ycsb-brdb brdb
 #tbb
 #tcmalloc)
+
+add_library(listdb_dll SHARED
+  #listdb/lsm/table.cc
+  #listdb/listdb.cc
+  listdb/lib/murmur3.cc
+  listdb/lib/sha1.cc
+  listdb/adapter.cc
+  )
+target_link_libraries(listdb_dll
+  pthread
+  pmemobj
+  pmempool
+  numa
+  jemalloc
+  )

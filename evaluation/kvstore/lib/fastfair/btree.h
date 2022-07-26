@@ -63,7 +63,7 @@ public:
   void btree_delete_internal(entry_key_t, char *, uint32_t, entry_key_t *,
                              bool *, page **);
   char *btree_search(entry_key_t);
-  void btree_search_range(entry_key_t, entry_key_t, unsigned long *);
+  void btree_search_range(entry_key_t min, int range, unsigned long *buf);
   void printAll();
   void randScounter();
 
@@ -700,8 +700,7 @@ public:
   }
 
   // Search keys with linear search
-  void linear_search_range(entry_key_t min, entry_key_t max,
-                           unsigned long *buf) {
+  void linear_search_range(entry_key_t min, int range, unsigned long *buf) {
     int i, off = 0;
     uint8_t previous_switch_counter;
     page *current = this;
@@ -718,7 +717,7 @@ public:
 
         if (IS_FORWARD(previous_switch_counter)) {
           if ((tmp_key = current->records[0].key) > min) {
-            if (tmp_key < max) {
+            if (off < range) {
               if ((tmp_ptr = current->records[0].ptr) != NULL) {
                 if (tmp_key == current->records[0].key) {
                   if (tmp_ptr) {
@@ -734,7 +733,7 @@ public:
 
           for (i = 1; current->records[i].ptr != NULL; ++i) {
             if ((tmp_key = current->records[i].key) > min) {
-              if (tmp_key < max) {
+              if (off < range) {
                 if ((tmp_ptr = current->records[i].ptr) !=
                     current->records[i - 1].ptr) {
                   if (tmp_key == current->records[i].key) {
@@ -750,8 +749,8 @@ public:
           }
         } else {
           for (i = current->count() - 1; i > 0; --i) {
-            if ((tmp_key = current->records[i].key) > min) {
-              if (tmp_key < max) {
+            if ((tmp_key = current->records[i].key) > min && off < range) {
+              if (off < range) {
                 if ((tmp_ptr = current->records[i].ptr) !=
                     current->records[i - 1].ptr) {
                   if (tmp_key == current->records[i].key) {
@@ -766,8 +765,8 @@ public:
             }
           }
 
-          if ((tmp_key = current->records[0].key) > min) {
-            if (tmp_key < max) {
+          if ((tmp_key = current->records[0].key) > min && off < range) {
+            if (off < range) {
               if ((tmp_ptr = current->records[0].ptr) != NULL) {
                 if (tmp_key == current->records[0].key) {
                   if (tmp_ptr) {
@@ -1103,8 +1102,7 @@ void btree::btree_delete_internal(entry_key_t key, char *ptr, uint32_t level,
 }
 
 // Function to search keys from "min" to "max"
-void btree::btree_search_range(entry_key_t min, entry_key_t max,
-                               unsigned long *buf) {
+void btree::btree_search_range(entry_key_t min, int range, unsigned long *buf) {
   TOID(page) p = root;
 
   while (p.oid.off != 0) {
@@ -1113,7 +1111,7 @@ void btree::btree_search_range(entry_key_t min, entry_key_t max,
       p.oid.off = (uint64_t)D_RW(p)->linear_search(min);
     } else {
       // Found a leaf
-      D_RW(p)->linear_search_range(min, max, buf);
+      D_RW(p)->linear_search_range(min, range, buf);
 
       break;
     }
