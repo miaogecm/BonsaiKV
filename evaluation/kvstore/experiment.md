@@ -69,7 +69,3 @@ YCSB-A, TPC-C, TATP
 #### 3.6 Scan-intensive benchmark
 
 YCSB-E
-
-#### 3.7 Performance interference study
-
-log batch size: 256B-4KB
