@@ -302,7 +302,7 @@ void updateSubscribeData(struct kvstore *kvstore, void *tcontext) {
         set_v_arr(varr, 1, &new_bit_1);
         db_update(Subscriber, s.k, 1, col_arr, size_arr, varr);
     } else {
-        kvstore->kv_txn_abort(tcontext);
+        kvstore->kv_txn_rollback(tcontext);
     }
 
     uint8_t old_data_a_1 = 0;
@@ -320,7 +320,7 @@ void updateSubscribeData(struct kvstore *kvstore, void *tcontext) {
         set_v_arr(varr, 1, &new_data_a);
         db_update(Special_Facility, sf.k, 1, col_arr, size_arr, varr);
     } else {
-        kvstore->kv_txn_abort(tcontext);
+        kvstore->kv_txn_rollback(tcontext);
     }
 }
 

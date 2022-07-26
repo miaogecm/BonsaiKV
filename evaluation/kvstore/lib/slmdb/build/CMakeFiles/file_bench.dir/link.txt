@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/file_bench.dir/bench/file_bench.cc.o -o file_bench  -Wl,-rpath,/usr/local/lib libleveldb.a -Wl,-Bstatic -lpthread -Wl,-Bdynamic /usr/local/lib/libpmem.so /usr/local/lib/libpmemobj.so /usr/local/lib/libpmemlog.so /usr/local/lib/libvmem.so 

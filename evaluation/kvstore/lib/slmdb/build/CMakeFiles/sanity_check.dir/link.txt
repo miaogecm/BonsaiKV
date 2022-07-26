@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/sanity_check.dir/db/sanity_check.cc.o -o sanity_check  -Wl,-rpath,/usr/local/lib libleveldb.a -Wl,-Bstatic -lpthread -Wl,-Bdynamic /usr/local/lib/libpmem.so /usr/local/lib/libpmemobj.so /usr/local/lib/libpmemlog.so /usr/local/lib/libvmem.so 

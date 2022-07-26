@@ -28,7 +28,7 @@ void load_kvstore(struct kvstore *kvstore, const char *libpath) {
     find_kvop((void **) &kvstore->kv_thread_start_test, handle, "kv_thread_start_test");
     find_kvop((void **) &kvstore->kv_thread_stop_test, handle, "kv_thread_stop_test");
     find_kvop((void **) &kvstore->kv_txn_begin, handle, "kv_txn_begin");
-    find_kvop((void **) &kvstore->kv_txn_abort, handle, "kv_txn_abort");
+    find_kvop((void **) &kvstore->kv_txn_rollback, handle, "kv_txn_rollback");
     find_kvop((void **) &kvstore->kv_txn_commit, handle, "kv_txn_commit");
     find_kvop((void **) &kvstore->kv_put, handle, "kv_put");
     find_kvop((void **) &kvstore->kv_del, handle, "kv_del");

@@ -14,7 +14,7 @@ struct kvstore {
     void (*kv_thread_start_test)(void *tcontext);
     void (*kv_thread_stop_test)(void *tcontext);
     void (*kv_txn_begin)(void *tcontext);
-    void (*kv_txn_abort)(void *tcontext);
+    void (*kv_txn_rollback)(void *tcontext);
     void (*kv_txn_commit)(void *tcontext);
     int (*kv_put)(void *tcontext, void *key, size_t key_len, void *val, size_t val_len);
     int (*kv_del)(void *tcontext, void *key, size_t key_len);

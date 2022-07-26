@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/pm_stream.dir/util/persist_stream.cc.o -o pm_stream  -Wl,-rpath,/usr/local/lib /usr/local/lib/libvmem.so 
