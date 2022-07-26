@@ -96,11 +96,16 @@ int kv_del(void *tcontext, void *key, size_t key_len) {
 
 int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len) {
     auto *client = static_cast<DBClient *>(tcontext);
-    std::string val_;
+    Val val_;
     bool found = client->get(get_key(key, key_len), &val_);
     assert(found);
+#ifdef STRING_VAL
     *val_len = val_.length();
     std::copy(val_.begin(), val_.end(), (char *) val);
+#else
+    *val_len = sizeof(unsigned long);
+    *(unsigned long *) val = val_;
+#endif
     return 0;
 }
 
