@@ -12,7 +12,7 @@ log
 .DS_Store
 core
 !core/
-perf*
+perf.data*
 kv
 .idea
 btree
