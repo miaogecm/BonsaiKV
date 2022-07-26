@@ -48,6 +48,10 @@ void kv_txn_commit(void *tcontext) {
     assert(0);
 }
 
+void kv_txn_rollback(void *tcontext) {
+    assert(0);
+}
+
 static inline Key get_key(void *key, size_t key_len) {
 #ifdef LISTDB_STRING_KEY
     char key_[kStringKeyLength] = {0};
