@@ -91,7 +91,7 @@ constexpr data_offset_size_t get_num_slots_per_page() {
     }
     data_offset_size_t num_slots_per_page = num_slots_per_page_large;
     while ((num_slots_per_page * entry_size) + page_overhead +
-                std::ceil((double) num_slots_per_page / 8) > current_page_size) {
+            std::ceil((double) num_slots_per_page / 8) > current_page_size) {
         num_slots_per_page--;
     }
     assert(num_slots_per_page > 0 && "Cannot fit KV pair into single page!");
@@ -339,6 +339,8 @@ class Viper {
   public:
     static std::unique_ptr<Viper<K, V>> create(const std::string& pool_file, uint64_t initial_pool_size,
                                                             ViperConfig v_config = ViperConfig{});
+    static Viper<K, V> *create_new(const std::string &pool_file, uint64_t initial_pool_size,
+                                   ViperConfig v_config = ViperConfig{});
     static std::unique_ptr<Viper<K, V>> open(const std::string& pool_file, ViperConfig v_config = ViperConfig{});
     Viper(ViperBase v_base, std::filesystem::path pool_dir, bool owns_pool, ViperConfig v_config);
     ~Viper();
@@ -463,6 +465,11 @@ std::unique_ptr<Viper<K, V>> Viper<K, V>::create(const std::string& pool_file, u
                                                  ViperConfig v_config) {
     return std::make_unique<Viper<K, V>>(
             init_pool(pool_file, initial_pool_size, true, v_config), pool_file, true, v_config);
+}
+
+template <typename K, typename V> Viper<K, V> *Viper<K, V>::create_new(const std::string& pool_file, uint64_t initial_pool_size,
+                                                                       ViperConfig v_config) {
+    return new Viper<K, V>(init_pool(pool_file, initial_pool_size, true, v_config), pool_file, true, v_config);
 }
 
 template <typename K, typename V>

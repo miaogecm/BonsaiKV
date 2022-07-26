@@ -51,3 +51,14 @@ endif()
 if (${VIPER_BUILD_BENCHMARKS})
     add_subdirectory(benchmark)
 endif()
+
+add_library(viper_dll SHARED adapter.cpp)
+
+target_compile_options(viper_dll PRIVATE -march=native -mclwb -pthread)
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+if (CMAKE_BUILD_TYPE MATCHES Release)
+    message(STATUS "BUILDING RELEASE")
+    target_compile_options(viper_dll PRIVATE -O3 -Ofast -mtune=native)
+endif()
+
+target_link_libraries(viper_dll viper pthread)
