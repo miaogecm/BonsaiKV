@@ -16,6 +16,7 @@ static inline void find_kvop(void **opp, void *handle, const char *name) {
 void load_kvstore(struct kvstore *kvstore, const char *libpath) {
     void *handle = dlopen(libpath, RTLD_LAZY);
     if (!handle) {
+        printf("load_kvstore: %s\n", dlerror());
         assert(0);
     }
     find_kvop((void **) &kvstore->kv_engine, handle, "kv_engine");

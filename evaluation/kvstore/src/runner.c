@@ -147,5 +147,9 @@ void run_kvstore(struct kvstore *kv, void *conf, int nr_stage,
         pthread_setname_np(tids[i], "run_task");
     }
 
+    for (i = 0; i < NUM_THREADS; i++) {
+        pthread_join(tids[i], NULL);
+    }
+
     kv->kv_destroy_context(context);
 }

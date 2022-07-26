@@ -250,7 +250,7 @@ ListDB::~ListDB() {
 }
 
 void ListDB::Init() {
-  std::string db_path = "/pmem/wkim/listdb";
+  std::string db_path = "/mnt/ext4/dimm0/listdb";
   fs::remove_all(db_path);
   int root_pool_id = Pmem::BindPool<pmem_db>(db_path, "", 64*1024*1024);
   if (root_pool_id != 0) {
@@ -272,7 +272,7 @@ void ListDB::Init() {
   // Log Pmem Pool
   for (int i = 0; i < kNumRegions; i++) {
     std::stringstream pss;
-    pss << "/pmem" << i << "/wkim/listdb_log";
+    pss << "/mnt/ext4/dimm" << i << "/listdb_log";
     std::string path = pss.str();
     fs::remove_all(path);
     fs::create_directories(path);

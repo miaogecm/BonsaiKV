@@ -98,6 +98,7 @@ public:
     switch_counter = 0;
     last_index = -1;
     is_deleted = false;
+    memset(dummy, 0, sizeof(dummy));
   }
 
   ~header() {

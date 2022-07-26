@@ -19,7 +19,7 @@
 
 static atomic_t h_pks[NUM_THREADS];
 
-static int num_work;
+static int num_work, num_w;
 
 static inline u64 get_timestamp() {
     static atomic64_t timestamp = ATOMIC64_INIT(10000);
@@ -381,11 +381,12 @@ static const char *tpcc_txn_stage_fun(struct kvstore *kvstore, void *tcontext, i
     return "txn";
 }
 
-void run_tpcc(const char *kvlib, int num_work_) {
+void run_tpcc(const char *kvlib, int num_w_, int num_work_) {
     const char *(*stage_func[])(struct kvstore *, void *, int) = { tpcc_load_stage_fun, tpcc_txn_stage_fun };
     struct kvstore kvstore;
     const char *engine;
     void *conf = NULL;
+    num_w = num_w_;
     num_work = num_work_;
     load_kvstore(&kvstore, kvlib);
     engine = kvstore.kv_engine();

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../include/compressor.h"
+#include "compressor.h"
 
 static int is_str_key, finished = 0;
 static FILE *in, *out;

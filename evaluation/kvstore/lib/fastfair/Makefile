@@ -10,7 +10,7 @@ output = libfastfair.so
 all: libfastfair.so
 
 libfastfair.so: adapter.cpp btree.h
-	g++ $(CFLAGS) -o $@ $^ $(LIBS) -DCONCURRENT
+	g++ -shared -fPIC $(CFLAGS) -o $@ $^ $(LIBS) -DCONCURRENT
 
 clean: 
 	rm $(output)

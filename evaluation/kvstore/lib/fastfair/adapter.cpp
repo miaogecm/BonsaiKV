@@ -1,10 +1,12 @@
 #include "btree.h"
 
-static const char *persistent_path = "/mnt/ext4";
+static const char *persistent_path = "/mnt/ext4/dimm0/fastfair";
 
 static inline int file_exists(char const *file) {
     return access(file, F_OK);
 }
+
+#define POOL_SIZE   800000000
 
 extern "C" {
 
@@ -15,14 +17,9 @@ const char *kv_engine() {
 void *kv_create_context(void *config) {
     TOID(btree) bt = TOID_NULL(btree);
     PMEMobjpool *pop;
-    if (file_exists(persistent_path) != 0) {
-        pop = pmemobj_create(persistent_path, "btree", 8000000000, 0666);
-        bt = POBJ_ROOT(pop, btree);
-        D_RW(bt)->constructor(pop);
-    } else {
-        pop = pmemobj_open(persistent_path, "btree");
-        bt = POBJ_ROOT(pop, btree);
-    }
+    pop = pmemobj_create(persistent_path, "btree", POOL_SIZE, 0666);
+    bt = POBJ_ROOT(pop, btree);
+    D_RW(bt)->constructor(pop);
     return D_RW(bt);
 }
 
@@ -52,6 +49,10 @@ void kv_txn_begin(void *tcontext) {
 }
 
 void kv_txn_commit(void *tcontext) {
+    assert(0);
+}
+
+void kv_txn_rollback(void *tcontext) {
     assert(0);
 }
 

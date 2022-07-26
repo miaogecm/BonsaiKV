@@ -1,6 +1,8 @@
 #include "concur_dptree.hpp"
 #include <string>
 
+int parallel_merge_worker_num = 4;
+
 typedef dptree::concur_dptree<uint64_t, uint64_t> DB;
 
 extern "C" {
@@ -46,6 +48,10 @@ void kv_txn_commit(void *tcontext) {
     assert(0);
 }
 
+void kv_txn_rollback(void *tcontext) {
+    assert(0);
+}
+
 static inline uint64_t get_key(void *key, size_t key_len) {
     assert(key_len == sizeof(uint64_t));
     return __builtin_bswap64(*(unsigned long *) key);
@@ -59,6 +65,7 @@ static inline uint64_t get_val(void *val, size_t val_len) {
 int kv_put(void *tcontext, void *key, size_t key_len, void *val, size_t val_len) {
     auto *client = static_cast<DB *>(tcontext);
     client->insert(get_key(key, key_len), get_val(val, val_len));
+    return 0;
 }
 
 int kv_del(void *tcontext, void *key, size_t key_len) {

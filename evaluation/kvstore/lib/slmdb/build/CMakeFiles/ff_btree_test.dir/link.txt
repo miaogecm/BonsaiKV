@@ -1,1 +1,0 @@
-/usr/bin/c++ -rdynamic CMakeFiles/ff_btree_test.dir/index/ff_btree_test.cc.o -o ff_btree_test  -Wl,-rpath,/usr/local/lib libleveldb.a -Wl,-Bstatic -lpthread -Wl,-Bdynamic /usr/local/lib/libpmem.so /usr/local/lib/libpmemobj.so /usr/local/lib/libpmemlog.so /usr/local/lib/libvmem.so 

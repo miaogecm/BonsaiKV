@@ -3,7 +3,6 @@
 
 /* CASUAL */
 // #define NUM_W       10
-extern int num_w;
 #define MAX_OL_S    10
 
 /* fixed */

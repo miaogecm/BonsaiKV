@@ -1,1 +1,0 @@
-/usr/bin/c++ -rdynamic CMakeFiles/memtable_bench.dir/bench/memtable_bench.cc.o -o memtable_bench  -Wl,-rpath,/usr/local/lib libleveldb.a -Wl,-Bstatic -lpthread -Wl,-Bdynamic /usr/local/lib/libpmem.so /usr/local/lib/libpmemobj.so /usr/local/lib/libpmemlog.so /usr/local/lib/libvmem.so 
