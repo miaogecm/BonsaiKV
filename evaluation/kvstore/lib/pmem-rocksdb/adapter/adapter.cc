@@ -6,7 +6,7 @@
 
 using namespace ROCKSDB_NAMESPACE;
 
-std::string db_path = "/tmp/rocksdb_transaction_example";
+std::string db_path = "/mnt/ext4/dimm0/rocksdb";
 
 struct rocksdb_config {
     int txn_support;

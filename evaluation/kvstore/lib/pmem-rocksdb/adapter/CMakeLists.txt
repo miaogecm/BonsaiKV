@@ -5,5 +5,5 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_FLAGS "-DON_DCPMM")
 
-add_executable(adapter adapter.cc)
-target_link_libraries(adapter rocksdb pmem pmemobj)
+add_library(rocksdb_dll SHARED adapter.cc)
+target_link_libraries(rocksdb_dll rocksdb pmem pmemobj)
