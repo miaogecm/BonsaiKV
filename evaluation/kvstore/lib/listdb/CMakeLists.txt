@@ -244,4 +244,5 @@ target_link_libraries(listdb_dll
   pmempool
   numa
   jemalloc
+  stdc++fs
   )
