@@ -91,7 +91,7 @@ constexpr data_offset_size_t get_num_slots_per_page() {
     }
     data_offset_size_t num_slots_per_page = num_slots_per_page_large;
     while ((num_slots_per_page * entry_size) + page_overhead +
-                ((num_slots_per_page + 7) / 8) > current_page_size) {
+            std::ceil((double) num_slots_per_page / 8) > current_page_size) {
         num_slots_per_page--;
     }
     assert(num_slots_per_page > 0 && "Cannot fit KV pair into single page!");
