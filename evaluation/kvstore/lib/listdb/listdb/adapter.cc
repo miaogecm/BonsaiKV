@@ -9,6 +9,7 @@ const char *kv_engine() {
 
 void *kv_create_context(void *config) {
     auto *db = new ListDB();
+    db->Init();
     return db;
 }
 
