@@ -1,7 +1,7 @@
 #include "concur_dptree.hpp"
 #include <string>
 
-int parallel_merge_worker_num = 4;
+int parallel_merge_worker_num = 8;
 
 typedef dptree::concur_dptree<uint64_t, uint64_t> DB;
 
