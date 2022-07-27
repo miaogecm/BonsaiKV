@@ -60,12 +60,102 @@ Telecommunication Application Transaction Processing: TATP
 
 #### 3.4 Read-intensive benchmark
 
-YCSB-B, YCSB-C, YCSB-D
+YCSB-B op, YCSB-C op, YCSB-D op
+
++ Load 480Mops, Read 4800Mops
++ Key: 24B Val: 8B/256B
++ Zipfian distribution
+
+| KVStore                          | Throughput (1/2/4/8/16/24/32/40/48) |
+| -------------------------------- | ----------------------------------- |
+| DPTree (not support string KV)   |                                     |
+| FastFair (not support string KV) |                                     |
+| ListDB                           |                                     |
+| NoveLSM                          |                                     |
+| PACTree (not support string V)   |                                     |
+| pmem-rocksdb                     |                                     |
+| SLM-DB                           |                                     |
+| Viper                            |                                     |
+| Bonsai                           |                                     |
+
+Highlight techniques:
+
++ 8B Val (indexing and lookup dominates): Collabrative indexing (compared to FastFair, PACTree, NoveLSM, SLM-DB, ListDB) and OCC
++ 256B Val (value read dominates): NUMA-Aware read (compared to all)
++ compacted inode design: utilize modern CPU adjacent cacheline prefetch functionality
 
 #### 3.5 Write-intensive benchmark
 
-YCSB-A, TPC-C, TATP
+YCSB-A load+op
+
++ Load 4800Mops, Read 4800Mops
++ Key: 8B Val: 8B
++ Uniform distribution
+
+Load (100% Write):
+
+| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
+| ------------ | ----------------------------------- |
+| DPTree       |                                     |
+| FastFair     |                                     |
+| ListDB       |                                     |
+| NoveLSM      |                                     |
+| PACTree      |                                     |
+| pmem-rocksdb |                                     |
+| SLM-DB       |                                     |
+| Viper        |                                     |
+| Bonsai       |                                     |
+
+Op (50% Write, 50% Read)
+
+| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
+| ------------ | ----------------------------------- |
+| DPTree       |                                     |
+| FastFair     |                                     |
+| ListDB       |                                     |
+| NoveLSM      |                                     |
+| PACTree      |                                     |
+| pmem-rocksdb |                                     |
+| SLM-DB       |                                     |
+| Viper        |                                     |
+| Bonsai       |                                     |
+
+TPC-C, TATP
+
+| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
+| ------------ | ----------------------------------- |
+| DPTree       |                                     |
+| FastFair     |                                     |
+| ListDB       |                                     |
+| NoveLSM      |                                     |
+| PACTree      |                                     |
+| pmem-rocksdb |                                     |
+| SLM-DB       |                                     |
+| Viper        |                                     |
+| Bonsai       |                                     |
+
+Highlight techniques:
+
++ Batching + Throttling
++ Wait-free pnode lookup (mixed R/W)
++ NUMA-Aware write
 
 #### 3.6 Scan-intensive benchmark
 
-YCSB-E
+YCSB-E op
+
++ Load 4800Mops, Read 480Mops
++ Key: 24B Val: 8B Range: 100
++ Uniform distribution
+
+| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
+| ------------ | ----------------------------------- |
+| DPTree       |                                     |
+| FastFair     |                                     |
+| ListDB       |                                     |
+| NoveLSM      |                                     |
+| PACTree      |                                     |
+| pmem-rocksdb |                                     |
+| SLM-DB       |                                     |
+| Viper        |                                     |
+| Bonsai       |                                     |
