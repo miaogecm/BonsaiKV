@@ -39,7 +39,7 @@ set (FLAGS " -DCOUNT_CLFLUSH -fpermissive -ftree-vectorize")
 set (FLAGS "${FLAGS} ")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAGS} ${SIMD_FLAGS}")
 
-#set(CMAKE_CXX_FLAGS_MYREL "-O3 -g")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
 
 set (CMAKE_BUILD_TYPE "RelWithDebInfo")
 
