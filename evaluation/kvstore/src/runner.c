@@ -102,6 +102,8 @@ static void* run_task(void* arg) {
         }
     }
 
+    pthread_barrier_wait(task->barrier);
+
     task->kv->kv_thread_destroy_context(tcontext);
 
     return NULL;
