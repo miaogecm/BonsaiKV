@@ -14,7 +14,7 @@ CFLAGS += -g3
 CFLAGS += -O3
 CFLAGS += -Wall
 CFLAGS += -fno-aggressive-loop-optimizations -Wno-unused-variable -Wno-unused-but-set-variable
-CFLAGS += -pthread -dl
+CFLAGS += -lpthread -ldl
 
 all: kvstore compress
 
@@ -26,10 +26,10 @@ $(OBJS_DIR):
 
 kvstore: $(OBJ_FILES)
 	$(Q)$(RM) -f $@
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $^ $(CFLAGS) -o $@
 
 compress: compressor/compressor.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $^ $(CFLAGS) -o $@
 
 clean:
 	$(Q)rm -f kvstore
