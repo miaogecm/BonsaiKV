@@ -49,7 +49,7 @@ typedef struct inode {
 
     uint8_t  fgprt[INODE_FANOUT];
 
-    pkey_t   fence;
+    pkey_t   rfence;
 #ifndef STR_KEY
 	char 	 padding[16];
 #endif
@@ -240,9 +240,9 @@ static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
         inode_unlock(*inode);
         return -EAGAIN;
     }
-    while (pkey_compare(key, (*inode)->fence) >= 0) {
+    while (pkey_compare(key, (*inode)->rfence) >= 0) {
         if (ilfence) {
-            *ilfence = (*inode)->fence;
+            *ilfence = (*inode)->rfence;
         }
         target = inode_off2ptr((*inode)->next);
         inode_lock(target);
@@ -259,7 +259,7 @@ static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
 
 static inline void inode_split_unlock_correct(inode_t **inode, pkey_t key) {
     inode_t *rsibling = inode_off2ptr((*inode)->next);
-    if (pkey_compare(key, (*inode)->fence) >= 0) {
+    if (pkey_compare(key, (*inode)->rfence) >= 0) {
         inode_unlock(*inode);
         *inode = rsibling;
     } else {
@@ -325,7 +325,7 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     inode->next = NULL_OFF;
     inode->pno = sentinel_pnoid;
 
-    inode->fence = MAX_KEY;
+    inode->rfence = MAX_KEY;
 #ifdef INODE_LFENCE
     inode->lfence = MIN_KEY;
 #endif
@@ -373,7 +373,7 @@ static void inode_dump(inode_t *inode) {
     unsigned pos;
     /* TODO: Only integer key. */
     printf(" ====================== [inode %lx] fence=%lx\n",
-           (unsigned long) inode, *(unsigned long *) inode->fence.key);
+           (unsigned long) inode, *(unsigned long *) inode->rfence.key);
     for_each_set_bit(pos, &vmp, INODE_FANOUT) {
         printf("key[%u]=%lx (%u)\n",
                pos, *(unsigned long *) log_get_key(inode->logs[pos], inode->pno).key, inode->fgprt[pos]);
@@ -432,7 +432,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     n->flipmap = inode->flipmap;
     n->next = inode->next;
     n->pno = inode->pno;
-    n->fence = inode->fence;
+    n->rfence = inode->rfence;
     n->deleted = 0;
     spin_lock_init(&n->lock);
     seqcount_init(&n->seq);
@@ -451,7 +451,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     write_seqcount_begin(&inode->seq);
     inode->validmap = lvmp;
     inode->next = inode_ptr2off(n);
-    inode->fence = fence;
+    inode->rfence = fence;
     write_seqcount_end(&inode->seq);
 
     /* Insert into upper index. */
@@ -550,7 +550,7 @@ int shim_scan(pkey_t start, int range, pval_t *values) {
 scan_inode:
     seq = read_seqcount_begin(&inode->seq);
 
-    fence = ACCESS_ONCE(inode->fence);
+    fence = ACCESS_ONCE(inode->rfence);
     next = inode_off2ptr(ACCESS_ONCE(inode->next));
 
     /* Get a consistent <fence, next> pair. */
@@ -677,7 +677,7 @@ int shim_lookup(pkey_t key, pval_t *val) {
 retry:
     seq = read_seqcount_begin(&inode->seq);
 
-    max = ACCESS_ONCE(inode->fence);
+    max = ACCESS_ONCE(inode->rfence);
     next = inode_off2ptr(ACCESS_ONCE(inode->next));
 
     if (unlikely(read_seqcount_retry(&inode->seq, seq))) {
@@ -759,13 +759,13 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode, stru
          * should be definitely a leading inode, which has pfence, and
          * won't be deleted.
          */
-        pkey_t old_fence = prev->fence;
+        pkey_t old_fence = prev->rfence;
 
         inode->deleted = 1;
 
         write_seqcount_begin(&prev->seq);
         prev->next = inode->next;
-        prev->fence = inode->fence;
+        prev->rfence = inode->rfence;
         write_seqcount_end(&prev->seq);
 
         ret = index_remove(old_fence);
@@ -825,7 +825,7 @@ relookup:
     }
 
     while (inode) {
-        if (pkey_compare(prfence, inode->fence) < 0) {
+        if (pkey_compare(prfence, inode->rfence) < 0) {
             /*
              *    ilfence
              *    v
@@ -876,7 +876,7 @@ relookup:
                 sync_inode(lst, prev, inode, ilfence, pno, rec);
             }
 
-            ilfence = inode->fence;
+            ilfence = inode->rfence;
             sync_moveon(&prev, &inode, 0);
 
 next_pno:
@@ -903,7 +903,7 @@ next_pno:
              */
             sync_inode(lst, prev, inode, ilfence, pno, rec);
 
-            ilfence = inode->fence;
+            ilfence = inode->rfence;
             sync_moveon(&prev, &inode, 1);
         }
     }
