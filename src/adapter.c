@@ -144,6 +144,10 @@ void kv_txn_begin(void *tcontext) {
     assert(0);
 }
 
+void kv_txn_rollback(void *tcontext) {
+    assert(0);
+}
+
 void kv_txn_commit(void *tcontext) {
     assert(0);
 }

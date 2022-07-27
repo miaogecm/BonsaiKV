@@ -1202,6 +1202,7 @@ int log_layer_init(struct log_layer* layer) {
             dimm = node_idx_to_dimm(node, dimm_idx);
 
             dimm_lock = malloc(sizeof(pthread_mutex_t));
+            pthread_mutex_init(dimm_lock, NULL);
 
             for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);

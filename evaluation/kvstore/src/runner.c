@@ -113,6 +113,7 @@ static inline void configure(struct kvstore *kv, void *conf) {
         struct bonsai_config *c = conf;
         int id;
         c->nr_user_cpus = NUM_THREADS;
+        c->user_cpus = malloc(sizeof(*c->user_cpus) * NUM_THREADS);
         for (id = 0; id < NUM_THREADS; id++) {
             c->user_cpus[id] = cpu_of(id);
         }

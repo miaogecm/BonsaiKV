@@ -43,7 +43,7 @@ typedef uint8_t		__le8;
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
 
-#define STR_KEY
+//#define STR_KEY
 //#define STR_VAL
 
 #ifdef STR_KEY
