@@ -27,10 +27,10 @@ $(OBJS_DIR):
 
 kvstore: $(OBJ_FILES)
 	$(Q)$(RM) -f $@
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 compress: compressor/compressor.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 clean:
 	$(Q)rm -f kvstore
