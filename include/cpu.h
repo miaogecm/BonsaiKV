@@ -17,6 +17,18 @@ extern "C" {
 
 extern int cpu_used[NUM_CPU];
 
+static inline int get_chip() {
+  unsigned long a, d, c;
+  asm volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
+  return (c & 0xFFF000) >> 12;
+}
+
+static inline int get_core() {
+  unsigned long a, d, c;
+  asm volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
+  return c & 0xFFF;
+}
+
 static inline int get_cpu() {
 	cpu_set_t mask;
 	int i;

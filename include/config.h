@@ -14,7 +14,7 @@ extern "C" {
 #define LOG_REGION_SIZE		    73728000000UL                   /* 68.66455078125GB */
 #define DATA_REGION_SIZE	    55296000000UL                   /* 51.4984130859375GB */
 
-#define INODE_POOL_SIZE         (16 * 1024 * 1024 * 1024ul)     /* 2147483648 entries */
+#define CPU_INODE_POOL_SIZE     (256 * 1024 * 1024ul)
 
 //#define ENABLE_PNODE_REPLICA
 //#define REPLICA_EPOCH_INTERVAL  1                               /* seconds */

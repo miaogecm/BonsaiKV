@@ -9,7 +9,7 @@ extern "C" {
 #include "data_layer.h"
 
 #define INODE_SIZE								sizeof(inode_t)
-#define TOTAL_INODE								(INODE_POOL_SIZE / INODE_SIZE)
+#define CPU_TOTAL_INODE                         (CPU_INODE_POOL_SIZE / INODE_SIZE)
 
 #define SMO_LOG_QUEUE_CAPACITY_PER_THREAD       2048
 
@@ -44,6 +44,8 @@ struct smo_log {
 struct inode_pool {
     void *start;
     struct inode *freelist;
+    /* to avoid cacheline ping-pong */
+    char padding[CACHELINE_SIZE];
 };
 
 struct shim_layer {
@@ -52,7 +54,7 @@ struct shim_layer {
     DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
 
     struct inode      *head;
-    struct inode_pool pool;
+    struct inode_pool pool[NUM_CPU];
 };
 
 int shim_sentinel_init(pnoid_t sentinel_pnoid);

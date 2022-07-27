@@ -14,6 +14,7 @@
 #include <malloc.h>
 #include <stddef.h>
 #include <limits.h>
+#include <numa.h>
 
 #include "bonsai.h"
 #include "atomic.h"
@@ -26,7 +27,7 @@
 #define INODE_FANOUT    16
 
 #define NOT_FOUND       (-1u)
-#define NULL_OFF        (-1u)
+#define NULL_ID         (-1u)
 
 /* Used for debugging. */
 // #define INODE_LFENCE
@@ -35,7 +36,8 @@
 typedef struct inode {
     /* header, 6-8 words */
     uint16_t validmap;
-    uint16_t deleted;
+    uint8_t  cpu;
+    uint8_t  deleted;
     union {
         struct {
             uint16_t flipmap;
@@ -68,7 +70,7 @@ typedef struct inode {
 } inode_t;
 
 struct inode_recycle_chain {
-    struct inode *head, *tail;
+    struct inode *head[NUM_CPU], *tail[NUM_CPU];
 };
 
 struct pptr {
@@ -81,39 +83,58 @@ struct pptr {
     };
 } __packed;
 
-static void init_inode_pool(struct inode_pool *pool) {
-    void *start = memalign(PAGE_SIZE, INODE_POOL_SIZE);
+struct inoid {
+    union {
+        struct {
+            int cpu: 8;
+            uint32_t off: 24;
+        };
+        uint32_t inoid;
+    };
+} __packed;
+
+static inline uint32_t get_inoid(int cpu, uint32_t off) {
+    struct inoid id = { .cpu = cpu, .off = off };
+    return id.inoid;
+};
+
+static void init_cpu_inode_pool(struct inode_pool *pool, int cpu) {
+    void *start = numa_alloc_onnode(CPU_INODE_POOL_SIZE, cpu_to_node(cpu));
     inode_t *curr;
-    for (curr = start; curr != start + INODE_POOL_SIZE; curr++) {
-        curr->next_free = curr + 1 - (inode_t *) start;
+    assert(IS_ALIGNED((unsigned long) start, PAGE_SIZE));
+    for (curr = start; curr != start + CPU_INODE_POOL_SIZE; curr++) {
+        curr->cpu = cpu;
+        curr->next_free = get_inoid(cpu, curr + 1 - (inode_t *) start);
     }
 	curr = start;
-    curr[TOTAL_INODE - 1].next_free = NULL_OFF;
+    curr->cpu = cpu;
+    curr[CPU_TOTAL_INODE - 1].next_free = NULL_ID;
     pool->start = pool->freelist = start;
 }
 
-static inline uint32_t inode_ptr2off(inode_t *inode) {
+static inline uint32_t inode_ptr2id(inode_t *inode) {
     if (unlikely(!inode)) {
-        return NULL_OFF;
+        return NULL_ID;
     }
-    return inode - (inode_t *) SHIM(bonsai)->pool.start;
+    return get_inoid(inode->cpu, inode - (inode_t *) SHIM(bonsai)->pool[inode->cpu].start);
 }
 
-static inline inode_t *inode_off2ptr(uint32_t off) {
-    if (unlikely(off == NULL_OFF)) {
+static inline inode_t *inode_id2ptr(uint32_t id) {
+    struct inoid inoid = { .inoid = id };
+    if (unlikely(id == NULL_ID)) {
         return NULL;
     }
-    return (inode_t *) SHIM(bonsai)->pool.start + off;
+    return (inode_t *) SHIM(bonsai)->pool[inoid.cpu].start + inoid.off;
 }
 
 static inline void pack_pptr(void **pptr, inode_t *inode, pnoid_t pnode) {
-    *pptr = ((struct pptr) {{{ inode_ptr2off(inode), pnode }}}).pptr;
+    *pptr = ((struct pptr) {{{ inode_ptr2id(inode), pnode }}}).pptr;
 }
 
 static inline void unpack_pptr(inode_t **inode, pnoid_t *pnode, void *pptr) {
     struct pptr p;
     p.pptr = pptr;
-    *inode = inode_off2ptr(p.inode);
+    *inode = inode_id2ptr(p.inode);
     *pnode = p.pnode;
 }
 
@@ -244,7 +265,7 @@ static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
         if (ilfence) {
             *ilfence = (*inode)->rfence;
         }
-        target = inode_off2ptr((*inode)->next);
+        target = inode_id2ptr((*inode)->next);
         inode_lock(target);
         /*
          * Don't worry. @target must be still alive now, as deletion needs
@@ -258,7 +279,7 @@ static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
 }
 
 static inline void inode_split_unlock_correct(inode_t **inode, pkey_t key) {
-    inode_t *rsibling = inode_off2ptr((*inode)->next);
+    inode_t *rsibling = inode_id2ptr((*inode)->next);
     if (pkey_compare(key, (*inode)->rfence) >= 0) {
         inode_unlock(*inode);
         *inode = rsibling;
@@ -269,29 +290,41 @@ static inline void inode_split_unlock_correct(inode_t **inode, pkey_t key) {
 
 static inline inode_t *inode_alloc() {
     struct shim_layer *s_layer = SHIM(bonsai);
-    struct inode_pool *pool = &s_layer->pool;
+    struct inode_pool *pool;
     inode_t *get;
+    int cpu;
+
+    if (unlikely(!__this->t_bind)) {
+        cpu = get_core();
+    } else {
+        cpu = __this->t_cpu;
+    }
+
+    pool = &s_layer->pool[cpu];
 
     do {
         get = pool->freelist;
-    } while (!cmpxchg2(&pool->freelist, get, inode_off2ptr(get->next_free)));
+    } while (!cmpxchg2(&pool->freelist, get, inode_id2ptr(get->next_free)));
 
     return get;
 }
 
 static inline void inode_free(struct inode_recycle_chain *rec, inode_t *inode) {
-    inode->next_free = inode_ptr2off(rec->head);
-    rec->head = inode;
-    if (unlikely(!rec->tail)) {
-        rec->tail = inode;
+    int cpu = inode->cpu;
+    inode->next_free = inode_ptr2id(rec->head[cpu]);
+    rec->head[cpu] = inode;
+    if (unlikely(!rec->tail[cpu])) {
+        rec->tail[cpu] = inode;
     }
 }
 
 static int shim_layer_init() {
     struct shim_layer *layer = SHIM(bonsai);
     int cpu;
-	
-    init_inode_pool(&layer->pool);
+
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        init_cpu_inode_pool(&layer->pool[cpu], cpu);
+    }
     layer->head = NULL;
 	
     atomic_set(&layer->exit, 0);
@@ -322,7 +355,7 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     inode->has_pfence = 1;
     inode->deleted = 0;
 
-    inode->next = NULL_OFF;
+    inode->next = NULL_ID;
     inode->pno = sentinel_pnoid;
 
     inode->rfence = MAX_KEY;
@@ -450,7 +483,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     /* Now update @inode. */
     write_seqcount_begin(&inode->seq);
     inode->validmap = lvmp;
-    inode->next = inode_ptr2off(n);
+    inode->next = inode_ptr2id(n);
     inode->rfence = fence;
     write_seqcount_end(&inode->seq);
 
@@ -551,7 +584,7 @@ scan_inode:
     seq = read_seqcount_begin(&inode->seq);
 
     fence = ACCESS_ONCE(inode->rfence);
-    next = inode_off2ptr(ACCESS_ONCE(inode->next));
+    next = inode_id2ptr(ACCESS_ONCE(inode->next));
 
     /* Get a consistent <fence, next> pair. */
     if (unlikely(read_seqcount_retry(&inode->seq, seq))) {
@@ -678,7 +711,7 @@ retry:
     seq = read_seqcount_begin(&inode->seq);
 
     max = ACCESS_ONCE(inode->rfence);
-    next = inode_off2ptr(ACCESS_ONCE(inode->next));
+    next = inode_id2ptr(ACCESS_ONCE(inode->next));
 
     if (unlikely(read_seqcount_retry(&inode->seq, seq))) {
         goto retry;
@@ -780,7 +813,7 @@ static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode, stru
 }
 
 static inline void sync_moveon(inode_t **prev, inode_t **inode, int lock_next) {
-    inode_t *next = inode_off2ptr((*inode)->next);
+    inode_t *next = inode_id2ptr((*inode)->next);
     if (lock_next && next) {
         inode_lock(next);
     }
@@ -920,25 +953,32 @@ next_pno:
 
 void *shim_create_recycle_chain() {
     struct inode_recycle_chain *rec = malloc(sizeof(*rec));
-    rec->head = rec->tail = NULL;
+    int cpu;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        rec->head[cpu] = rec->tail[cpu] = NULL;
+    }
     return rec;
 }
 
 void shim_recycle(void *rec_) {
-    struct inode_pool *pool = &SHIM(bonsai)->pool;
     struct inode_recycle_chain *rec = rec_;
+    struct inode_pool *pool;
     inode_t *head;
+    int cpu;
 
-    if (unlikely(!rec->head)) {
-        goto out;
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        pool = &SHIM(bonsai)->pool[cpu];
+
+        if (unlikely(!rec->head[cpu])) {
+            continue;
+        }
+
+        do {
+            head = pool->freelist;
+            rec->tail[cpu]->next_free = inode_ptr2id(head);
+        } while (!cmpxchg2(&pool->freelist, head, rec->head[cpu]));
     }
 
-    do {
-        head = pool->freelist;
-        rec->tail->next_free = inode_ptr2off(head);
-    } while (!cmpxchg2(&pool->freelist, head, rec->head));
-
-out:
     free(rec);
 }
 
