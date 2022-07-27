@@ -15,7 +15,7 @@ CFLAGS += -O3
 CFLAGS += -Wall
 CFLAGS += -fno-aggressive-loop-optimizations -Wno-unused-variable -Wno-unused-but-set-variable
 
-LDFLAGS += -lpthread
+LDFLAGS += -lpthread -ldl
 
 all: kvstore compress
 
