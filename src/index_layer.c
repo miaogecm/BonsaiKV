@@ -569,6 +569,7 @@ static int ent_cmp(const void *a, const void *b) {
 }
 
 int shim_scan(pkey_t start, int range, pval_t *values) {
+#ifdef STR_KEY
     pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent = NULL, t;
     int nr_ents, nr_pents = 0, has_ent, has_pent, cmp, nr_value = 0;
     pnoid_t pno, last_pno = PNOID_NULL;
@@ -682,6 +683,10 @@ go_next:
 
 out:
     return 0;
+#else
+    /* TODO: scan for 8B integer key. */
+    assert(0);
+#endif
 }
 
 static inline int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {

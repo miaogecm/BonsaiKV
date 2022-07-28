@@ -51,12 +51,15 @@ typedef struct mnode {
     char         padding2[40];
 #endif
 
+    /* TODO: scan for 8B integer key. */
+#ifdef STR_KEY
     /* cacheline 2 (volatile) */
     int          node_version;
     int          perm_version;
     spinlock_t   perm_lock;
     seqcount_t   perm_seq;
     uint8_t      perm_arr[PNODE_FANOUT];
+#endif
 } mnode_t;
 
 typedef struct dnode {
@@ -232,16 +235,20 @@ static pnoid_t alloc_pnode(int node) {
     } while (!cmpxchg2(&d_layer->free_list, id.id, (mno = pnode_meta(id.id))->u.node));
     id.numa_node = node;
 
+#ifdef STR_KEY
     mno->node_version = 1;
     mno->perm_version = 0;
     spin_lock_init(&mno->perm_lock);
     seqcount_init(&mno->perm_seq);
+#endif
 
     return id.id;
 }
 
 static inline void pnode_inc_version(mnode_t *mno) {
+#ifdef STR_KEY
     mno->node_version++;
+#endif
 }
 
 static void delay_free_pnode(pnoid_t pnode) {
@@ -727,6 +734,8 @@ void pnode_recycle() {
 	d_layer->tofree_head = d_layer->tofree_tail = PNOID_NULL;
 }
 
+#ifdef STR_KEY
+
 void sort_perm_arr(uint8_t *perm, pentry_t *base, int n);
 
 static int generate_perm_arr(pnoid_t pnode, int ver) {
@@ -812,6 +821,8 @@ get_entries:
 
     return cnt;
 }
+
+#endif
 
 static void init_pnode_pool(struct data_layer *layer) {
     pnoid_t cur;
