@@ -96,9 +96,12 @@ static void* run_task(void* arg) {
 
         if (task->id == 0) {
             interval = end_measure();
-            printf("%s: %.3lf seconds elapsed\n", name, interval);
+            printf("%s: foreground done, %.3lf seconds elapsed\n", name, interval);
 
             task->kv->kv_stop_test(task->context);
+
+            interval = end_measure();
+            printf("%s: background done, %.3lf seconds elapsed\n", name, interval);
         }
     }
 
