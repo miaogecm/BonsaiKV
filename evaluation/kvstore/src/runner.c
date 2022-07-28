@@ -60,7 +60,7 @@ static inline double end_measure() {
 }
 
 static inline int cpu_of(int id) {
-    return id % NUM_CPU;
+    return cpuseq[id % NUM_CPU];
 }
 
 static void* run_task(void* arg) {
@@ -71,6 +71,7 @@ static void* run_task(void* arg) {
     int stage;
 
     bind_to_cpu(cpu_of(task->id));
+    printf("worker %d bind to cpu %d\n", task->id, cpu_of(task->id));
 
     tcontext = task->kv->kv_thread_create_context(task->context, task->id);
 
