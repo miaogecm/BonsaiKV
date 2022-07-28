@@ -2435,7 +2435,7 @@ class concur_dptree
                 }
             }
 
-            auto should_insert_f_cpbt = [&key, &value, this](const key_type &key) -> bool {
+            auto should_insert_f_cpbt = [&key, &value, this](const key_type &k) -> bool {
                 return true;
             };
             buffer_tree->update(key, make_upsert_value(value), should_insert_f_cpbt);
