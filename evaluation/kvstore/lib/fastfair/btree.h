@@ -997,7 +997,7 @@ char *btree::btree_search(entry_key_t key) {
   }
 
   if (!t) {
-    printf("NOT FOUND %lu, t = %x\n", key, t);
+    //printf("NOT FOUND %lu, t = %x\n", key, t);
     return NULL;
   }
 
