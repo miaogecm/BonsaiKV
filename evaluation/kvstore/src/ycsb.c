@@ -93,7 +93,7 @@ void run_ycsb(const char *kvlib, int str_key_, int str_val_) {
     engine = kvstore.kv_engine();
     if (!strcmp(engine, "bonsai")) {
         struct bonsai_config *c = malloc(sizeof(*c));
-        c->stm_support = 1;
+        c->stm_support = 0;
         conf = c;
     }
     run_kvstore(&kvstore, conf, 2, stage_func);
