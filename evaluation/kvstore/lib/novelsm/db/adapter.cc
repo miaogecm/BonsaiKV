@@ -2,14 +2,14 @@
 #include "leveldb/options.h"
 #include "leveldb/env.h"
 #include "leveldb/filter_policy.h"
-#include "leveldb/index.h"
 #include <unistd.h>
 
 using namespace leveldb;
 
-std::string db_path = "/tmp/slmdb_transaction_example";
+std::string db_mem = "/tmp/slmdb_transaction_example";
+std::string db_disk = "/tmp/slmdb_transaction_example";
 
-struct slmdb_config {
+struct novelsm_config {
     int txn_support;
 };
 
@@ -22,31 +22,28 @@ struct tctx {
 extern "C" {
 
 const char *kv_engine() {
-    return "slmdb";
+    return "novelsm";
 }
 
 void *kv_create_context(void *config) {
-    auto *cfg = static_cast<slmdb_config *>(config);
+    auto *cfg = static_cast<novelsm_config *>(config);
 
     Options options;
     options.env = leveldb::Env::Default();
     options.create_if_missing = true;
     options.block_cache = nullptr;
     options.write_buffer_size = 0;
-    options.max_file_size = 0;
     options.block_size = 0;
     options.max_open_files = 0;
     options.filter_policy = NewBloomFilterPolicy(-1);
     options.reuse_logs = false;
-    options.merge_threshold = 50;
-    options.index = CreateBtreeIndex();
 
     DB *db;
     Status s;
     if (cfg && cfg->txn_support) {
         assert(0);
     } else {
-        s = DB::Open(options, db_path, &db);
+        s = DB::Open(options, db_disk, db_mem, &db);
     }
     assert(s.ok());
 
