@@ -361,6 +361,7 @@ void bonsai_self_thread_exit() {
 
 int bonsai_user_thread_init(pthread_t tid) {
 	struct thread_info* thread;
+    unsigned id;
 
     thread = malloc(sizeof(struct thread_info));
     thread->t_id = atomic_add_return(1, &tids);
@@ -376,17 +377,18 @@ int bonsai_user_thread_init(pthread_t tid) {
 
 	bonsai->tids[thread->t_id] = tid;
 #ifdef ASYNC_SMO
-	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - NUM_SMO_THREAD - 1] = thread;
+    id = thread->t_id - NUM_PFLUSH_THREAD - NUM_SMO_THREAD - 1;
 #else
-	bonsai->user_threads[thread->t_id - NUM_PFLUSH_THREAD - 1] = thread;
+    id = thread->t_id - NUM_PFLUSH_THREAD - 1;
 #endif
+	bonsai->user_threads[id] = thread;
 
 	/* quiescent state based RCU */
-	fb_set_tid(thread->t_id);
+	fb_set_tid(id);
 
 	__this = thread;
 
-	bonsai_print("user thread[%d] pid[%d] start on cpu[%d]\n", __this->t_id, __this->t_pid, get_cpu());
+	bonsai_print("user thread[%d] #%d pid[%d] start on cpu[%d]\n", __this->t_id, id, __this->t_pid, get_cpu());
 
 	return 0;
 }
