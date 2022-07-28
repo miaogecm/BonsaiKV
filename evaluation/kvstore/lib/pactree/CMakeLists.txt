@@ -16,7 +16,7 @@ else()
 endif()
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-pthread -Wall -Wextra -march=native -mavx512bw")
+set(CMAKE_CXX_FLAGS "-pthread -Wall -Wextra -march=native -mavx512bw -fPIC")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g")
 
