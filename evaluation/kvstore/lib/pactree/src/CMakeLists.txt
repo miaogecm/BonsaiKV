@@ -5,7 +5,7 @@ add_library(pactree SHARED
 target_include_directories(pactree PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_link_libraries (pactree numa jemalloc pdlart pmemobj pmem)
+target_link_libraries (pactree numa jemalloc pdlart pmemobj pmem tbb)
 INSTALL(TARGETS pactree 
         ARCHIVE DESTINATION ${CMAKE_SOURCE_DIR}
         )

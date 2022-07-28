@@ -186,14 +186,14 @@ void pactreeImpl::createCombinerThread() {
 }
 
 pactreeImpl *initPT(int numa){
-    const char* path = "/mnt/pmem0/dl";
+    const char* path = "/mnt/ext4/dimm0/dl";
     size_t sz = 1UL*1024UL*1024UL*1024UL; //10GB
     int isCreated = 0;
     int isCreated2 = 0;
     root_obj* root = nullptr;
     root_obj* sl_root = nullptr;
 
-   const char *sl_path = "/mnt/pmem0/sl";
+   const char *sl_path = "/mnt/ext4/dimm0/sl";
    size_t sl_size = 1UL*1024UL*1024UL*1024UL;
 
    PMem::bind(0,sl_path,sl_size,(void **)&sl_root,&isCreated);
@@ -201,15 +201,15 @@ pactreeImpl *initPT(int numa){
         printf("Reading Search layer from an existing pactree.\n");
 	
     }
-    const char* log_path = "/mnt/pmem0/log";
+    const char* log_path = "/mnt/ext4/dimm0/log";
     PMem::bindLog(0,log_path,sz);
 
     PMem::bind(1,path,sz,(void **)&root,&isCreated2);
 
 #ifdef MULTIPOOL
-   const char* path2 = "/mnt/pmem1/dl";
-   const char* sl_path2 = "/mnt/pmem1/sl";
-   const char* log_path2 = "/mnt/pmem1/log";
+   const char* path2 = "/mnt/ext4/dimm1/dl";
+   const char* sl_path2 = "/mnt/ext4/dimm1/sl";
+   const char* log_path2 = "/mnt/ext4/dimm1/log";
    root_obj* root2 = nullptr;
    root_obj* sl_root2 = nullptr;
    PMem::bind(3,sl_path2,sl_size,(void **)&sl_root2,&isCreated);
