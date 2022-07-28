@@ -3,7 +3,7 @@
 
 LIBS=-lrt -lm -pthread -lpmemobj
 INCLUDES=-I./include
-CFLAGS=-O0 -std=c++11 -g
+CFLAGS=-O3 -std=c++11 -g
 
 output = libfastfair.so
 
