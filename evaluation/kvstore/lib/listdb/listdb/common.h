@@ -117,7 +117,7 @@ inline void SetAffinity(int coreid) {
 #endif
 }
 
-inline int get_chip() {
+inline int GetChip() {
   unsigned long a,d,c;
   asm volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
   int chip = (c & 0xFFF000)>>12;
@@ -125,7 +125,7 @@ inline int get_chip() {
   return chip;
 }
 
-inline int get_core() {
+inline int GetCore() {
   unsigned long a,d,c;
   asm volatile("rdtscp" : "=a" (a), "=d" (d), "=c" (c));
   //int chip = (c & 0xFFF000)>>12;
