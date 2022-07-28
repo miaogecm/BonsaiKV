@@ -122,13 +122,13 @@ class PMem {
 				baseAddresses[poolId*3+2] = reinterpret_cast<void*>(pop);
 				PMEMoid g_root = pmemobj_root(pop, sizeof(PMEMoid));
 				//       PMEMoid g_root = pmemobj_root(pop, 64UL*1024UL*1024UL*1024UL);
-				int ret = pmemobj_alloc(pop, &g_root, 4*512UL*1024UL*1024UL, 0, NULL, NULL);
+				int ret = pmemobj_alloc(pop, &g_root, 8*1024UL*1024UL*1024UL, 0, NULL, NULL);
 				if(ret){
 					std::cerr<<"!!! alloc error"<<std::endl;	
 					return false;
 				}
 				logVaddr[poolId] = pmemobj_direct(g_root);
-				memset((void*)logVaddr[poolId],0,4*512UL*1024UL*1024UL);
+				memset((void*)logVaddr[poolId],0,8*1024UL*1024UL*1024UL);
 			}
 			else{
 				//TODO FIX IT

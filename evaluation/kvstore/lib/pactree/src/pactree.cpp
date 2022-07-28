@@ -187,7 +187,7 @@ void pactreeImpl::createCombinerThread() {
 
 pactreeImpl *initPT(int numa){
     const char* path = "/mnt/ext4/dimm0/dl";
-    size_t sz = 5UL*1024UL*1024UL*1024UL; //50GB
+    size_t sz = 32UL*1024UL*1024UL*1024UL; //32GB
     int isCreated = 0;
     int isCreated2 = 0;
     root_obj* root = nullptr;
