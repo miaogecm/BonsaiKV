@@ -125,6 +125,16 @@ static inline void configure(struct kvstore *kv, void *conf) {
     }
 }
 
+int mallctl(const char *name, void *oldp, size_t *oldlenp, void *newp, size_t newlen) __attribute__((weak));
+
+static void check_malloc() {
+    if (mallctl) {
+        printf("Using 3rd-party malloc.\n");
+    } else {
+        printf("Using glibc malloc.\n");
+    }
+}
+
 void run_kvstore(struct kvstore *kv, void *conf, int nr_stage,
                  const char *(*stage_func[])(struct kvstore *kv, void *tcontext, int)) {
     struct task tasks[NUM_THREADS];
@@ -132,6 +142,8 @@ void run_kvstore(struct kvstore *kv, void *conf, int nr_stage,
     pthread_barrier_t barrier;
     void *context;
     int i;
+
+    check_malloc();
 
     configure(kv, conf);
 
