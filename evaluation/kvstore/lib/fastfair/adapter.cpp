@@ -6,7 +6,7 @@ static inline int file_exists(char const *file) {
     return access(file, F_OK);
 }
 
-#define POOL_SIZE   800000000
+#define POOL_SIZE   (64 * 1024ul * 1024ul * 1024ul)
 
 extern "C" {
 
@@ -33,6 +33,7 @@ void kv_stop_test(void *context) {
 }
 
 void *kv_thread_create_context(void *context, int id) {
+    return context;
 }
 
 void kv_thread_destroy_context(void *tcontext) {
