@@ -339,14 +339,14 @@ void clflush_len(volatile void *data, int len)
 
 #include <unistd.h>
 PMEMobjpool *pop;
-char *persistent_path = "/mnt/ext4/node0/dptree";
+char *persistent_path = "/mnt/ext4/dimm0/dptree";
 #define ALIGN_MASK (~0x3f)
 
 static inline int file_exists(char const *file) { return access(file, F_OK); }
 
 void init_pmdk() {
     if (file_exists(persistent_path) != 0) {
-        pop = pmemobj_create(persistent_path, "dptree", 8000000000,
+        pop = pmemobj_create(persistent_path, "dptree", 64 * 1024ul * 1024ul * 1024ul,
                         0666);
     } else {
         pop = pmemobj_open(persistent_path, "dptree");
