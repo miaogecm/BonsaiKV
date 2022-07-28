@@ -45,10 +45,12 @@ bool WorkerThread::applyOperation() {
             }
         }
         else{
+#if 0
             if(ops.op == OpStruct::done){
                 printf("done? %p\n",opsPtr);
             }
             exit(1);
+#endif
         }
         flushToNVM((char*)opsPtr,sizeof(OpStruct));
         smp_wmb();
