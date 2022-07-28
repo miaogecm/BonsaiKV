@@ -46,7 +46,7 @@ constexpr uint64_t kShardSize = std::numeric_limits<uint64_t>::max() / kNumShard
 //constexpr int kMaxNumMemTables = 4;
 constexpr int kMaxNumMemTables = 4;
 //constexpr size_t kMemTableCapacity = 256 * (1ull << 20);
-constexpr size_t kMemTableCapacity = 64 * (1ull << 20) / kMaxNumMemTables;
+constexpr size_t kMemTableCapacity = (1ull << 30) / kMaxNumMemTables;
 
 constexpr int kMaxHeight = 15;
 
