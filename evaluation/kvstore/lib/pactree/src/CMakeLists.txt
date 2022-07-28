@@ -1,4 +1,3 @@
-set(CMAKE_CXX_FLAGS "-DSTRINGKEY")
 file (GLOB pactree_SRCS "*.h" "*.cpp")
 add_library(pactree SHARED
     ${pactree_SRCS}

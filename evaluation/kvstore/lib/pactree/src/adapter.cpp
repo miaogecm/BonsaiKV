@@ -49,6 +49,10 @@ void kv_txn_commit(void *tcontext) {
     assert(0);
 }
 
+void kv_txn_rollback(void *tcontext) {
+    assert(0);
+}
+
 static inline Key_t get_key(void *key, size_t key_len) {
 #ifdef STRINGKEY
     Key_t k;
