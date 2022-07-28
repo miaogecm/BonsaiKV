@@ -1066,8 +1066,8 @@ public:
         memset(stats, 0, sizeof(stats));
         memset(head, 0, sizeof(head));
         memset(art_trees, 0, sizeof(art_trees));
-        printf("sizeof(leaf_node) %d, sizeof(node_meta) %d\n", (int)sizeof(leaf_node),
-               (int)sizeof(typename leaf_node::node_meta));
+        // printf("sizeof(leaf_node) %d, sizeof(node_meta) %d\n", (int)sizeof(leaf_node),
+            //    (int)sizeof(typename leaf_node::node_meta));
         gv = 0;
     }
 
@@ -2435,7 +2435,7 @@ class concur_dptree
                 }
             }
 
-            auto should_insert_f_cpbt = [&key, &value, this](const key_type &k) -> bool {
+            auto should_insert_f_cpbt = [&key, &value, this](const key_type &key) -> bool {
                 return true;
             };
             buffer_tree->update(key, make_upsert_value(value), should_insert_f_cpbt);

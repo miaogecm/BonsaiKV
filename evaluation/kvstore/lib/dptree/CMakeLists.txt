@@ -63,8 +63,8 @@ add_executable (dptree test/dptree_test.cxx
         src/bloom.c)
 
 
-target_link_libraries (concur_dptree pthread tbb tcmalloc_minimal)
-target_link_libraries (dptree pthread tbb tcmalloc_minimal)
+target_link_libraries (concur_dptree pthread tbb tcmalloc_minimal pmemobj)
+target_link_libraries (dptree pthread tbb tcmalloc_minimal pmemobj)
 
 add_library (dptree_dll SHARED adapter.cpp
                                src/util.cpp
@@ -74,4 +74,4 @@ add_library (dptree_dll SHARED adapter.cpp
                                src/art_idx.cpp
                                src/MurmurHash2.cpp
                                src/bloom.c)
-target_link_libraries (dptree_dll pthread tbb tcmalloc_minimal)
+target_link_libraries (dptree_dll pthread tbb tcmalloc_minimal pmemobj)

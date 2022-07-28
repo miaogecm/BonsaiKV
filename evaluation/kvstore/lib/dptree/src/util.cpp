@@ -10,6 +10,9 @@
 #else
 #include <x86intrin.h>
 #endif
+
+#include <libpmemobj.h>
+
 using namespace std;
 
 unsigned long write_latency_in_ns;
@@ -334,16 +337,47 @@ void clflush_len(volatile void *data, int len)
 #endif
 }
 
+#include <unistd.h>
+PMEMobjpool *pop;
+char *persistent_path = "/mnt/ext4/node0/dptree";
+#define ALIGN_MASK (~0x3f)
+
+static inline int file_exists(char const *file) { return access(file, F_OK); }
+
+void init_pmdk() {
+    if (file_exists(persistent_path) != 0) {
+        pop = pmemobj_create(persistent_path, "dptree", 8000000000,
+                        0666);
+    } else {
+        pop = pmemobj_open(persistent_path, "dptree");
+    }
+}
+
 int nvm_dram_alloc(void **ptr, size_t align, size_t size)
 {
+    static int init = 0;
+    if (__glibc_unlikely(!init)) {
+        init = 1;
+        init_pmdk();
+    }
+
     assert(size < 1073741824UL);
-    int ret = posix_memalign(ptr, align, size);
+    PMEMoid oid;
+    int ret = pmemobj_alloc(pop, &oid, size + CACHE_LINE_SIZE, 0, NULL, NULL);
+    *ptr = ((unsigned long)pmemobj_direct(oid) & ALIGN_MASK) + CACHE_LINE_SIZE;
+
     return ret;
+
+    // int ret = posix_memalign(ptr, align, size);
+    // return ret;
 }
 
 void nvm_dram_free(void *ptr, size_t size)
 {
-    free(ptr);
+    // free(ptr);
+
+    PMEMoid oid = pmemobj_oid(ptr);
+    pmemobj_free(&oid);
 }
 
 int nvm_dram_alloc_cacheline_aligned(void **p, size_t size)
