@@ -25,8 +25,8 @@ const char *kv_engine() {
 }
 
 void *kv_create_context(void *config) {
-    const size_t initial_size = 1073741824;  // 1 GiB
-    auto *db = DB::create_new("/mnt/pmem2/viper", initial_size);
+    const size_t initial_size = 64 * 1024ul * 1024ul * 1024ul;  // 64 GiB
+    auto *db = DB::create_new("/mnt/ext4/dimm0/viper", initial_size);
     return db;
 }
 
@@ -66,6 +66,10 @@ void kv_txn_commit(void *tcontext) {
     assert(0);
 }
 
+void kv_txn_rollback(void *tcontext) {
+    assert(0);
+}
+
 static inline Key get_key(void *key, size_t key_len) {
 #ifdef STRING_KEY
     return { (const char *) key, key_len };
@@ -86,12 +90,14 @@ static inline Val get_val(void *val, size_t val_len) {
 
 int kv_put(void *tcontext, void *key, size_t key_len, void *val, size_t val_len) {
     auto *client = static_cast<DBClient *>(tcontext);
-    return client->put(get_key(key, key_len), get_val(val, val_len));
+    client->put(get_key(key, key_len), get_val(val, val_len));
+    return 0;
 }
 
 int kv_del(void *tcontext, void *key, size_t key_len) {
     auto *client = static_cast<DBClient *>(tcontext);
-    return client->remove(get_key(key, key_len));
+    client->remove(get_key(key, key_len));
+    return 0;
 }
 
 int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len) {
