@@ -41,7 +41,7 @@ void *kv_create_context(void *config) {
 
     DB *db;
     Status s;
-    if (cfg->txn_support) {
+    if (cfg && cfg->txn_support) {
         TransactionDB *tdb;
         TransactionDBOptions txn_db_options;
         s = TransactionDB::Open(options, txn_db_options, db_path, &tdb);
