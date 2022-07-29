@@ -55,6 +55,11 @@ struct shim_layer {
     struct inode_pool *pool;
 };
 
+struct log_info {
+    struct oplog *oplog;
+    unsigned pos;
+};
+
 int shim_sentinel_init(pnoid_t sentinel_pnoid);
 int shim_upsert(log_state_t *lst, pkey_t key, logid_t log);
 int shim_lookup(pkey_t key, pval_t *val);

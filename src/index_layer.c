@@ -377,16 +377,6 @@ static void set_flip(uint16_t *flipmap, log_state_t *lst, unsigned pos) {
     *flipmap = tmp;
 }
 
-struct log_info {
-    struct oplog *oplog;
-    unsigned pos;
-};
-
-static int log_info_compare(const void *p, const void *q) {
-    const struct log_info *x = p, *y = q;
-    return pkey_compare(x->oplog->o_kv.k, y->oplog->o_kv.k);
-}
-
 static void inode_dump(inode_t *inode) {
     unsigned long vmp = inode->validmap;
     unsigned pos;
@@ -398,6 +388,8 @@ static void inode_dump(inode_t *inode) {
                pos, *(unsigned long *) log_get_key(inode->logs[pos]).key, inode->fgprt[pos]);
     }
 }
+
+void sort_log_info(struct log_info *logs, int n);
 
 /*
  * Move @inode's keys within range [cut, fence) to another node N.
@@ -426,7 +418,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     }
 
     /* Sort all logs. */
-    qsort(logs, cnt, sizeof(struct log_info), log_info_compare);
+    sort_log_info(logs, cnt);
 
     /* Get new validmaps: @lvmp and @rvmp. */
     if (cut) {
