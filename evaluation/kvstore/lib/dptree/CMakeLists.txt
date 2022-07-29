@@ -35,7 +35,8 @@ else()
 endif()
 
 #-DCOUNT_CLFLUSH  -DCOUNT_CLFLUSH -DNVM_DRAM_MODE -DNVM_DRAM_MODE  -DMEASURE_LEAF_SEARCH  -DNVM_DRAM_MODE
-set (FLAGS " -DCOUNT_CLFLUSH -fpermissive -ftree-vectorize")
+#set (FLAGS " -DCOUNT_CLFLUSH -fpermissive -ftree-vectorize")
+set (FLAGS "-fpermissive -ftree-vectorize")
 set (FLAGS "${FLAGS} ")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FLAGS} ${SIMD_FLAGS}")
 
