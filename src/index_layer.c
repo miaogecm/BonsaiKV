@@ -359,7 +359,7 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     return 0;
 }
 
-static inline pkey_t log_get_key(logid_t log, pnoid_t pno) {
+static inline pkey_t log_get_key(logid_t log) {
     return oplog_get(log)->o_kv.k;
 }
 
@@ -395,7 +395,7 @@ static void inode_dump(inode_t *inode) {
            (unsigned long) inode, *(unsigned long *) inode->rfence.key);
     for_each_set_bit(pos, &vmp, INODE_FANOUT) {
         printf("key[%u]=%lx (%u)\n",
-               pos, *(unsigned long *) log_get_key(inode->logs[pos], inode->pno).key, inode->fgprt[pos]);
+               pos, *(unsigned long *) log_get_key(inode->logs[pos]).key, inode->fgprt[pos]);
     }
 }
 
@@ -405,20 +405,29 @@ static void inode_dump(inode_t *inode) {
  * Both @inode and its successor N will be locked.
  */
 static void inode_split(inode_t *inode, pkey_t *cut) {
-    struct index_layer *i_layer = INDEX(bonsai);
-
     unsigned long validmap = inode->validmap, lmask = 0;
     struct log_info logs[INODE_FANOUT], *log;
+    struct oplog *oplogs[INODE_FANOUT];
     unsigned pos, cnt = 0;
     uint16_t lvmp, rvmp;
     pkey_t fence;
     inode_t *n;
     void *pptr;
 
-    /* Collect all the logs. */
+    /* Collect all the oplogs. */
     for_each_set_bit(pos, &validmap, INODE_FANOUT) {
-        log = &logs[cnt++];
-        log->key = log_get_key(inode->logs[pos], inode->pno);
+        oplogs[cnt++] = oplog_get(inode->logs[pos]);
+    }
+
+    /* Prefetch all the oplogs. */
+    for (pos = 0; pos < cnt; pos++) {
+        cache_prefetchr_high(oplogs[pos]);
+    }
+
+    /* Extract oplog content. */
+    for (pos = 0; pos < cnt; pos++) {
+        log = &logs[pos];
+        log->key = oplogs[pos]->o_kv.k;
         log->pos = pos;
     }
 
@@ -485,7 +494,7 @@ static unsigned inode_find_(logid_t *log, inode_t *inode, pkey_t key, uint8_t *f
     unsigned pos;
     for_each_set_bit(pos, &cmp, INODE_FANOUT) {
         *log = ACCESS_ONCE(inode->logs[pos]);
-        if (likely(!pkey_compare(key, log_get_key(*log, inode->pno)))) {
+        if (likely(!pkey_compare(key, log_get_key(*log)))) {
             return pos;
         }
     }
