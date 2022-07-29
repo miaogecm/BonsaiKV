@@ -18,7 +18,7 @@ void sort_perm_arr(uint8_t *perm, pentry_t *base, int n) {
         perm[i] = i;
     }
     std::sort(perm, perm + n, [base] (const uint8_t &v1, const uint8_t &v2) {
-        return pkey_compare(base[v1].k, base[v2].k);
+        return pkey_compare(base[v1].k, base[v2].k) < 0;
     });
 }
 
