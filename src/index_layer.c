@@ -378,13 +378,13 @@ static void set_flip(uint16_t *flipmap, log_state_t *lst, unsigned pos) {
 }
 
 struct log_info {
-    pkey_t key;
+    struct oplog *oplog;
     unsigned pos;
 };
 
 static int log_info_compare(const void *p, const void *q) {
     const struct log_info *x = p, *y = q;
-    return pkey_compare(x->key, y->key);
+    return pkey_compare(x->oplog->o_kv.k, y->oplog->o_kv.k);
 }
 
 static void inode_dump(inode_t *inode) {
@@ -407,7 +407,6 @@ static void inode_dump(inode_t *inode) {
 static void inode_split(inode_t *inode, pkey_t *cut) {
     unsigned long validmap = inode->validmap, lmask = 0;
     struct log_info logs[INODE_FANOUT], *log;
-    struct oplog *oplogs[INODE_FANOUT];
     unsigned pos, cnt = 0;
     uint16_t lvmp, rvmp;
     pkey_t fence;
@@ -416,19 +415,14 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
 
     /* Collect all the oplogs. */
     for_each_set_bit(pos, &validmap, INODE_FANOUT) {
-        oplogs[cnt++] = oplog_get(inode->logs[pos]);
+        log = &logs[cnt++];
+        log->oplog = oplog_get(inode->logs[pos]);
+        log->pos = pos;
     }
 
     /* Prefetch all the oplogs. */
     for (pos = 0; pos < cnt; pos++) {
-        cache_prefetchr_high(oplogs[pos]);
-    }
-
-    /* Extract oplog content. */
-    for (pos = 0; pos < cnt; pos++) {
-        log = &logs[pos];
-        log->key = oplogs[pos]->o_kv.k;
-        log->pos = pos;
+        cache_prefetchr_high(logs[pos].oplog);
     }
 
     /* Sort all logs. */
@@ -438,7 +432,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     if (cut) {
         for (pos = 0; pos < cnt; pos++) {
             log = &logs[pos];
-            if (pkey_compare(log->key, *cut) >= 0) {
+            if (pkey_compare(log->oplog->o_kv.k, *cut) >= 0) {
                 break;
             }
             __set_bit(log->pos, &lmask);
@@ -449,7 +443,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
         for (pos = 0; pos < cnt / 2; pos++) {
             __set_bit(logs[pos].pos, &lmask);
         }
-        fence = logs[pos].key;
+        fence = logs[pos].oplog->o_kv.k;
     }
     lvmp = lmask;
     rvmp = inode->validmap & ~lmask;
