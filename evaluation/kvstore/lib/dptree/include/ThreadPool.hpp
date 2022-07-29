@@ -29,6 +29,17 @@ private:
     std::condition_variable condition;
     bool stop;
 };
+
+static inline void unbind_cpu() {
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    for (int cpu = 0; cpu < sizeof(cpu_set_t) * 8; cpu++) {
+        CPU_SET(cpu, &mask);
+    }
+    if ((sched_setaffinity(0, sizeof(cpu_set_t), &mask)) != 0) {
+        perror("bind cpu failed\n");
+    }
+}
  
 // the constructor just launches some amount of workers
 inline ThreadPool::ThreadPool(size_t threads)
@@ -38,6 +49,8 @@ inline ThreadPool::ThreadPool(size_t threads)
         workers.emplace_back(
             [this]
             {
+                unbind_cpu();
+
                 for(;;)
                 {
                     std::function<void()> task;
