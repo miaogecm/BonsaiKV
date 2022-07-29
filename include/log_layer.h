@@ -92,7 +92,7 @@ struct cpu_log_region_desc {
     } wb_state;
     void *wb_new_buf;
     int wb_done;
-};
+} ____cacheline_aligned2;
 
 struct log_region_desc {
     struct cpu_log_region_desc descs[NUM_CPU];

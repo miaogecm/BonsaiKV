@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <unistd.h>
+#include <malloc.h>
 #include <sys/types.h>
 
 #include "bonsai.h"
@@ -1193,7 +1194,7 @@ int log_layer_init(struct log_layer* layer) {
 	if (ret)
 		goto out;
 
-	layer->desc = malloc(sizeof(struct log_region_desc));
+	layer->desc = memalign(CACHE_LINE_PREFETCH_UNIT * L1_CACHE_BYTES, sizeof(struct log_region_desc));
 
     for (node = 0; node < NUM_SOCKET; node++) {
         cpu_idx = 0;

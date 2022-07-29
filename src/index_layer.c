@@ -307,6 +307,7 @@ static int shim_layer_init() {
     struct shim_layer *layer = SHIM(bonsai);
     int cpu;
 
+    layer->pool = memalign(CACHE_LINE_PREFETCH_UNIT * L1_CACHE_BYTES, NUM_CPU * sizeof(struct inode_pool));
     for (cpu = 0; cpu < NUM_CPU; cpu++) {
         init_cpu_inode_pool(&layer->pool[cpu], cpu);
     }

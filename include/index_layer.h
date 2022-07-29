@@ -44,9 +44,7 @@ struct smo_log {
 struct inode_pool {
     void *start;
     struct inode *freelist;
-    /* to avoid cacheline ping-pong */
-    char padding[CACHELINE_SIZE];
-};
+} ____cacheline_aligned2;
 
 struct shim_layer {
     atomic_t exit;
@@ -54,7 +52,7 @@ struct shim_layer {
     DECLARE_KFIFO(fifo, struct smo_log, SMO_LOG_QUEUE_CAPACITY_PER_THREAD)[NUM_CPU];
 
     struct inode      *head;
-    struct inode_pool pool[NUM_CPU];
+    struct inode_pool *pool;
 };
 
 int shim_sentinel_init(pnoid_t sentinel_pnoid);
