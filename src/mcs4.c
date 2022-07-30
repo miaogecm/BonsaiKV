@@ -43,6 +43,10 @@ static inline void auto_register_thread() {
     }
 }
 
+void mcs4_init(mcs4_t *lock) {
+    lock->val = NULL_QNODE;
+}
+
 void mcs4_lock(mcs4_t *lock) {
     mcs4_t pred_qid, my_qid;
     struct qnode *qnode;
