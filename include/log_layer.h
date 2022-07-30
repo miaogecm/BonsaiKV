@@ -65,10 +65,10 @@ struct oplog {
 
 struct cpu_log_region_meta {
     __le32 start, end;
-} __packed;
+} __packed ____cacheline_aligned2;
 
 struct cpu_log_region {
-	struct cpu_log_region_meta meta; ____cacheline_aligned 
+	struct cpu_log_region_meta meta;
     struct oplog logs[NUM_OPLOG_PER_CPU];
 } __packed;
 
