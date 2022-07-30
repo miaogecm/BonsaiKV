@@ -15,7 +15,7 @@ struct qnode {
 #define NULL_QNODE          (-1)
 
 #define MAX_NR_THREADS      128
-#define MAX_HOLDING_LOCKS   2
+#define MAX_HOLDING_LOCKS   3
 
 static atomic_t tids = ATOMIC_INIT(0);
 static struct qnode *qtable[MAX_NR_THREADS];
