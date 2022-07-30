@@ -23,8 +23,9 @@
 #include "arch.h"
 #include "index_layer.h"
 #include "ordo.h"
+#include "cna.h"
 
-#define INODE_FANOUT    16
+#define INODE_FANOUT    15
 
 #define NOT_FOUND       (-1u)
 #define NULL_ID         (-1u)
@@ -35,9 +36,25 @@
 /* Index Node: 2 cachelines */
 typedef struct inode {
     /* header, 6-8 words */
-    uint16_t validmap;
-    uint8_t  cpu;
-    uint8_t  deleted;
+    uint16_t   validmap;
+    uint8_t    cpu;
+    uint8_t    deleted;
+    seqcount_t seq;
+
+    uint32_t next;
+    pnoid_t  pno;
+
+    uint8_t  fgprt[INODE_FANOUT];
+    char     padding1[1];
+
+    pkey_t   rfence;
+#ifndef STR_KEY
+	char 	 padding2[16];
+#endif
+
+    cna_lock_t lock;
+
+    /* packed log addresses, 8 words */
     union {
         struct {
             uint16_t flipmap;
@@ -45,21 +62,6 @@ typedef struct inode {
         };
         uint32_t next_free;
     };
-
-    uint32_t next;
-    pnoid_t  pno;
-
-    uint8_t  fgprt[INODE_FANOUT];
-
-    pkey_t   rfence;
-#ifndef STR_KEY
-	char 	 padding[16];
-#endif
-
-    spinlock_t lock;
-    seqcount_t seq;
-
-    /* packed log addresses, 8 words */
     logid_t logs[INODE_FANOUT];
 
 #ifdef INODE_LFENCE
@@ -231,11 +233,11 @@ static inline inode_t *inode_seek(pkey_t key, int may_lookup_pnode, pkey_t *ilfe
 }
 
 static inline void inode_lock(inode_t *inode) {
-    spin_lock(&inode->lock);
+    cna_lock(&inode->lock);
 }
 
 static inline void inode_unlock(inode_t *inode) {
-    spin_unlock(&inode->lock);
+    cna_unlock(&inode->lock);
 }
 
 static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
@@ -349,7 +351,7 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     inode->lfence = MIN_KEY;
 #endif
 
-    spin_lock_init(&inode->lock);
+    cna_lock_init(&inode->lock);
     seqcount_init(&inode->seq);
 
     s_layer->head = inode;
@@ -448,7 +450,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     n->pno = inode->pno;
     n->rfence = inode->rfence;
     n->deleted = 0;
-    spin_lock_init(&n->lock);
+    cna_lock_init(&n->lock);
     seqcount_init(&n->seq);
     memcpy(n->logs, inode->logs, sizeof(inode->logs));
     memcpy(n->fgprt, inode->fgprt, sizeof(inode->fgprt));
