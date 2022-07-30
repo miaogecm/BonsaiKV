@@ -18,7 +18,7 @@
 
 #include "bonsai.h"
 #include "atomic.h"
-#include "seqlock.h"
+#include "mcs4.h"
 #include "data_layer.h"
 #include "arch.h"
 #include "index_layer.h"
@@ -56,7 +56,7 @@ typedef struct inode {
 	char 	 padding[16];
 #endif
 
-    spinlock_t lock;
+    mcs4_t     lock;
     seqcount_t seq;
 
     /* packed log addresses, 8 words */
@@ -231,11 +231,11 @@ static inline inode_t *inode_seek(pkey_t key, int may_lookup_pnode, pkey_t *ilfe
 }
 
 static inline void inode_lock(inode_t *inode) {
-    spin_lock(&inode->lock);
+    mcs4_lock(&inode->lock);
 }
 
 static inline void inode_unlock(inode_t *inode) {
-    spin_unlock(&inode->lock);
+    mcs4_unlock(&inode->lock);
 }
 
 static int inode_crab_and_lock(inode_t **inode, pkey_t key, pkey_t *ilfence) {
@@ -349,7 +349,7 @@ int shim_sentinel_init(pnoid_t sentinel_pnoid) {
     inode->lfence = MIN_KEY;
 #endif
 
-    spin_lock_init(&inode->lock);
+    mcs4_init(&inode->lock);
     seqcount_init(&inode->seq);
 
     s_layer->head = inode;
@@ -448,7 +448,7 @@ static void inode_split(inode_t *inode, pkey_t *cut) {
     n->pno = inode->pno;
     n->rfence = inode->rfence;
     n->deleted = 0;
-    spin_lock_init(&n->lock);
+    mcs4_init(&n->lock);
     seqcount_init(&n->seq);
     memcpy(n->logs, inode->logs, sizeof(inode->logs));
     memcpy(n->fgprt, inode->fgprt, sizeof(inode->fgprt));
