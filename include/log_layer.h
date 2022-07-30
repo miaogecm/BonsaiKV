@@ -80,6 +80,7 @@ struct cpu_log_region_desc {
     struct cpu_log_region *region;
     pthread_mutex_t *dimm_lock;
 
+    uint32_t start, end;
     struct oplog *lcb;
     size_t lcb_size;
 

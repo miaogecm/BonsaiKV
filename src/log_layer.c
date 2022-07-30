@@ -28,8 +28,8 @@
 #include "index_layer.h"
 #include "rcu.h"
 
-//#define LCB_FULL_SIZE   3072
-#define LCB_FULL_SIZE	1536
+#define LCB_FULL_SIZE   3072
+//#define LCB_FULL_SIZE	1536
 #define LCB_MAX_SIZE    (LCB_FULL_SIZE * 2)
 
 #define LCB_FULL_NR     (LCB_FULL_SIZE / sizeof(struct oplog))
@@ -192,9 +192,9 @@ static inline size_t max_load_per_socket(size_t avg_load) {
     return avg_load + avg_load / 8;
 }
 
-static inline int oplog_overflow_size(struct cpu_log_region_meta *meta, uint32_t nr) {
-    uint32_t d1 = (meta->end - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
-    uint32_t d2 = (nr - meta->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
+static inline int oplog_overflow_size(struct cpu_log_region_desc *desc, uint32_t nr) {
+    uint32_t d1 = (desc->end - desc->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
+    uint32_t d2 = (nr - desc->start + NUM_OPLOG_PER_CPU) % NUM_OPLOG_PER_CPU;
     return (int) (d2 - d1);
 }
 
@@ -206,7 +206,6 @@ void oplog_snapshot_lst(log_state_t *lst) {
 struct oplog *oplog_get(logid_t logid) {
     union logid_u id = { .id = logid };
     struct cpu_log_region_desc *desc;
-    struct cpu_log_region_meta meta;
     struct oplog *oplog;
     unsigned seq;
     int overflow;
@@ -216,8 +215,7 @@ struct oplog *oplog_get(logid_t logid) {
     do {
         seq = read_seqcount_begin(&desc->seq);
 
-        meta = ACCESS_ONCE(desc->region->meta);
-        overflow = oplog_overflow_size(&meta, id.nr);
+        overflow = oplog_overflow_size(desc, id.nr);
 
         if (unlikely(overflow >= 0)) {
             oplog = &desc->lcb[overflow];
@@ -233,7 +231,7 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
 	struct log_layer* layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
     struct cpu_log_region *region = local_desc->region;
-    uint32_t end = region->meta.end;
+    uint32_t end = local_desc->end;
     struct oplog *lcb;
     size_t len, c;
 
@@ -266,12 +264,15 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
 
     local_desc->lcb_size = 0;
 
-    write_seqcount_begin(&local_desc->seq);
+    /* durable point */
     region->meta.end = end;
+    bonsai_flush(&region->meta.end, sizeof(__le32), 1);
+
+    /* linearizable point */
+    write_seqcount_begin(&local_desc->seq);
+    local_desc->end = end;
     local_desc->lcb = lcb;
     write_seqcount_end(&local_desc->seq);
-
-    bonsai_flush(&region->meta.end, sizeof(__le32), 1);
 }
 
 static void handle_wb(int signo) {
@@ -297,8 +298,7 @@ static void handle_wb(int signo) {
 logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop_t txop, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
-    struct cpu_log_region *region = local_desc->region;
-    uint32_t end = region->meta.end;
+    uint32_t end = local_desc->end;
     static __thread int last = 0;
 	struct oplog* log;
     union logid_u id;
@@ -429,11 +429,10 @@ static void force_wb() {
 static void snapshot_cpu_log(struct cpu_log_snapshot *snap, int cpu) {
 	struct log_layer *layer = LOG(bonsai);
     struct cpu_log_region_desc *local_desc = &layer->desc->descs[cpu];
-    struct cpu_log_region *region = local_desc->region;
 
     snap->cpu = cpu;
-    snap->region_start = region->meta.start;
-    snap->region_end = region->meta.end;
+    snap->region_start = local_desc->start;
+    snap->region_end = local_desc->end;
 }
 
 static size_t fetch_cpu_logs(size_t *nr_logs_processed, uint32_t *new_region_starts,
@@ -1037,9 +1036,11 @@ static int flush_work(void *arg) {
 
 static void cleanup_logs(const uint32_t *new_region_starts) {
 	struct log_layer *l_layer = LOG(bonsai);
+    struct cpu_log_region_desc *desc;
     int cpu;
     for (cpu = 0; cpu < NUM_CPU; cpu++) {
-        l_layer->desc->descs[cpu].region->meta.start = new_region_starts[cpu];
+        desc = &l_layer->desc->descs[cpu];
+        desc->region->meta.start = desc->start = new_region_starts[cpu];
     }
 }
 
@@ -1210,6 +1211,8 @@ int log_layer_init(struct log_layer* layer) {
 
                 desc = &layer->desc->descs[cpu];
                 desc->region = &layer->dimm_regions[dimm]->regions[i];
+                desc->start = desc->region->meta.start;
+                desc->end = desc->region->meta.end;
                 desc->lcb_size = 0;
                 desc->lcb = malloc(LCB_MAX_SIZE * sizeof(*desc->lcb));
                 desc->wb_state = WBS_ENABLE;
