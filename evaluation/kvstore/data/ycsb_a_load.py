@@ -31,7 +31,7 @@ LATENCY = {
     'viper':    [805.80, 91.209, 49.217, 38.965, 37.387, 30.221, 40.993],
 
     # Nbg:Nfg = 1:2, at least 2 Nbg
-    'bonsai':   [SIZE, SIZE, SIZE, SIZE, SIZE, 25.009, 24.024]
+    'bonsai':   [215.8, 60.62, 37.806, 25.398, 20.525, 22.674, 24.024]
 }
 
 import numpy as np
@@ -63,7 +63,7 @@ ax = plt.gca()
 ax.set_xticks(xs)
 ax.set_xticklabels(xs, fontdict=font2)
 
-ytick=[0,2,4,6,8,10,12,14,16,18,20]
+ytick=[0,2,4,6,8,10,12,14,16,18,20,22,24]
 ax.set_yticks(ytick)
 ax.set_yticklabels(ytick, fontdict=font2)
 
