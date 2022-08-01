@@ -42,6 +42,25 @@ THROUGHPUT = {}
 for kvstore, latencies in LATENCY.items():
     THROUGHPUT[kvstore] = list(map(lambda x: SIZE / x / M, latencies))
 
+print ('dptree:')
+print (THROUGHPUT['dptree'])
+print ('fastfair1:')
+print (THROUGHPUT['fastfair'])
+print ('listdb:')
+print (THROUGHPUT['listdb'])
+print ('novelsm:')
+print (THROUGHPUT['novelsm'])
+print ('pactree:')
+print (THROUGHPUT['pactree'])
+print ('procksdb:')
+print (THROUGHPUT['procksdb'])
+print ('slmdb:')
+print (THROUGHPUT['slmdb'])
+print ('viper:')
+print (THROUGHPUT['viper'])
+print ('bonsai:')
+print (THROUGHPUT['bonsai'])
+
 xs = THREADS
 
 plt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='s', markersize=8, linestyle='-', linewidth=2, label='DPTree')
