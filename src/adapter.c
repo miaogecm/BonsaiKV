@@ -15,8 +15,8 @@
 
 #define INT2KEY(val)        (* (pkey_t *) (unsigned long []) { (val) })
 
-#define VCLASS      VCLASS_16B
-#define VAL_LEN     16
+#define VCLASS      VCLASS_256B
+#define VAL_LEN     256
 
 struct bonsai_config {
     int nr_user_cpus;
