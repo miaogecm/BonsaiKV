@@ -9,9 +9,16 @@ THREADS = [1, 8, 16, 24, 32, 40, 48]
 LATENCY = {
     # thread num: 1/8/16/24/32/40/48
 
+    # bottleneck:
+    # Non log-structured: write amplification +
+    # Log-structured: contention(BW) + metadata cacheline thrashing(perf L3 cache miss)
+
     # Nbg:Nfg = 1:2, at least 2 Nbg
+    # dm-stripe 2M-Interleave
+    # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
     'dptree':   [403.7, 185.066, 150.930, 139.017, 130.152, 127.745, 127.129],
 
+    # dm-stripe 2M-Interleave
     'fastfair': [1457.413, 201.052, 107.171, 81.114, 70.346, 71.346, 87.691],
 
     # 1GB memtable, max number=4
@@ -28,6 +35,8 @@ LATENCY = {
 
     'slmdb':    [SIZE, SIZE, SIZE, SIZE, SIZE, SIZE, SIZE],
 
+    # dm-stripe 4K-Interleave
+    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
     'viper':    [805.80, 91.209, 49.217, 38.369, 31.291, 27.717, 26.775],
 
     # Nbg:Nfg = 1:2, at least 2 Nbg
