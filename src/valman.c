@@ -77,44 +77,40 @@ static inline pval_t pval_make_nv(enum vclass vclass, int dimm, unsigned long of
 static void create_vpool() {
     struct data_layer *d_layer = DATA(bonsai);
 
-    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), i;
-    void *curr[NUM_DIMM_PER_SOCKET];
-    int dimm_idx, dimm, cpu, vc;
+    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), nr;
+    int node, cpu_idx, dimm_idx, dimm, cpu, vc, i;
     struct vpool_hdr *hdr;
     __le64 *last_next;
+    void *curr;
 
-    for (vc = 0; vc < NR_VCLASS; vc++) {
-        assert(vclass_descs[vc].nr_val_max_per_cpu % NUM_DIMM_PER_SOCKET == 0);
-    }
+    for (node = 0; node < NUM_SOCKET; node++) {
+        cpu_idx = 0;
 
-    hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
+        for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
+            dimm = node_idx_to_dimm(node, dimm_idx);
 
-    for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
-        dimm = node_idx_to_dimm(0, dimm_idx);
-        curr[dimm_idx] = d_layer->val_region[dimm].d_start + hdr_sz;
-    }
+            curr = d_layer->val_region[dimm].d_start + hdr_sz;
 
-    for (cpu = 0; cpu < NUM_CPU; cpu++) {
-        for (vc = 0; vc < NR_VCLASS; vc++) {
-            last_next = &hdr->cpu_vpool_hdrs[cpu].free[vc];
+            for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
+                cpu = node_idx_to_cpu(node, cpu_idx);
 
-            dimm_idx = 0;
-            for (i = 0; i < vclass_descs[vc].nr_val_max_per_cpu; i++) {
-                dimm = node_idx_to_dimm(0, dimm_idx);
+                for (vc = 0; vc < NR_VCLASS; vc++) {
+                    last_next = &hdr->cpu_vpool_hdrs[cpu].free[vc];
 
-                *last_next = pval_make_nv(vc, dimm, curr[dimm_idx] - d_layer->val_region[dimm].d_start);
-                bonsai_flush(last_next, sizeof(__le64), 0);
+                    for (nr = 0; nr < vclass_descs[vc].nr_val_max_per_cpu; nr++) {
+                        *last_next = pval_make_nv(vc, dimm, curr - d_layer->val_region[dimm].d_start);
+                        bonsai_flush(last_next, sizeof(__le64), 0);
 
-                last_next = curr[dimm_idx] + vclass_descs[vc].size;
-                curr[dimm_idx] += vclass_descs[vc].size + sizeof(__le64);
+                        last_next = curr + vclass_descs[vc].size;
+                        curr += vclass_descs[vc].size + sizeof(__le64);
+                    }
 
-                dimm_idx = (dimm_idx + 1) % NUM_DIMM_PER_SOCKET;
+                    *last_next = PVAL_NULL;
+
+                    bonsai_print("vpool created for cpu %d vc %d, free pval: %llx\n",
+                                 cpu, vc, hdr->cpu_vpool_hdrs[cpu].free[vc]);
+                }
             }
-
-            *last_next = PVAL_NULL;
-
-            bonsai_print("vpool created for cpu %d vc %d, free pval: %llx\n",
-                         cpu, vc, hdr->cpu_vpool_hdrs[cpu].free[vc]);
         }
     }
 
@@ -249,7 +245,7 @@ size_t valman_vpool_dimm_size() {
     int i;
     for (i = 0; i < NR_VCLASS; i++) {
         val_size = vclass_descs[i].size + sizeof(unsigned long);
-        size += NUM_CPU * val_size * (vclass_descs[i].nr_val_max_per_cpu / NUM_DIMM_PER_SOCKET);
+        size += NUM_CPU_PER_DIMM * val_size * vclass_descs[i].nr_val_max_per_cpu;
     }
     return size;
 }

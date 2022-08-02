@@ -1211,7 +1211,7 @@ int log_layer_init(struct log_layer* layer) {
             dimm_lock = malloc(sizeof(pthread_mutex_t));
             pthread_mutex_init(dimm_lock, NULL);
 
-            for (i = 0; i < NUM_CPU_PER_LOG_DIMM; i++, cpu_idx++) {
+            for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);
 
                 desc = &layer->desc->descs[cpu];
@@ -1240,7 +1240,7 @@ void log_layer_deinit(struct log_layer* layer) {
 	int node, cpu;
 
 	for (node = 0; node < NUM_SOCKET; node++) {
-		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu++) {
+		for (cpu = 0; cpu < NUM_CPU_PER_DIMM; cpu++) {
 			//desc = &layer->desc->descs[cpu];
 		}
 	}

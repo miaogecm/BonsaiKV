@@ -16,7 +16,6 @@ extern "C" {
 #include "region.h"
 
 #define NUM_OPLOG_PER_CPU       (LOG_REGION_SIZE / NUM_CPU / sizeof(struct oplog))
-#define NUM_CPU_PER_LOG_DIMM    (NUM_CPU / NUM_DIMM)
 
 typedef enum {
 	OP_NOP = 0,
@@ -73,7 +72,7 @@ struct cpu_log_region {
 } __packed;
 
 struct dimm_log_region {
-    struct cpu_log_region regions[NUM_CPU_PER_LOG_DIMM];
+    struct cpu_log_region regions[NUM_CPU_PER_DIMM];
 } __packed;
 
 struct cpu_log_region_desc {

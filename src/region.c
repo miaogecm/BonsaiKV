@@ -103,7 +103,7 @@ int log_region_init(struct log_layer *layer) {
 		layer->dimm_regions[dimm] = vaddr;
 		layer->dimm_region_fd[dimm] = fd;
 
-		for (cpu = 0; cpu < NUM_CPU_PER_LOG_DIMM; cpu ++) {
+		for (cpu = 0; cpu < NUM_CPU_PER_DIMM; cpu ++) {
 			layer->dimm_regions[dimm]->regions[cpu].meta.start = 
 				layer->dimm_regions[dimm]->regions[cpu].meta.end = 0;
 		}
