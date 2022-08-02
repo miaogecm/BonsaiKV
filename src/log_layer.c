@@ -233,15 +233,20 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
     struct cpu_log_region *region = local_desc->region;
     uint32_t end = local_desc->end;
     struct oplog *lcb;
-    size_t len, c;
-
-    /* Make sure value allocations are persistent. */
-    valman_persist_cpu(cpu);
+    size_t len, c, i;
 
     lcb = local_desc->lcb;
     len = local_desc->lcb_size;
 
-    while ((c = min(NUM_OPLOG_PER_CPU- end, len))) {
+    /* persist values */
+    for (i = 0; i < len; i++) {
+        valman_persist_val(lcb[i].o_kv.v);
+    }
+
+    /* Make sure value allocations are persistent. */
+    valman_persist_alloca_cpu(cpu);
+
+    while ((c = min(NUM_OPLOG_PER_CPU - end, len))) {
         memcpy_nt(&region->logs[end], lcb, c * sizeof(struct oplog), 0);
         end  = (end + c) % NUM_OPLOG_PER_CPU;
         len -= c;

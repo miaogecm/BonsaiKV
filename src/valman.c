@@ -183,7 +183,6 @@ pval_t valman_make_nv_cpu(pval_t val, int cpu) {
     src = pval_ptr(val);
     size = vclass_descs[desc.vclass].size;
     memcpy(dst, src, size);
-    bonsai_flush(dst, size, 1);
     vpool->free[desc.vclass] = pval_next_free(vpool->free[desc.vclass]);
     return n;
 }
@@ -215,7 +214,14 @@ void *valman_extract_v(size_t *size, pval_t val) {
     return pval_ptr(val);
 }
 
-void valman_persist_cpu(int cpu) {
+void valman_persist_val(pval_t val) {
+    union pval_desc desc = { .pval = val };
+    size_t size = vclass_descs[desc.vclass].size;
+    void *p = pval_ptr(val);
+    bonsai_flush(p, size, 1);
+}
+
+void valman_persist_alloca_cpu(int cpu) {
     struct vpool *vpool = DATA(bonsai)->vpool;
     union pval_desc desc;
     int vc;

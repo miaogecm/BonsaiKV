@@ -29,7 +29,8 @@ pval_t valman_make_v_local(pval_t val);
 void valman_free_v(pval_t victim);
 void *valman_extract_v(size_t *size, pval_t val);
 
-void valman_persist_cpu(int cpu);
+void valman_persist_val(pval_t val);
+void valman_persist_alloca_cpu(int cpu);
 
 void valman_pull(pval_t val);
 
@@ -61,7 +62,9 @@ static inline void *valman_extract_v(size_t *size, pval_t val) {
     assert(0);
 }
 
-static inline void valman_persist_cpu(int cpu) {}
+void valman_persist_val(pval_t val) {}
+
+static inline void valman_persist_alloca_cpu(int cpu) {}
 
 static inline void valman_pull(pval_t val) {}
 
@@ -71,8 +74,8 @@ static inline pval_t valman_make_nv(pval_t val) {
     return valman_make_nv_cpu(val, __this->t_cpu);
 }
 
-static inline void valman_persist() {
-    valman_persist_cpu(__this->t_cpu);
+static inline void valman_persist_alloca() {
+    valman_persist_alloca_cpu(__this->t_cpu);
 }
 
 extern pval_t bonsai_make_val(enum vclass vclass, void *val);
