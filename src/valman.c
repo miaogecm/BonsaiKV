@@ -182,6 +182,7 @@ static inline pval_t pval_next_free(pval_t pval) {
 }
 
 pval_t valman_make_nv_cpu(pval_t val, int cpu) {
+    pthread_mutex_t *dimm_lock = LOG(bonsai)->desc->descs[cpu].dimm_lock;
     struct cpu_vpool *vpool = &DATA(bonsai)->vpool->cpu_vpools[cpu];
     union pval_desc desc = { .pval = val };
     void *dst, *src;
@@ -192,8 +193,11 @@ pval_t valman_make_nv_cpu(pval_t val, int cpu) {
     dst = pval_ptr(n);
     src = pval_ptr(val);
     size = vclass_descs[desc.vclass].size;
+    pthread_mutex_lock(dimm_lock);
     memcpy(dst, src, size);
     vpool->free[desc.vclass] = pval_next_free(vpool->free[desc.vclass]);
+    bonsai_flush(dst, size, 0);
+    pthread_mutex_unlock(dimm_lock);
     return n;
 }
 

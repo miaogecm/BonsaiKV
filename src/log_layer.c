@@ -238,11 +238,6 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
     lcb = local_desc->lcb;
     len = local_desc->lcb_size;
 
-    /* persist values */
-    for (i = 0; i < len; i++) {
-        valman_persist_val(lcb[i].o_kv.v);
-    }
-
     /* Make sure value allocations are persistent. */
     valman_persist_alloca_cpu(cpu);
 
