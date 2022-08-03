@@ -76,10 +76,20 @@ static inline pval_t pval_make_nv(enum vclass vclass, int dimm, unsigned long of
     return desc.pval;
 }
 
+static size_t get_dimm_size_on_socket() {
+    size_t size = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), val_size;
+    int i;
+    for (i = 0; i < NR_VCLASS; i++) {
+        val_size = vclass_descs[i].size + sizeof(unsigned long);
+        size += NUM_CPU_PER_DIMM * val_size * vclass_descs[i].nr_val_max_per_cpu;
+    }
+    return size;
+}
+
 static void create_vpool() {
     struct data_layer *d_layer = DATA(bonsai);
 
-    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), nr;
+    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), nr, dimm_size_on_socket = get_dimm_size_on_socket();
     int node, cpu_idx, dimm_idx, dimm, cpu, vc, i;
     struct vpool_hdr *hdr;
     __le64 *last_next;
@@ -93,7 +103,7 @@ static void create_vpool() {
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
             dimm = node_idx_to_dimm(node, dimm_idx);
 
-            curr = d_layer->val_region[dimm].d_start + hdr_sz;
+            curr = d_layer->val_region[dimm].d_start + hdr_sz + node * dimm_size_on_socket;
 
             for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);
@@ -245,13 +255,7 @@ void valman_pull(pval_t val) {
 }
 
 size_t valman_vpool_dimm_size() {
-    size_t size = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), val_size;
-    int i;
-    for (i = 0; i < NR_VCLASS; i++) {
-        val_size = vclass_descs[i].size + sizeof(unsigned long);
-        size += NUM_CPU_PER_DIMM * val_size * vclass_descs[i].nr_val_max_per_cpu;
-    }
-    return size;
+    return get_dimm_size_on_socket() * NUM_SOCKET;
 }
 
 void valman_vpool_init() {
