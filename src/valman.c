@@ -83,14 +83,15 @@ static void create_vpool() {
     __le64 *last_next;
     void *curr;
 
+    hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
+
     for (node = 0; node < NUM_SOCKET; node++) {
         cpu_idx = 0;
 
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
             dimm = node_idx_to_dimm(node, dimm_idx);
 
-            hdr = d_layer->val_region[dimm].d_start;
-            curr = (void *) hdr + hdr_sz;
+            curr = d_layer->val_region[dimm].d_start + hdr_sz;
 
             for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);
