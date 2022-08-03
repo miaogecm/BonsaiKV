@@ -16,7 +16,7 @@ extern "C" {
 #define CACHELINE_SIZE  64
 #define XPLINE_SIZE     256
 
-//#define ARCH_SUPPORT_CLWB
+#define ARCH_SUPPORT_CLWB
 
 #define PAGE_SHIFT	12
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)

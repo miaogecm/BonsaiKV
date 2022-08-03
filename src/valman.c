@@ -216,7 +216,7 @@ void valman_persist_val(pval_t val) {
     union pval_desc desc = { .pval = val };
     size_t size = vclass_descs[desc.vclass].size;
     void *p = pval_ptr(val);
-    bonsai_flush(p, size, 1);
+    bonsai_flush(p, size, 0);
 }
 
 void valman_persist_alloca_cpu(int cpu) {
