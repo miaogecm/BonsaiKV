@@ -44,7 +44,7 @@ struct vclass_desc {
 };
 
 static struct vclass_desc vclass_descs[] = {
-    [VCLASS_256B]  = { 2400000, 256 },
+    [VCLASS_248B]  = { 2400000, 248 },
 };
 
 struct cpu_vpool_hdr {

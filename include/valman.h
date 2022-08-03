@@ -15,7 +15,7 @@
 #include "thread.h"
 
 enum vclass {
-    VCLASS_256B = 0,
+    VCLASS_248B = 0,
     NR_VCLASS
 };
 
