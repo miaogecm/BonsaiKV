@@ -21,7 +21,7 @@ static char valbuf[VAL_LEN];
 
 static void *get_val(size_t *len) {
     *len = VAL_LEN;
-    return "aaaabbbb";
+    return valbuf;
 }
 
 static void do_op(struct kvstore *kvstore, void *tcontext, ycsb_decompressor_t *dec, long id) {

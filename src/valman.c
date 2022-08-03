@@ -89,7 +89,8 @@ static void create_vpool() {
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
             dimm = node_idx_to_dimm(node, dimm_idx);
 
-            curr = d_layer->val_region[dimm].d_start + hdr_sz;
+            hdr = d_layer->val_region[dimm].d_start;
+            curr = (void *) hdr + hdr_sz;
 
             for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);
