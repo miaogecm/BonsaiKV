@@ -9,6 +9,8 @@
  * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  */
 
+#include <malloc.h>
+
 #include "bonsai.h"
 #include "valman.h"
 
@@ -57,7 +59,7 @@ struct vpool_hdr {
 
 struct cpu_vpool {
     pval_t free[NR_VCLASS];
-} __attribute__((aligned(CACHELINE_SIZE)));
+} ____cacheline_aligned2;
 
 struct vpool {
     struct cpu_vpool cpu_vpools[NUM_CPU];
@@ -120,7 +122,7 @@ static void create_vpool() {
 }
 
 static struct vpool *get_vpool() {
-    struct vpool *vpool = malloc(sizeof(*vpool));
+    struct vpool *vpool = memalign(CACHE_LINE_PREFETCH_UNIT * L1_CACHE_BYTES, sizeof(*vpool));
     int cpu, vc;
     vpool->hdr = DATA(bonsai)->val_region[node_idx_to_dimm(0, 0)].d_start;
     for (cpu = 0; cpu < NUM_CPU; cpu++) {
