@@ -319,7 +319,7 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
 
     if (unlikely(local_desc->lcb_size >= LCB_FULL_NR
 			&& local_desc->lcb_size % 4 == 0)) {
-        if (pthread_mutex_trylock(local_desc->dimm_lock)) {
+        if (!pthread_mutex_trylock(local_desc->dimm_lock)) {
             write_back(cpu, 1, NULL);
         } else if (unlikely(local_desc->lcb_size >= LCB_MAX_NR)) {
             write_back(cpu, 0, NULL);
