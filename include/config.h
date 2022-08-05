@@ -29,8 +29,8 @@ extern "C" {
 
 //#define STR_KEY
 #define STR_VAL
-#define VAL_LEN                 1024
-#define CPU_VAL_POOL_SIZE       2400000
+#define VAL_LEN                 16384
+#define CPU_VAL_POOL_SIZE       384000
 #define STAGING_PERSIST_GRANU   256
 
 #define USE_DEVDAX
