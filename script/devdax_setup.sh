@@ -2,10 +2,10 @@
 
 NR_DIMM=12
 FILES=(
-  "bonsai:1"
-  "log:6"
-  "pnopool:9"
-  "pvalpool:98"
+  "bonsai 1"
+  "log 6"
+  "pnopool 9"
+  "pvalpool 98"
 )
 
 ndctl destroy-namespace all --force
@@ -15,9 +15,8 @@ echo > .mapping
 for i in $(seq 0 $((NR_DIMM - 1))); do
   rm -rf /mnt/ext4/dimm$i
   for file in "${FILES[@]}"; do
-    IFS=':' read -ra info <<< $file
-    filename=${file[0]}
-    size=$((${file[1]} * 1024 * 1024 * 1024))
+    filename=$(echo $file | awk '{ print($1) }')
+    size=$(echo $file | awk '{ print($2) }')
     echo "creating /mnt/ext4/dimm$i/$filename ($size bytes)"
     output=$(ndctl create-namespace --size=$size --region=region$i --mode=devdax | tee /dev/tty)
     dev=$(echo "$output" | python3 -c "import sys, json; print(json.load(sys.stdin)['daxregion']['devices'][0]['chardev'])")
