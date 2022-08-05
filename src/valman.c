@@ -8,6 +8,7 @@
  * Author: Miao Cai, mcai@hhu.edu.cn
  * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  */
+#define _GNU_SOURCE
 
 #include <malloc.h>
 
