@@ -66,6 +66,11 @@ struct vpool {
     struct vpool_hdr *hdr;
 };
 
+struct vpool_init_task {
+    pthread_t thread;
+    int node, dimm, cpu;
+};
+
 static inline pval_t pval_make_v(enum vclass vclass, void *addr) {
     union pval_desc desc = { .is_nv = 0, .vclass = vclass, .addr = (unsigned long) addr };
     return desc.pval;
@@ -86,16 +91,49 @@ static size_t get_dimm_size_on_socket() {
     return size;
 }
 
-static void create_vpool() {
+static void *vpool_init_worker(void *arg) {
     struct data_layer *d_layer = DATA(bonsai);
 
-    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), nr, dimm_size_on_socket = get_dimm_size_on_socket();
-    int node, cpu_idx, dimm_idx, dimm, cpu, vc, i;
+    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), i, dimm_size_on_socket = get_dimm_size_on_socket();
+    struct vpool_init_task *task = arg;
     struct vpool_hdr *hdr;
     __le64 *last_next;
     void *curr;
+    int vc;
+
+    bind_to_cpu(task->cpu);
 
     hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
+
+    curr = d_layer->val_region[task->dimm].d_start + hdr_sz + task->node * dimm_size_on_socket;
+
+    for (vc = 0; vc < NR_VCLASS; vc++) {
+        assert(vclass_descs[vc].size >= sizeof(*last_next));
+
+        last_next = &hdr->cpu_vpool_hdrs[task->cpu].free[vc];
+
+        for (i = 0; i < vclass_descs[vc].nr_val_max_per_cpu; i++) {
+            *last_next = pval_make_nv(vc, task->dimm, curr - d_layer->val_region[task->dimm].d_start);
+            bonsai_flush(last_next, sizeof(__le64), 0);
+
+            last_next = curr;
+            curr += vclass_descs[vc].size;
+        }
+
+        *last_next = PVAL_NULL;
+
+        bonsai_print("vpool created for cpu %d vc %d, free pval: %llx\n",
+                     task->cpu, vc, hdr->cpu_vpool_hdrs[task->cpu].free[vc]);
+    }
+
+    return NULL;
+}
+
+static void create_vpool() {
+    int node, cpu_idx, dimm_idx, dimm, cpu, i;
+    struct vpool_init_task tasks[NUM_CPU];
+
+    printf("Launching vpool creation workers...\n");
 
     for (node = 0; node < NUM_SOCKET; node++) {
         cpu_idx = 0;
@@ -103,32 +141,23 @@ static void create_vpool() {
         for (dimm_idx = 0; dimm_idx < NUM_DIMM_PER_SOCKET; dimm_idx++) {
             dimm = node_idx_to_dimm(node, dimm_idx);
 
-            curr = d_layer->val_region[dimm].d_start + hdr_sz + node * dimm_size_on_socket;
-
             for (i = 0; i < NUM_CPU_PER_DIMM; i++, cpu_idx++) {
                 cpu = node_idx_to_cpu(node, cpu_idx);
 
-                for (vc = 0; vc < NR_VCLASS; vc++) {
-                    assert(vclass_descs[vc].size >= sizeof(*last_next));
+                tasks[cpu].node = node;
+                tasks[cpu].dimm = dimm;
+                tasks[cpu].cpu = cpu;
 
-                    last_next = &hdr->cpu_vpool_hdrs[cpu].free[vc];
-
-                    for (nr = 0; nr < vclass_descs[vc].nr_val_max_per_cpu; nr++) {
-                        *last_next = pval_make_nv(vc, dimm, curr - d_layer->val_region[dimm].d_start);
-                        bonsai_flush(last_next, sizeof(__le64), 0);
-
-                        last_next = curr;
-                        curr += vclass_descs[vc].size;
-                    }
-
-                    *last_next = PVAL_NULL;
-
-                    bonsai_print("vpool created for cpu %d vc %d, free pval: %llx\n",
-                                 cpu, vc, hdr->cpu_vpool_hdrs[cpu].free[vc]);
-                }
+                pthread_create(&tasks[cpu].thread, NULL, vpool_init_worker, &tasks[cpu]);
             }
         }
     }
+
+    for (cpu = 0; cpu < NUM_CPU; cpu++) {
+        pthread_join(tasks[cpu].thread, NULL);
+    }
+
+    printf("vpool created\n");
 
     persistent_barrier();
 }
