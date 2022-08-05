@@ -14,6 +14,7 @@ echo > .mapping
 
 for i in $(seq 0 $((NR_DIMM - 1))); do
   rm -rf /mnt/ext4/dimm$i
+  mkdir -p /mnt/ext4/dimm$i
   for file in "${FILES[@]}"; do
     filename=$(echo $file | awk '{ print($1) }')
     size=$(($(echo $file | awk '{ print($2) }') * 1024 * 1024 * 1024))
