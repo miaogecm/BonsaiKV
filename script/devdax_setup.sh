@@ -16,7 +16,7 @@ for i in $(seq 0 $((NR_DIMM - 1))); do
   rm -rf /mnt/ext4/dimm$i
   for file in "${FILES[@]}"; do
     filename=$(echo $file | awk '{ print($1) }')
-    size=$(echo $file | awk '{ print($2) }')
+    size=$(($(echo $file | awk '{ print($2) }') * 1024 * 1024 * 1024))
     echo "creating /mnt/ext4/dimm$i/$filename ($size bytes)"
     output=$(ndctl create-namespace --size=$size --region=region$i --mode=devdax | tee /dev/tty)
     dev=$(echo "$output" | python3 -c "import sys, json; print(json.load(sys.stdin)['daxregion']['devices'][0]['chardev'])")
