@@ -219,11 +219,13 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 		error = -EOPEN;
 		goto out;	
 	}
-	
+
+#ifndef USE_DEVDAX
 	if ((error = posix_fallocate(fd, 0, PAGE_SIZE)) != 0) {
 		perror("posix_fallocate");
 		goto out;
 	}
+#endif
 
 	addr = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FILE, fd, 0);
 	if (addr == MAP_FAILED) {
