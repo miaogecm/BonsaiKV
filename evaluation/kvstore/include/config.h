@@ -17,4 +17,8 @@ struct bonsai_config {
     int stm_support;
 };
 
+struct pacman_config {
+    int num_workers;
+};
+
 #endif //KVSTORE_CONFIG_H

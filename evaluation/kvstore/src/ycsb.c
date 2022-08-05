@@ -98,6 +98,9 @@ void run_ycsb(const char *kvlib, int str_key_, int str_val_) {
         struct bonsai_config *c = malloc(sizeof(*c));
         c->stm_support = 0;
         conf = c;
+    } else if (!strcmp(engine, "pacman")) {
+        struct pacman_config *c = malloc(sizeof(*c));
+        conf = c;
     }
     run_kvstore(&kvstore, conf, 2, stage_func);
     free(conf);

@@ -123,6 +123,9 @@ static inline void configure(struct kvstore *kv, void *conf) {
         for (id = 0; id < NUM_THREADS; id++) {
             c->user_cpus[id] = cpu_of(id);
         }
+    } else if (!strcmp(engine, "pacman")) {
+        struct pacman_config *c = conf;
+        c->num_workers = NUM_THREADS;
     }
 }
 
