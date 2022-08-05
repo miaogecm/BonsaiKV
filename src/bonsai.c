@@ -227,7 +227,7 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 	}
 #endif
 
-	addr = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FILE, fd, 0);
+	addr = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE, fd, 0);
 	if (addr == MAP_FAILED) {
 		perror("mmap");
 		error = -EMMAP;
