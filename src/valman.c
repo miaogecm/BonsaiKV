@@ -109,6 +109,9 @@ static void *vpool_init_worker(void *arg) {
 
     bind_to_cpu(task->cpu);
 
+    bonsai_print("vpool init task running on cpu %d (#%d in dimm), dimm %d, node %d\n",
+                 task->cpu, task->idx, task->dimm, task->node);
+
     hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
 
     curr =  d_layer->val_region[task->dimm].d_start + hdr_sz;
