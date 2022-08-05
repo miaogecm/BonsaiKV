@@ -95,7 +95,7 @@ include_directories(
   "${PROJECT_BINARY_DIR}"
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -march=native")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -march=native -fPIC")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g -ggdb -pthread -march=native")
 
 aux_source_directory(${PROJECT_SOURCE_DIR}/db DB_FILES)
