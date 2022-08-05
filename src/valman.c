@@ -69,7 +69,7 @@ struct vpool {
 
 struct vpool_init_task {
     pthread_t thread;
-    int node, dimm, cpu;
+    int node, dimm, cpu, idx;
 };
 
 static inline pval_t pval_make_v(enum vclass vclass, void *addr) {
@@ -82,20 +82,25 @@ static inline pval_t pval_make_nv(enum vclass vclass, int dimm, unsigned long of
     return desc.pval;
 }
 
-static size_t get_dimm_size_on_socket() {
+static size_t get_cpu_pool_size() {
     size_t size = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), val_size;
     int i;
     for (i = 0; i < NR_VCLASS; i++) {
-        val_size = vclass_descs[i].size + sizeof(unsigned long);
-        size += NUM_CPU_PER_DIMM * val_size * vclass_descs[i].nr_val_max_per_cpu;
+        val_size = vclass_descs[i].size;
+        size += val_size * vclass_descs[i].nr_val_max_per_cpu;
     }
     return size;
+}
+
+static size_t get_dimm_pool_size() {
+    return get_cpu_pool_size() * NUM_CPU_PER_DIMM;
 }
 
 static void *vpool_init_worker(void *arg) {
     struct data_layer *d_layer = DATA(bonsai);
 
-    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), i, dimm_size_on_socket = get_dimm_size_on_socket();
+    size_t dimm_pool_sz = get_dimm_pool_size(), cpu_pool_sz = get_cpu_pool_size();
+    size_t hdr_sz = ALIGN(sizeof(struct vpool_hdr), PAGE_SIZE), i;
     struct vpool_init_task *task = arg;
     struct vpool_hdr *hdr;
     __le64 *last_next;
@@ -106,7 +111,8 @@ static void *vpool_init_worker(void *arg) {
 
     hdr = d_layer->val_region[node_idx_to_dimm(0, 0)].d_start;
 
-    curr = d_layer->val_region[task->dimm].d_start + hdr_sz + task->node * dimm_size_on_socket;
+    curr =  d_layer->val_region[task->dimm].d_start + hdr_sz;
+    curr += task->node * dimm_pool_sz + task->idx * cpu_pool_sz;
 
     for (vc = 0; vc < NR_VCLASS; vc++) {
         assert(vclass_descs[vc].size >= sizeof(*last_next));
@@ -148,6 +154,7 @@ static void create_vpool() {
                 tasks[cpu].node = node;
                 tasks[cpu].dimm = dimm;
                 tasks[cpu].cpu = cpu;
+                tasks[cpu].idx = i;
 
                 pthread_create(&tasks[cpu].thread, NULL, vpool_init_worker, &tasks[cpu]);
             }
@@ -280,7 +287,7 @@ void valman_pull(pval_t val) {
 }
 
 size_t valman_vpool_dimm_size() {
-    return get_dimm_size_on_socket() * NUM_SOCKET;
+    return get_dimm_pool_size() * NUM_SOCKET;
 }
 
 void valman_vpool_init() {
