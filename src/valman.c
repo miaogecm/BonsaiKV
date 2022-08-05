@@ -109,14 +109,16 @@ static void create_vpool() {
                 cpu = node_idx_to_cpu(node, cpu_idx);
 
                 for (vc = 0; vc < NR_VCLASS; vc++) {
+                    assert(vclass_descs[vc].size >= sizeof(*last_next));
+
                     last_next = &hdr->cpu_vpool_hdrs[cpu].free[vc];
 
                     for (nr = 0; nr < vclass_descs[vc].nr_val_max_per_cpu; nr++) {
                         *last_next = pval_make_nv(vc, dimm, curr - d_layer->val_region[dimm].d_start);
                         bonsai_flush(last_next, sizeof(__le64), 0);
 
-                        last_next = curr + vclass_descs[vc].size;
-                        curr += vclass_descs[vc].size + sizeof(__le64);
+                        last_next = curr;
+                        curr += vclass_descs[vc].size;
                     }
 
                     *last_next = PVAL_NULL;
@@ -175,29 +177,25 @@ static inline pval_t pval_nv_to_local(pval_t pval) {
 #endif
 }
 
-static inline pval_t pval_next_free(pval_t pval) {
-    union pval_desc desc = { .pval = pval };
-    assert(desc.is_nv);
-    return *(__le64 *) (pval_ptr(pval) + vclass_descs[desc.vclass].size);
-}
-
 pval_t valman_make_nv_cpu(pval_t val, int cpu) {
-    pthread_mutex_t *dimm_lock = LOG(bonsai)->desc->descs[cpu].dimm_lock;
     struct cpu_vpool *vpool = &DATA(bonsai)->vpool->cpu_vpools[cpu];
     union pval_desc desc = { .pval = val };
+    pval_t n = vpool->free[desc.vclass];
     void *dst, *src;
     size_t size;
-    pval_t n;
-    n = pval_nv_to_node(vpool->free[desc.vclass], cpu_to_node(cpu));
     assert(n != PVAL_NULL);
     dst = pval_ptr(n);
     src = pval_ptr(val);
+    vpool->free[desc.vclass] = *(__le64 *) dst;
     size = vclass_descs[desc.vclass].size;
-    pthread_mutex_lock(dimm_lock);
-    memcpy(dst, src, size);
-    vpool->free[desc.vclass] = pval_next_free(vpool->free[desc.vclass]);
-    bonsai_flush(dst, size, 0);
-    pthread_mutex_unlock(dimm_lock);
+    for (; size >= STAGING_PERSIST_GRANU; size -= STAGING_PERSIST_GRANU) {
+        memcpy_nt(dst, src, STAGING_PERSIST_GRANU, 1);
+        dst += STAGING_PERSIST_GRANU;
+        src += STAGING_PERSIST_GRANU;
+    }
+    if (size) {
+        memcpy_nt(dst, src, size, 1);
+    }
     return n;
 }
 
@@ -226,13 +224,6 @@ void *valman_extract_v(size_t *size, pval_t val) {
     assert(!desc.is_nv);
     *size = vclass_descs[desc.vclass].size;
     return pval_ptr(val);
-}
-
-void valman_persist_val(pval_t val) {
-    union pval_desc desc = { .pval = val };
-    size_t size = vclass_descs[desc.vclass].size;
-    void *p = pval_ptr(val);
-    bonsai_flush(p, size, 0);
 }
 
 void valman_persist_alloca_cpu(int cpu) {

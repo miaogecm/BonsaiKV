@@ -29,8 +29,9 @@ extern "C" {
 
 //#define STR_KEY
 #define STR_VAL
-#define VAL_LEN                 1016
+#define VAL_LEN                 1024
 #define CPU_VAL_POOL_SIZE       2400000
+#define STAGING_PERSIST_GRANU   256
 
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
     return NUM_SOCKET * cpu_idx + node;
