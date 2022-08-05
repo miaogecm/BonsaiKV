@@ -63,11 +63,6 @@ option(MEASURE_LATENCY "MEASURE_LATENCY" OFF)
 option(USE_ALL_CORES "use all cores in a numa node" OFF)
 option(TEST_LOAD "TEST_LOAD" OFF)
 
-configure_file(
-  "${PROJECT_SOURCE_DIR}/benchmarks/bench_config.h.in"
-  "${PROJECT_BINARY_DIR}/bench_config.h"
-)
-
 ############
 
 option(EVAL_OTHER_SYSTEMS "build and evaluate other systems" ON)
@@ -120,7 +115,6 @@ add_library(masstree ${MASSTREE_SOURCE_FILES})
 target_compile_options(masstree PRIVATE
           $<$<COMPILE_LANGUAGE:CXX>:-include ${PROJECT_SOURCE_DIR}/db/index/masstree/config.h>)
 
-add_subdirectory(benchmarks)
 add_subdirectory(example)
 
 add_executable(pacman ${DB_FILES} adapter.cpp)
