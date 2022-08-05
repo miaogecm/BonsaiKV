@@ -14,6 +14,8 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 
+#include "config.h"
+
 #ifndef LOCAL
 typedef uint64_t 	pval_t;
 
@@ -42,9 +44,6 @@ typedef uint8_t		__le8;
 #define __le16_to_cpu(x)	(x)
 #define __le32_to_cpu(x)	(x)
 #define __le64_to_cpu(x)	(x)
-
-//#define STR_KEY
-#define STR_VAL
 
 #ifdef STR_KEY
 

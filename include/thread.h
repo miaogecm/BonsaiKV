@@ -14,9 +14,6 @@ extern "C" {
 #include "list.h"
 #include "common.h"
 
-#define NUM_USER_THREAD				48
-
-#define NUM_PFLUSH_WORKER_PER_NODE	12
 #define NUM_PFLUSH_WORKER           (NUM_PFLUSH_WORKER_PER_NODE * NUM_SOCKET)
 #define NUM_PFLUSH_THREAD           (NUM_PFLUSH_WORKER + 1)
 
