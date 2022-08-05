@@ -239,6 +239,9 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 	bonsai->fd = fd;
 	bonsai->desc = (struct bonsai_desc*)addr;
 
+    /* TODO: Recovery */
+    bonsai->desc->init = 0;
+
   	if (!bonsai->desc->init) {
 		/* 1. initialize index layer */
 		index_layer_init(index_name, &bonsai->i_layer, init, 
