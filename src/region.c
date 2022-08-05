@@ -85,12 +85,14 @@ int log_region_init(struct log_layer *layer) {
         	goto out;
     	}
 
+#ifndef USE_DEVDAX
     	/* allocate the pmem */
     	if (posix_fallocate(fd, 0, (off_t) size_per_dimm) != 0) {
             ret = errno;
         	perror("posix_fallocate");
         	goto out;
     	}
+#endif
 
     	/* memory map it, a page for metadata */
     	if ((vaddr = mmap(NULL, size_per_dimm,
@@ -144,12 +146,14 @@ int pnode_region_init(struct data_layer *layer) {
         	goto out;
     	}
 
+#ifndef USE_DEVDAX
     	/* allocate the pmem */
     	if (posix_fallocate(fd, 0, (off_t) size_per_dimm) != 0) {
             ret = errno;
         	perror("posix_fallocate");
         	goto out;
     	}
+#endif
 
     	/* memory map it */
     	if ((vaddr = mmap(NULL, size_per_dimm,
@@ -201,12 +205,14 @@ int pval_region_init(struct data_layer *layer) {
         	goto out;
     	}
 
+#ifndef USE_DEVDAX
     	/* allocate the pmem */
     	if (posix_fallocate(fd, 0, (off_t) size_per_dimm) != 0) {
             ret = errno;
         	perror("posix_fallocate");
         	goto out;
     	}
+#endif
 
     	/* memory map it */
     	if ((vaddr = mmap(NULL, size_per_dimm,

@@ -33,6 +33,8 @@ extern "C" {
 #define CPU_VAL_POOL_SIZE       2400000
 #define STAGING_PERSIST_GRANU   256
 
+#define USE_DEVDAX
+
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
     return NUM_SOCKET * cpu_idx + node;
 }
