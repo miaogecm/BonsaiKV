@@ -13,7 +13,7 @@ extern "C" {
 #include "config.h"
 
 #define NOCPU	(-1)
-#define MAXCPU	48
+#define MAXCPU	NUM_CPU
 
 extern int cpu_used[NUM_CPU];
 
