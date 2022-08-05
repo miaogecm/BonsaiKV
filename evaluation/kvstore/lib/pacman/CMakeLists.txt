@@ -117,7 +117,7 @@ target_compile_options(masstree PRIVATE
 
 add_subdirectory(example)
 
-add_executable(pacman ${DB_FILES} adapter.cpp)
+add_library(pacman SHARED ${DB_FILES} adapter.cpp)
 target_link_libraries(pacman ${PMEM} ${PMEMOBJ})
 if (INDEX_TYPE EQUAL 1)
   target_link_libraries(pacman cceh)
