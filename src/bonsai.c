@@ -202,7 +202,7 @@ void bonsai_deinit() {
   log_layer_deinit(&bonsai->l_layer);
   data_layer_deinit(&bonsai->d_layer);
 
-	munmap((void*)bonsai->desc, PAGE_SIZE);
+	munmap((void*)bonsai->desc, ALIGN(sizeof(struct bonsai_desc), PMM_PAGE_SIZE));
 	close(bonsai->fd);
 
 	free(bonsai);
@@ -227,7 +227,7 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 	}
 #endif
 
-	addr = mmap(NULL, PMM_PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE, fd, 0);
+	addr = mmap(NULL, ALIGN(sizeof(struct bonsai_desc), PMM_PAGE_SIZE), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE, fd, 0);
 	if (addr == MAP_FAILED) {
 		perror("mmap");
 		error = -EMMAP;

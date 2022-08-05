@@ -95,7 +95,7 @@ int log_region_init(struct log_layer *layer) {
 #endif
 
     	/* memory map it, a page for metadata */
-    	if ((vaddr = mmap(NULL, size_per_dimm,
+    	if ((vaddr = mmap(NULL, ALIGN(size_per_dimm, PMM_PAGE_SIZE),
                           PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
             ret = errno;
        		perror("mmap");
@@ -125,7 +125,7 @@ void log_region_deinit(struct log_layer* layer) {
 	free(layer->desc);
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
-		munmap(layer->dimm_regions[dimm], size_per_dimm);
+		munmap(layer->dimm_regions[dimm], ALIGN(size_per_dimm, PMM_PAGE_SIZE));
 		close(layer->dimm_region_fd[dimm]);
 	}
 }
@@ -156,7 +156,7 @@ int pnode_region_init(struct data_layer *layer) {
 #endif
 
     	/* memory map it */
-    	if ((vaddr = mmap(NULL, size_per_dimm,
+    	if ((vaddr = mmap(NULL, ALIGN(size_per_dimm, PMM_PAGE_SIZE),
                           PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
             ret = errno;
        		perror("mmap");
@@ -182,7 +182,7 @@ void pnode_region_deinit(struct data_layer *layer) {
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
 			region = &layer->pno_region[dimm];
-      munmap(region->d_start, size_per_dimm);
+      munmap(region->d_start, ALIGN(size_per_dimm, PMM_PAGE_SIZE));
 			close(region->d_fd);
 	}
 }
@@ -215,7 +215,7 @@ int pval_region_init(struct data_layer *layer) {
 #endif
 
     	/* memory map it */
-    	if ((vaddr = mmap(NULL, size_per_dimm,
+    	if ((vaddr = mmap(NULL, ALIGN(size_per_dimm, PMM_PAGE_SIZE),
                           PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, fd, 0)) == MAP_FAILED) {
             ret = errno;
        		perror("mmap");
@@ -241,7 +241,7 @@ void pval_region_deinit(struct data_layer *layer) {
 
 	for (dimm = 0; dimm < NUM_DIMM; dimm++) {
         region = &layer->val_region[dimm];
-        munmap(region->d_start, size_per_dimm);
+        munmap(region->d_start, ALIGN(size_per_dimm, PMM_PAGE_SIZE));
         close(region->d_fd);
 	}
 }
