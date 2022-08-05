@@ -8,7 +8,3 @@ for i in $(seq 0 $((NR_DIMM - 1))); do
   mkfs.ext4 ${PMEMS[$i]}
   mount -t ext4 -o dax ${PMEMS[$i]} /mnt/ext4/dimm$i
 done
-
-ulimit -c unlimited
-
-echo "$PWD/../index/masstree/core" > /proc/sys/kernel/core_pattern
