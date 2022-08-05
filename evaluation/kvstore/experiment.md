@@ -86,39 +86,53 @@ Highlight techniques:
 
 #### 3.5 Write-intensive benchmark
 
-YCSB-A load+op
+YCSB-A Load (100% Write):
 
-+ Load 4800Mops, Read 4800Mops
++ Load 5000000 each thread
 + Key: 8B Val: 8B
-+ Uniform distribution
++ Uniform
 
-Load (100% Write):
+| KVStore              | Throughput (1/16/32/48/64/80/96) |
+| -------------------- | -------------------------------- |
+| DPTree               |                                  |
+| FastFair             |                                  |
+| ListDB               |                                  |
+| PACTree              |                                  |
+| Viper                |                                  |
+| Bonsai               |                                  |
+| FlatStore-M + Pacman |                                  |
 
-| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
-| ------------ | ----------------------------------- |
-| DPTree       |                                     |
-| FastFair     |                                     |
-| ListDB       |                                     |
-| NoveLSM      |                                     |
-| PACTree      |                                     |
-| pmem-rocksdb |                                     |
-| SLM-DB       |                                     |
-| Viper        |                                     |
-| Bonsai       |                                     |
+YCSB-A Load (100% Write):
 
-Op (50% Write, 50% Read)
++ Load 320000 each thread
++ Key: 8B Val: 16KB
++ Uniform
 
-| KVStore      | Throughput (1/2/4/8/16/24/32/40/48) |
-| ------------ | ----------------------------------- |
-| DPTree       |                                     |
-| FastFair     |                                     |
-| ListDB       |                                     |
-| NoveLSM      |                                     |
-| PACTree      |                                     |
-| pmem-rocksdb |                                     |
-| SLM-DB       |                                     |
-| Viper        |                                     |
-| Bonsai       |                                     |
+| KVStore              | Throughput/PMMWBW (1/16/32/48/64/80/96) |
+| -------------------- | --------------------------------------- |
+| DPTree               |                                         |
+| FastFair             |                                         |
+| ListDB               |                                         |
+| PACTree              |                                         |
+| Viper                |                                         |
+| Bonsai               |                                         |
+| FlatStore-M + Pacman |                                         |
+
+YCSB-A Op (50% Write, 50% Read):
+
++ Load 5000000 each thread
++ Key: 24B Val: 8B
++ Uniform
+
+| KVStore              | Throughput (1/16/32/48/64/80/96) |
+| -------------------- | -------------------------------- |
+| DPTree               |                                  |
+| FastFair             |                                  |
+| ListDB               |                                  |
+| PACTree              |                                  |
+| FlatStore-M + Pacman |                                  |
+| Viper                |                                  |
+| Bonsai               |                                  |
 
 TPC-C, TATP
 
