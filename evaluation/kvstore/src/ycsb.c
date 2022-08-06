@@ -16,7 +16,8 @@ static ycsb_decompressor_t load_dec, op_dec;
 #define LOAD_PATH   "tools/index-microbench/workloads/load"
 #define OP_PATH     "tools/index-microbench/workloads/op"
 
-#define VAL_LEN     16384
+//#define VAL_LEN     16384
+#define VAL_LEN     8
 static char valbuf[VAL_LEN];
 
 static void *get_val(size_t *len) {
