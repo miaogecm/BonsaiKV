@@ -1,11 +1,16 @@
 #!/bin/python3
 
 # YCSB-A Load
-# size: 5M per thread key: 8B val: 8B distribution: uniform
+# preload size: 5M per thread
+# load size: 2.5M per thread
+# key: 8B
+# val: 8B
+# distribution: uniform
+# memory limit: 24GiB
 
 M = 1000000
-MAX = 480 * M
-SIZE = 5 * M
+MAX = 240 * M
+SIZE = 2.5 * M
 THREADS = [1, 16, 32, 48, 64, 80, 96]
 LATENCY = {
     # thread num: 1/16/32/48/64/80/96
@@ -17,33 +22,33 @@ LATENCY = {
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
     # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
-    'dptree':   [5.637, 16.087, 40.180, 63.992, 88.607, 105.647, 130.707],
+    'dptree':   [2.818, 8.043, 20.090, 31.996, 44.304, 52.824, 65.354],
 
     # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
     # bottleneck: large SMO overhead, node metadata cacheline thrashing
-    'fastfair': [10.165, 17.308, 21.987, 31.275, 53.361, 73.197, 93.999],
+    'fastfair': [5.083, 8.654, 10.994, 15.638, 26.681, 36.599, 46.999],
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # devdax
     # bottleneck: skiplist too high (perf reports high cache-miss rate when lockfree_skiplist::find_position)
-    'listdb':   [12.318, 20.586, 22.403, 25.397, 28.213, 35.746, 41.528],
+    'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
 
     # 1 worker per node (default setting)
     # devdax
-    'pactree':  [10.314, 18.292, 23.856, 38.482, 53.556, 71.810, 84.143],
+    'pactree':  [5.157, 9.146, 11.928, 19.241, 26.778, 35.905, 42.072],
 
     # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
-    'pacman':   [3.130, 7.730, 8.622, 9.154, 11.439, 20.075, 37.410],
+    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
 
     # dm-stripe 4K-Interleave
     # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, 8.536],
 
     # Nbg:Nfg = 1:2, at least 2 Nbg
     # devdax
-    'bonsai':   [2.780, 7.020, 8.669, 9.275, 9.896, 12.765, 16.206]
+    'bonsai':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX]
 }
 
 import numpy as np
