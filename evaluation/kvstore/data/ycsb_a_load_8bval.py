@@ -7,6 +7,7 @@
 # val: 8B
 # distribution: uniform
 # memory limit: 24GiB
+# fsdax + dm-stripe (for NUMA-oblivious designs)
 
 M = 1000000
 MAX = 240 * M
@@ -20,26 +21,25 @@ LATENCY = {
     # Log-structured: contention(BW) + metadata cacheline thrashing(perf L3 cache miss)
 
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
+    # dm-stripe 2M-Interleave
     # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
     'dptree':   [2.818, 8.043, 20.090, 31.996, 44.304, 52.824, 65.354],
 
-    # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
+    # dm-stripe 2M-Interleave
     # bottleneck: large SMO overhead, node metadata cacheline thrashing
     'fastfair': [5.083, 8.654, 10.994, 15.638, 26.681, 36.599, 46.999],
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    # devdax
     # bottleneck: skiplist too high (perf reports high cache-miss rate when lockfree_skiplist::find_position)
     'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
 
     # 1 worker per node (default setting)
-    # devdax
     'pactree':  [5.157, 9.146, 11.928, 19.241, 26.778, 35.905, 42.072],
 
-    # dm-stripe 2M-Interleave, fsdax + prefault (run twice) (devdax does not support dm-stripe)
+    # dm-stripe 2M-Interleave
+    # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
 
     # dm-stripe 4K-Interleave
@@ -47,7 +47,6 @@ LATENCY = {
     'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
 
     # Nbg:Nfg = 1:2, at least 2 Nbg
-    # devdax
     'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
 }
 
