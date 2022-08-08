@@ -44,11 +44,11 @@ LATENCY = {
 
     # dm-stripe 4K-Interleave
     # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, 8.536],
+    'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
 
     # Nbg:Nfg = 1:2, at least 2 Nbg
     # devdax
-    'bonsai':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX]
+    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
 }
 
 import numpy as np
@@ -78,7 +78,7 @@ ax = plt.gca()
 ax.set_xticks(xs)
 ax.set_xticklabels(xs, fontdict=font2)
 
-ytick=[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32]
+ytick=[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50]
 ax.set_yticks(ytick)
 ax.set_yticklabels(ytick, fontdict=font2)
 
