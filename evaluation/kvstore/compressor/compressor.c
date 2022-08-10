@@ -55,11 +55,9 @@ int main(int argc, char **argv) {
         if (!strcmp(buf, "INSERT")) {
             fscanf(in, "%s", buf);
             append(OP_INSERT, buf, 0);
-            fscanf(in, "%s", buf);
         } else if (!strcmp(buf, "UPDATE")) {
             fscanf(in, "%s", buf);
             append(OP_UPDATE, buf, 0);
-            fscanf(in, "%s", buf);
         } else if (!strcmp(buf, "READ")) {
             fscanf(in, "%s", buf);
             append(OP_READ, buf, 0);
