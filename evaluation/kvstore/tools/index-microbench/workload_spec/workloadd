@@ -28,7 +28,7 @@
 
 recordcount=${LOAD_COUNT}
 operationcount=${OP_COUNT}
-workload=com.yahoo.ycsb.workloads.CoreWorkload
+workload=site.ycsb.workloads.CoreWorkload
 fieldcount=1
 fieldlength=8
 

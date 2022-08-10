@@ -31,7 +31,7 @@ recordcount=${LOAD_COUNT}
 operationcount=${OP_COUNT}
 fieldlength=15
 
-workload=com.yahoo.ycsb.workloads.CoreWorkload
+workload=site.ycsb.workloads.CoreWorkload
 
 readallfields=true
 
