@@ -28,14 +28,14 @@
 # https://github.com/brianfrankcooper/YCSB/wiki/Core-Properties
 
 # The name of the workload class to use
-workload=com.yahoo.ycsb.workloads.CoreWorkload
+workload=site.ycsb.workloads.CoreWorkload
 
 # There is no default setting for recordcount but it is
 # required to be set.
 # The number of records in the table to be inserted in
 # the load phase or the number of records already in the 
 # table before the run phase.
-recordcount=36000000000
+recordcount=1000000
 
 # There is no default setting for operationcount but it is
 # required to be set.
@@ -132,6 +132,10 @@ measurementtype=histogram
 # The output file will be appended to if it already exists, otherwise
 # a new output file will be created.
 #measurement.raw.output_file = /tmp/your_output_file_for_this_run
+
+# Whether or not to emit individual histogram buckets when measuring
+# using histograms.
+# measurement.histogram.verbose = false
 
 # JVM Reporting.
 #

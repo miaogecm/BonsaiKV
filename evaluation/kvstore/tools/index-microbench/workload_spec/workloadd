@@ -26,8 +26,8 @@
 # which orders items purely by time, and demands the latest, is very different than 
 # workload here (which we believe is more typical of how people build systems.)
 
-recordcount=36000000
-operationcount=36000000
+recordcount=${LOAD_COUNT}
+operationcount=${OP_COUNT}
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 fieldcount=1
 fieldlength=8
@@ -39,5 +39,5 @@ updateproportion=0
 scanproportion=0
 insertproportion=0.05
 
-requestdistribution=latest
+requestdistribution=${DISTRIB}
 

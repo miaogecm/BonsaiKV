@@ -27,8 +27,8 @@
 # key, and then request a number of records; this works fine even for hashed insertion.
 
 fieldcount=1
-recordcount=10000
-operationcount=10000
+recordcount=${LOAD_COUNT}
+operationcount=${OP_COUNT}
 fieldlength=15
 
 workload=com.yahoo.ycsb.workloads.CoreWorkload
@@ -40,7 +40,7 @@ updateproportion=0
 scanproportion=0.95
 insertproportion=0.05
 
-requestdistribution=uniform
+requestdistribution=${DISTRIB}
 
 maxscanlength=100
 

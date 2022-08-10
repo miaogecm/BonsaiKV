@@ -62,17 +62,17 @@ GOTO exit
 @REM Determine YCSB command argument
 IF NOT "load" == "%1" GOTO noload
 SET YCSB_COMMAND=-load
-SET YCSB_CLASS=com.yahoo.ycsb.Client
+SET YCSB_CLASS=site.ycsb.Client
 GOTO gotCommand
 :noload
 IF NOT "run" == "%1" GOTO noRun
 SET YCSB_COMMAND=-t
-SET YCSB_CLASS=com.yahoo.ycsb.Client
+SET YCSB_CLASS=site.ycsb.Client
 GOTO gotCommand
 :noRun
 IF NOT "shell" == "%1" GOTO noShell
 SET YCSB_COMMAND=
-SET YCSB_CLASS=com.yahoo.ycsb.CommandLine
+SET YCSB_CLASS=site.ycsb.CommandLine
 GOTO gotCommand
 :noShell
 ECHO [ERROR] Found unknown command '%1'
@@ -123,6 +123,20 @@ echo [WARN] The 'cassandra2-cql' client has been deprecated. It has been renamed
 SET BINDING_DIR=cassandra
 :notAliasCassandra
 
+@REM hbase14 replaced with hbase1
+IF NOT "%BINDING_DIR%" == "hbase14" GOTO notAliasHBase14
+echo [WARN] The 'hbase14' client has been deprecated. HBase 1.y users should rely on the 'hbase1' client instead.
+SET BINDING_DIR=hbase1
+:notAliasHBase14
+
+@REM arangodb3 deprecation message
+IF NOT "%BINDING_DIR%" == "arangodb3" GOTO notAliasArangodb3
+echo [WARN] The 'arangodb3' client has been deprecated. The binding 'arangodb' now covers every ArangoDB version. This alias will be removed in the next YCSB release.
+SET BINDING_DIR=arangodb
+:notAliasArangodb3
+
+@REM Build classpath according to source checkout or release distribution
+IF EXIST "%YCSB_HOME%\pom.xml" GOTO gotSource
 @REM Build classpath according to source checkout or release distribution
 IF EXIST "%YCSB_HOME%\pom.xml" GOTO gotSource
 
@@ -144,7 +158,11 @@ GOTO classpathComplete
 
 :gotSource
 @REM Check for some basic libraries to see if the source has been built.
-IF EXIST "%YCSB_HOME%\%BINDING_DIR%\target\*.jar" GOTO gotJars
+IF EXIST "%YCSB_HOME%\core\target\dependency\*.jar" (
+  IF EXIST "%YCSB_HOME%\%BINDING_DIR%\target\*.jar" (
+    GOTO gotJars
+  )
+)
 
 @REM Call mvn to build source checkout.
 IF "%BINDING_NAME%" == "basic" GOTO buildCore
@@ -155,7 +173,7 @@ SET MVN_PROJECT=core
 :gotMvnProject
 
 ECHO [WARN] YCSB libraries not found.  Attempting to build...
-CALL mvn -pl com.yahoo.ycsb:%MVN_PROJECT% -am package -DskipTests
+CALL mvn -Psource-run -pl site.ycsb:%MVN_PROJECT% -am package -DskipTests
 IF %ERRORLEVEL% NEQ 0 (
   ECHO [ERROR] Error trying to build project. Exiting.
   GOTO exit
@@ -164,6 +182,11 @@ IF %ERRORLEVEL% NEQ 0 (
 :gotJars
 @REM Core libraries
 FOR %%F IN (%YCSB_HOME%\core\target\*.jar) DO (
+  SET CLASSPATH=!CLASSPATH!;%%F%
+)
+
+@REM Core dependency libraries
+FOR %%F IN (%YCSB_HOME%\core\target\dependency\*.jar) DO (
   SET CLASSPATH=!CLASSPATH!;%%F%
 )
 
