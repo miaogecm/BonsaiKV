@@ -1,5 +1,5 @@
 SPEC=$1
-NR_THREAD=48
+NR_THREAD=96
 
 cd ./YCSB
 
