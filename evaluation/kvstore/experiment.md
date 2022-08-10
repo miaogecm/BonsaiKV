@@ -60,11 +60,11 @@ Telecommunication Application Transaction Processing: TATP
 
 #### 3.4 Read-intensive benchmark
 
-YCSB-B op, YCSB-C op, YCSB-D op
+YCSB-C op, YCSB-D op
 
 + Load 480Mops, Read 4800Mops
-+ Key: 24B Val: 8B/256B
-+ Zipfian distribution
++ Key: 8B/24B Val: 8B/256B
++ Uniform/Zipfian distribution
 
 | KVStore                          | Throughput (1/2/4/8/16/24/32/40/48) |
 | -------------------------------- | ----------------------------------- |
@@ -88,9 +88,12 @@ Highlight techniques:
 
 YCSB-A Load (100% Write):
 
-+ Load 5000000 each thread
++ Preload 5000000 each thread
+
++ Load 2500000 each thread
 + Key: 8B Val: 8B
 + Uniform
++ Memory Limit: 16GiB
 
 | KVStore              | Throughput (1/16/32/48/64/80/96) |
 | -------------------- | -------------------------------- |
