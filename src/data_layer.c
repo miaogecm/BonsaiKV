@@ -716,7 +716,7 @@ pkey_t pnode_get_rfence(pnoid_t pnode) {
 }
 
 void pnode_prefetch_meta(pnoid_t pnode) {
-    cache_prefetchr_high(pnode_meta(pnode));
+    cache_prefetchr_high(get_cnode(pnode));
 }
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
