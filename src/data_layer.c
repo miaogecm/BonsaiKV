@@ -66,6 +66,11 @@ typedef struct dnode {
     pentry_t     ents[PNODE_INTERLEAVING_SIZE / sizeof(pentry_t)];
 } dnode_t;
 
+typedef struct cnode {
+    uint64_t     validmap;
+    uint8_t      fgprt[PNODE_FANOUT];
+} ____cacheline_aligned cnode_t;
+
 #define PNODE_NUM_PERMUTE       64
 
 int pnode_dimm_permute[PNODE_NUM_PERMUTE][PNODE_NUM_BLK] = {
@@ -168,6 +173,11 @@ static inline void *pnode_get_blk(pnoid_t pno, unsigned blk) {
 
 static mnode_t *pnode_meta(pnoid_t pno) {
     return pnode_get_blk(pno, 0);
+}
+
+static cnode_t *get_cnode(pnoid_t pno) {
+    union pnoid_u u = { .id = pno };
+    return &DATA(bonsai)->cnodes[u.blk_nr];
 }
 
 static inline void *pnoptr_cvt_node(void *ptr, int to_node, int from_node, int dimm_idx) {
@@ -292,12 +302,18 @@ static void gen_fgprt(pnoid_t pnode, const pentry_t *ents) {
 }
 
 static void pnode_init_from_arr(pnoid_t pnode, const pentry_t *ents, unsigned n) {
+    mnode_t *mno = pnode_meta(pnode);
+    cnode_t *cno = get_cnode(pnode);
     unsigned i;
-    pnode_meta(pnode)->validmap = (1ul << n) - 1;
+
+    mno->validmap = (1ul << n) - 1;
     for (i = 0; i < n; i++) {
         *pnode_ent(pnode, i, 0) = ents[i];
     }
     gen_fgprt(pnode, ents);
+
+    cno->validmap = mno->validmap;
+    memcpy(cno->fgprt, mno->fgprt, sizeof(cno->fgprt));
 }
 
 static void arr_init_from_pnode(pentry_t *ents, pnoid_t pnode, unsigned *n) {
@@ -472,6 +488,7 @@ static void flush_ents(pnoid_t pnode, unsigned long changemap) {
 static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap, changemap = 0;
+    cnode_t *cno = get_cnode(pnode);
     pbatch_cursor_t cursor;
     size_t insert_cnt = 0;
     pbatch_op_t *op;
@@ -521,6 +538,8 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
     flush_ents(pnode, changemap);
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 
+    cno->validmap = validmap;
+
     pnode_inc_version(mno);
 
 	return insert_cnt;
@@ -529,6 +548,7 @@ static size_t pnode_run_nosmo(pnoid_t pnode, struct list_head *pbatch_list) {
 static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, struct list_head *pbatch_list) {
     mnode_t *mno = pnode_meta(pnode);
     unsigned long validmap = mno->validmap;
+    cnode_t *cno = get_cnode(pnode);
     pbatch_cursor_t cursor;
     pbatch_op_t *op;
     unsigned pos;
@@ -548,7 +568,7 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
         e->k = op->key;
         e->v = op->val;
 
-        mno->fgprt[pos] = pkey_get_signature(op->key);
+        cno->fgprt[pos] = mno->fgprt[pos] = pkey_get_signature(op->key);
 
         __set_bit(pos, &validmap);
     }
@@ -560,7 +580,8 @@ static void pnode_inplace_insert(pnoid_t *start, pnoid_t *end, pnoid_t pnode, st
     mno->validmap = validmap;
     bonsai_flush(&mno->validmap, sizeof(__le64), 1);
 
-    /* It contains a mfence. */
+    cno->validmap = validmap;
+
     pnode_inc_version(mno);
 
     *start = *end = pnode;
@@ -699,14 +720,14 @@ void pnode_prefetch_meta(pnoid_t pnode) {
 }
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
-    mnode_t *mno = pnode_meta(pnode);
+    cnode_t *cno = get_cnode(pnode);
     uint8_t fgprt[PNODE_FANOUT];
     unsigned long validmap;
     pentry_t ent;
     int ret = 0;
 
-    validmap = mno->validmap;
-    memcpy(fgprt, mno->fgprt, PNODE_FANOUT);
+    validmap = cno->validmap;
+    memcpy(fgprt, cno->fgprt, PNODE_FANOUT);
 
     if (unlikely(pnode_find_(&ent, pnode, key, fgprt, validmap) == NOT_FOUND)) {
         ret = -ENOENT;
@@ -832,6 +853,8 @@ static void init_pnode_pool(struct data_layer *layer) {
     }
     layer->free_list = 0;
     layer->tofree_head = layer->tofree_tail = PNOID_NULL;
+
+    layer->cnodes = malloc(sizeof(*layer->cnodes) * PNODE_NUM);
 }
 
 #ifdef ENABLE_PNODE_REPLICA
@@ -927,7 +950,8 @@ void data_layer_deinit(struct data_layer* layer) {
 pnoid_t pnode_sentinel_init() {
     pnoid_t pno = alloc_pnode(0);
     mnode_t *mno = pnode_meta(pno);
-    mno->validmap = 0;
+    cnode_t *cno = get_cnode(pno);
+    cno->validmap = mno->validmap = 0;
     mno->u.prev = mno->next = PNOID_NULL;
     mno->lfence = MIN_KEY;
     mno->rfence = MAX_KEY;

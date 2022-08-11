@@ -40,6 +40,8 @@ struct data_layer {
     /* Protect the pnode list. */
 	spinlock_t plist_lock;
 
+    struct cnode *cnodes;
+
     struct vpool *vpool;
 
 #ifdef ENABLE_PNODE_REPLICA
