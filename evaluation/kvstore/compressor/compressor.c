@@ -14,7 +14,7 @@ static inline void append(enum op_type type, char *key, int range) {
 
     if (is_str_key) {
         memset(op_string_key.key, 0, STR_KEY_LEN);
-        memcpy(op_string_key.key, key, STR_KEY_LEN);
+        memcpy(op_string_key.key, key, strlen(key));
         op_string_key.type = type;
         op_string_key.range = range;
         fwrite(&op_string_key, sizeof(op_string_key), 1, out);

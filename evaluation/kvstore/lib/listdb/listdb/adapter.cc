@@ -22,6 +22,18 @@ void kv_start_test(void *context) {
 }
 
 void kv_stop_test(void *context) {
+    auto *db = static_cast<ListDB *>(context);
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    for (int i = 0; i < kNumShards; i++) {
+        db->ManualFlushMemTable(i);
+    }
+    int ok = 0;
+    while (!ok) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        db->PrintDebugLsmState(0);
+        printf("L0 Compaction Done? ");
+        scanf("%d", &ok);
+    }
 }
 
 void *kv_thread_create_context(void *context, int id) {

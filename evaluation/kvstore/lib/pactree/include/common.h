@@ -11,9 +11,9 @@
 #include <libpmemobj.h>
 #define MULTIPOOL
 #define MAX_NUMA 2
-//#define STRINGKEY
+#define STRINGKEY
 #define WORKER_THREAD_PER_NUMA 1
-#define KEYLENGTH 32
+#define KEYLENGTH 25
 //#define SYNC
 
 //#define PACTREE_ENABLE_STATS

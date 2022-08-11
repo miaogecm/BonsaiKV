@@ -13,15 +13,13 @@ class MasstreeIndex : public Index {
 
   virtual ValueType Get(const Slice &key) override {
     ValueType val;
-    uint64_t k = __builtin_bswap64(*(KeyType *)key.data());
-    val = reinterpret_cast<ValueType>(masstree_get(mt_, &k, sizeof(k)));
+    val = reinterpret_cast<ValueType>(masstree_get(mt_, key.data(), key.size()));
     return val;
   }
 
   virtual void Put(const Slice &key, LogEntryHelper &le_helper) override {
     ValueType val = le_helper.new_val;
-    uint64_t k = __builtin_bswap64(*(KeyType *)key.data());
-    masstree_put(mt_, &k, sizeof(k), (void *) val);
+    masstree_put(mt_, key.data(), key.size(), (void *) val);
   }
 
   virtual void GCMove(const Slice &key, LogEntryHelper &le_helper) override {

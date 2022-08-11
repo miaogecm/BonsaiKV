@@ -60,6 +60,7 @@ inline FixedLengthStringKey<N>::FixedLengthStringKey(const int key) {
 
 template <std::size_t N>
 inline uint64_t FixedLengthStringKey<N>::key_num() const {
+#if 0
   //unsigned char buf[sizeof(uint64_t)];
   //memset(buf, 0, sizeof(buf));
   //memmove(buf, this->data(), std::min(this->size(), sizeof(uint64_t)));
@@ -74,6 +75,8 @@ inline uint64_t FixedLengthStringKey<N>::key_num() const {
         | static_cast<uint64_t>(buf[6]) << 8
         | static_cast<uint64_t>(buf[7]);
   return number;
+#endif
+  return atoi(data_);
 }
 
 template <std::size_t N>
@@ -102,7 +105,7 @@ inline int FixedLengthStringKey<N>::Compare(const FixedLengthStringKey<N>& other
   const unsigned char* b = (const unsigned char*) other.data_;
   size_t pos = 0;
   int ret = 0;
-  while (pos < N && (ret = a[pos] - b[pos]) != 0) {
+  while (pos < N && (ret = a[pos] - b[pos]) == 0) {
     pos++;
   }
   return ret;

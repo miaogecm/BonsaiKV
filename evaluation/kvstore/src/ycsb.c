@@ -13,8 +13,8 @@
 static int str_key, str_val;
 static ycsb_decompressor_t load_dec, op_dec;
 
-#define LOAD_PATH   "tools/index-microbench/workloads/load"
-#define OP_PATH     "tools/index-microbench/workloads/op"
+#define LOAD_PATH   "tools/index-microbench/workloads/96/load_str"
+#define OP_PATH     "tools/index-microbench/workloads/96/op_str"
 
 //#define VAL_LEN     16384
 #define VAL_LEN     8

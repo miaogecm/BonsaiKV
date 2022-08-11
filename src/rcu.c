@@ -28,6 +28,7 @@ void fb_init(fuzzy_barrier_t *fb) {
 }
 
 void fb_thread_online(fuzzy_barrier_t *fb) {
+    atomic64_and(~THR_MASK(my_tid), &fb->qs_bmp);
     atomic64_or(THR_MASK(my_tid), &fb->thr_bmp);
     smp_mb();
 }

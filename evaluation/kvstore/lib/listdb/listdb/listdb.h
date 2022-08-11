@@ -340,7 +340,7 @@ void ListDB::Init() {
 #ifdef LISTDB_WISCKEY
   for (int i = 0; i < kNumRegions; i++) {
     std::stringstream pss;
-    pss << "/pmem" << i << "/wkim/listdb_value";
+    pss << "/mnt/ext4/dimm" << i << "/wkim/listdb_value";
     std::string path = pss.str();
     fs::remove_all(path);
     fs::create_directories(path);

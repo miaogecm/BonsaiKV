@@ -111,9 +111,9 @@ DB::Worker::Worker(DB *db) : db_(db) {
 
 DB::Worker::~Worker() {
 #ifdef LOG_BATCHING
-  BatchIndexInsert(buffer_queue_.size(), true);
+  //BatchIndexInsert(buffer_queue_.size(), true);
 #ifdef HOT_COLD_SEPARATE
-  BatchIndexInsert(cold_buffer_queue_.size(), false);
+  //BatchIndexInsert(cold_buffer_queue_.size(), false);
 #endif
 #endif
   FreezeSegment(log_head_);
@@ -145,9 +145,7 @@ void DB::Worker::Put(const Slice &key, const Slice &value) {
   hot = true;
 #endif
   ValueType val = MakeKVItem(key, value, hot);
-#ifndef LOG_BATCHING
   UpdateIndex(key, val, hot);
-#endif
 }
 
 size_t DB::Worker::Scan(const Slice &key, int cnt) {
@@ -202,14 +200,14 @@ ValueType DB::Worker::MakeKVItem(const Slice &key, const Slice &value,
              INVALID_VALUE) {
     if (segment) {
       persist_cnt = segment->FlushRemain();
-      BatchIndexInsert(persist_cnt, hot);
+      //BatchIndexInsert(persist_cnt, hot);
       FreezeSegment(segment);
     }
     segment = db_->log_->NewSegment(hot);
   }
   queue.push({i_key, ret});
   if (persist_cnt > 0) {
-    BatchIndexInsert(persist_cnt, hot);
+    //BatchIndexInsert(persist_cnt, hot);
   }
 
   assert(ret);
