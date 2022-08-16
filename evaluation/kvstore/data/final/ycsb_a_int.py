@@ -1,20 +1,21 @@
 #!/bin/python3
 
-# YCSB-A Load
-# preload size: 5M per thread
-# load size: 2.5M per thread
+# YCSB-A
+# load size: 5M per thread
+# write size: 2.5M per thread
+# read size: 2.5M per thread
 # key: 8B
 # val: 8B
 # distribution: uniform
-# memory limit: 24GiB
 # fsdax + dm-stripe (for NUMA-oblivious designs)
+# measure: throughput(thread)
 
 M = 1000000
 MAX = 240 * M
-SIZE = 2.5 * M
-THREADS = [1, 16, 32, 48, 64, 80, 96]
+SIZE = 5.0 * M
+THREADS = [1, 8, 16, 24, 32, 40, 48]
 LATENCY = {
-    # thread num: 1/16/32/48/64/80/96
+    # thread num: 1/8/16/24/32/40/48
 
     # bottleneck:
     # Non log-structured: write amplification +
@@ -42,11 +43,7 @@ LATENCY = {
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
 
-    # dm-stripe 4K-Interleave
-    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
-
-    # Nbg:Nfg = 1:2, at least 2 Nbg
+    # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
 }
 
@@ -65,7 +62,6 @@ plt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='^', markers
 plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
 plt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN')
 plt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='<', markersize=8, linestyle='-', linewidth=2, label='PACTree')
-plt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper')
 plt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai')
 
 font = {'size': '20','fontname': 'Times New Roman'}
@@ -77,7 +73,7 @@ ax = plt.gca()
 ax.set_xticks(xs)
 ax.set_xticklabels(xs, fontdict=font2)
 
-ytick=[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50]
+ytick=[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28]
 ax.set_yticks(ytick)
 ax.set_yticklabels(ytick, fontdict=font2)
 

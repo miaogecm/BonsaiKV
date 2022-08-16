@@ -36,7 +36,7 @@ LATENCY = {
     # BW contention, persistent (using memcpy+clwb+sfence, cache eviction), NUMA unaware
     'viper':    [1.524, 7.008, 31.692, 52.884, 69.132, 89.568, 118.188],
 
-    # Nbg:Nfg = 1:2, at least 2 Nbg
+    # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [1.695, 3.978, 7.899, 7.974, 8.103, 8.125, 8.060]
 }
 PMMWBW = {
@@ -57,7 +57,7 @@ PMMWBW = {
     # dm-stripe 4K-Interleave
     'viper':    [1644.38, 2963.48, 3038.43, 2715.46, 2713.59, 2538.42, 2222.62],
 
-    # Nbg:Nfg = 1:2, at least 2 Nbg
+    # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
     'bonsai':   [1147.85, 7524.23, 8240.46, 16094.66, 16055.59, 23135.46, 24433.48]
 }
