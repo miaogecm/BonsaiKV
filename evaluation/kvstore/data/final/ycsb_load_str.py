@@ -9,29 +9,31 @@
 # fsdax + dm-stripe (for NUMA-oblivious designs)
 # measure: throughput/PMMWBW(thread)
 
+# *** VIPER: SIGBUS ***
+
 M = 1000000
 K = 1000
 MAX = 5760 * K
 SIZE = 120 * K
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
+    # flush too late
+    'listdb':   [2.446, 8.288, 15.971, 23.253, 31.075, 21.984, 21.839, 24.722, 29.558],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [0.835, 1.473, 3.210, 4.787, 6.402, 27.57, 33.30, 38.808, 44.256],
 
-    # dm-stripe 4K-Interleave
-    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
+    # dm-stripe 2M-Interleave
+    'viper':    [1.616, 2.230, 4.979, 7.304, 9.936, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [1.730, 1.755, 1.821, 2.540, 3.374, 2.650, 2.608, 2.990, 3.473],
 }
 PMMWBW = {
     # thread num: 1/8/16/24/32/40/48
@@ -39,18 +41,18 @@ PMMWBW = {
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [1665.41, 6817.48, 6948.86, 6895.34, 6939.43, 7009.66, 6780.27],
+    'listdb':   [4368.55, 4937.32, 5090.55, 5117.40, 5042.62, 9606.24, 10490.72, 9447.24, 9747.96],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2015.57, 13624.17, 15730.59, 5979.76, 4257.99, 3381.25, 3738.73],
+    'pacman':   [2395.68, 8054.37, 7395.74, 7377.98, 7108.59, 3350.36, 3321.75, 3272.71, 3241.03],
 
-    # dm-stripe 4K-Interleave
-    'viper':    [1644.38, 2963.48, 3038.43, 2715.46, 2713.59, 2538.42, 2222.62],
+    # dm-stripe 2M-Interleave
+    'viper':    [2022.25, 6672.89, 6442.92, 6204.28, 6031.45, 0, 0, 0, 0],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
-    'bonsai':   [1147.85, 7524.23, 8240.46, 16094.66, 16055.59, 23135.46, 24433.48]
+    'bonsai':   [1138.62, 6818.75, 13050.39, 13863.94, 14026.37, 21108.42, 24191.92, 24477.78, 24700.26],
 }
 
 import numpy as np
@@ -61,6 +63,32 @@ import csv
 THROUGHPUT = {}
 for kvstore, latencies in LATENCY.items():
     THROUGHPUT[kvstore] = list(map(lambda x: SIZE * THREADS[x[0]] / x[1] / K, enumerate(latencies)))
+
+MAPPING = {}
+HEADER = ['thread']
+for kvstore, latencies in THROUGHPUT.items():
+    HEADER.append(kvstore)
+    for thread, latency in zip(THREADS, latencies):
+        if thread not in MAPPING:
+            MAPPING[thread] = []
+        MAPPING[thread].append(latency)
+
+print(','.join(HEADER))
+for thread, latencies in MAPPING.items():
+    print(','.join(map(lambda x: str(round(x, 2)), [thread] + latencies)))
+
+MAPPING = {}
+HEADER = ['thread']
+for kvstore, latencies in PMMWBW.items():
+    HEADER.append(kvstore)
+    for thread, latency in zip(THREADS, latencies):
+        if thread not in MAPPING:
+            MAPPING[thread] = []
+        MAPPING[thread].append(latency)
+
+print(','.join(HEADER))
+for thread, bws in MAPPING.items():
+    print(','.join(map(lambda x: str(round(x, 2)), [thread] + bws)))
 
 xs = THREADS
 
