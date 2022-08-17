@@ -16,6 +16,10 @@ THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
     # thread num: 1/6/12/18/24/30/36/42/48
 
+	# dm-stripe 2M-Interleave
+    # bottleneck: large SMO overhead, node metadata cacheline thrashing
+    'fastfair': [4.363, 5.831, 6.580, 7.284, 8.301, 13.605, 16.243, 22.317, 27.696],
+
     # bottleneck:
     # Non log-structured: write amplification +
     # Log-structured: contention(BW) + metadata cacheline thrashing(perf L3 cache miss)
@@ -25,26 +29,22 @@ LATENCY = {
     # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
     'dptree':   [2.087, 5.993, 9.980, 16.920, 24.916, 35.597, 40.868, 48.728, 54.497],
 
-    # dm-stripe 2M-Interleave
-    # bottleneck: large SMO overhead, node metadata cacheline thrashing
-    'fastfair': [4.363, 5.831, 6.580, 7.284, 8.301, 13.605, 16.243, 22.317, 27.696],
+	# 1 worker per node (default setting)
+    'pactree':  [5.250, 6.526, 8.151, 8.448, 9.492, 14.051, 20.949, 23.543, 35.515],
+
+	# dm-stripe 2M-Interleave
+    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
+    'viper':    [3.121, 3.096, 3.420, 3.266, 3.575, 4.912, 5.824, 5.791, 6.045],
+
+	# dm-stripe 2M-Interleave
+    # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
+    'pacman':   [2.691, 3.558, 3.982, 4.297, 4.482, 5.729, 5.916, 6.059, 7.035],
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # bottleneck: skiplist too high (perf reports high cache-miss rate when lockfree_skiplist::find_position)
     'listdb':   [4.420, 6.863, 7.978, 9.604, 10.736, 10.651, 12.219, 13.062, 16.199],
-
-    # 1 worker per node (default setting)
-    'pactree':  [5.250, 6.526, 8.151, 8.448, 9.492, 14.051, 20.949, 23.543, 35.515],
-
-    # dm-stripe 2M-Interleave
-    # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.691, 3.558, 3.982, 4.297, 4.482, 5.729, 5.916, 6.059, 7.035],
-
-    # dm-stripe 2M-Interleave
-    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [3.121, 3.096, 3.420, 3.266, 3.575, 4.912, 5.824, 5.791, 6.045],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [1.362, 1.904, 2.127, 2.386, 2.325, 2.715, 2.854, 3.007, 2.946],
