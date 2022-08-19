@@ -63,7 +63,6 @@ void kv_txn_rollback(void *tcontext) {
 }
 
 static inline Slice get_key(void *key, size_t key_len) {
-    assert(key_len == sizeof(unsigned long));
     return { (const char *) key, key_len };
 }
 
