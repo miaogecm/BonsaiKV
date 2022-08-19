@@ -189,7 +189,9 @@ int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len
     int ret;
     assert(tcontext == NULL);
     ret = bonsai_lookup(pkey, &pval);
-    valman_free_v(pval);
+    if (likely(!ret)) {
+        valman_free_v(pval);
+    }
     return ret;
 }
 
