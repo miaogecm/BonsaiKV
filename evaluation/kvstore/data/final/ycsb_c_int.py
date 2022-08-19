@@ -2,7 +2,7 @@
 
 # YCSB-C
 # load size: 5M per thread
-# read size: 5M per thread
+# read size: 2.5M per thread
 # key: 8B
 # val: 8B
 # distribution: uniform
@@ -11,10 +11,10 @@
 
 M = 1000000
 MAX = 240 * M
-SIZE = 5.0 * M
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+SIZE = 2.5 * M
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # bottleneck:
     # Non log-structured: write amplification +
@@ -23,27 +23,27 @@ LATENCY = {
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # dm-stripe 2M-Interleave
     # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
-    'dptree':   [2.818, 8.043, 20.090, 31.996, 44.304, 52.824, 65.354],
+    'dptree':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # dm-stripe 2M-Interleave
     # bottleneck: large SMO overhead, node metadata cacheline thrashing
-    'fastfair': [5.083, 8.654, 10.994, 15.638, 26.681, 36.599, 46.999],
+    'fastfair': [2.605, 4.031, 4.541, 4.828, 5.090, 6.297, 6.923, 7.863, 9.624],
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # bottleneck: skiplist too high (perf reports high cache-miss rate when lockfree_skiplist::find_position)
-    'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
+    'listdb':   [1.694, 2.320, 3.252, 4.518, 5.693, 8.065, 8.625, 9.998, 12.361],
 
     # 1 worker per node (default setting)
-    'pactree':  [5.157, 9.146, 11.928, 19.241, 26.778, 35.905, 42.072],
+    'pactree':  [2.715, 3.642, 3.552, 4.548, 4.726, 5.357, 5.576, 5.912, 7.408],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [3.184, 4.044, 4.380, 4.566, 4.707, 5.688, 5.889, 6.032, 6.982],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [2.201, 2.862, 3.123, 3.154, 3.262, 3.816, 3.963, 3.982, 4.239]
 }
 
 import numpy as np

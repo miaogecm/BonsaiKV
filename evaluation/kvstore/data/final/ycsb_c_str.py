@@ -12,25 +12,25 @@
 M = 1000000
 MAX = 240 * M
 SIZE = 5.0 * M
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
+    'listdb':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [8.214, 9.193, 9.930, 10.322, 10.847, 17.666, 17.968, 21.283, 27.987],
 
     # dm-stripe 4K-Interleave
     # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
+    'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, 23.711]
 }
 REMOTEACCESS = {
     # thread num: 1/8/16/24/32/40/48
@@ -38,18 +38,18 @@ REMOTEACCESS = {
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [1665.41, 6817.48, 6948.86, 6895.34, 6939.43, 7009.66, 6780.27],
+    'listdb':   [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2015.57, 13624.17, 15730.59, 5979.76, 4257.99, 3381.25, 3738.73],
+    'pacman':   [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # dm-stripe 4K-Interleave
-    'viper':    [1644.38, 2963.48, 3038.43, 2715.46, 2713.59, 2538.42, 2222.62],
+    'viper':    [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
-    'bonsai':   [1147.85, 7524.23, 8240.46, 16094.66, 16055.59, 23135.46, 24433.48]
+    'bonsai':   [0, 0, 0, 0, 0, 0, 0, 0, 0]
 }
 
 import numpy as np

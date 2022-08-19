@@ -12,33 +12,33 @@
 M = 1000000
 MAX = 240 * M
 SIZE = 0.5 * M
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # 1 worker per node (default setting)
-    'pactree':  [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
+    'pactree':  [4.846, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [3.174, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX]
 }
 DIMMRBW = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # 1 worker per node (default setting)
-    'pactree':  [2000, 2000, 2000, 2000, 2000, 2000, 2000],
+    'pactree':  [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
-    'bonsai':   [1147.85, 7524.23, 8240.46, 16094.66, 16055.59, 23135.46, 24433.48]
+    'bonsai':   [0, 0, 0, 0, 0, 0, 0, 0, 0]
 }
 
 import numpy as np
