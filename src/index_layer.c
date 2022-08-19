@@ -550,7 +550,6 @@ static int ent_cmp(const void *a, const void *b) {
 }
 
 int shim_scan(pkey_t start, int range, pval_t *values) {
-#ifdef STR_KEY
     pentry_t ents[INODE_FANOUT], pents[PNODE_FANOUT], *ent, *pent = NULL, t;
     int nr_ents, nr_pents = 0, has_ent, has_pent, cmp, nr_value = 0;
     pnoid_t pno, last_pno = PNOID_NULL;
@@ -664,10 +663,6 @@ go_next:
 
 out:
     return 0;
-#else
-    /* TODO: scan for 8B integer key. */
-    assert(0);
-#endif
 }
 
 static inline int go_down(pnoid_t pnode, pkey_t key, pval_t *val) {
@@ -760,7 +755,6 @@ static inline void sync_inode_pno(inode_t *prev, inode_t *inode, pkey_t ilfence,
 }
 
 static int sync_inode_logs(log_state_t *lst, inode_t *prev, inode_t *inode, struct inode_recycle_chain *rec) {
-    struct index_layer *i_layer = INDEX(bonsai);
     unsigned long validmap;
     int ret;
 

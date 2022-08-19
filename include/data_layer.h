@@ -20,8 +20,8 @@ extern "C" {
 #define PNODE_FANOUT            40
 #define PNODE_INTERLEAVING_SIZE 256
 #else
-#define PNODE_FANOUT			40
-#define PNODE_INTERLEAVING_SIZE 128
+#define PNODE_FANOUT            48
+#define PNODE_INTERLEAVING_SIZE 256
 #endif
 
 typedef uint32_t pnoid_t;
