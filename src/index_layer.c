@@ -560,7 +560,7 @@ int shim_scan(pkey_t start, int range, pval_t *values) {
     unsigned pos;
     pkey_t fence;
 
-    inode = inode_seek(start, 0, 0, NULL);
+    inode = inode_seek(start, 0, NULL);
 
 scan_inode:
     seq = read_seqcount_begin(&inode->seq);
