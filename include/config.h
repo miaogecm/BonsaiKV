@@ -5,14 +5,14 @@
 extern "C" {
 #endif
 
-#define NUM_CPU                 96
+#define NUM_CPU                 48
 #define NUM_DIMM                12
 #define NUM_SOCKET              2
 #define NUM_CPU_PER_SOCKET      (NUM_CPU / NUM_SOCKET)
 #define NUM_DIMM_PER_SOCKET     (NUM_DIMM / NUM_SOCKET)
 #define NUM_CPU_PER_DIMM        (NUM_CPU / NUM_DIMM)
 
-#define NUM_USER_THREAD				96
+#define NUM_USER_THREAD				1
 #define NUM_PFLUSH_WORKER_PER_NODE	12
 
 #define LOG_REGION_SIZE		    73728000000UL                   /* 68.66455078125GB */
