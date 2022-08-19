@@ -35,6 +35,7 @@ static void do_op(struct kvstore *kvstore, void *tcontext, ycsb_decompressor_t *
     uint64_t int_key;
     void *key, *val;
     size_t key_len, val_len;
+    uint64_t values[1024];
     char buf[8];
 
     nr = ycsb_decompressor_get_nr(dec);
@@ -66,6 +67,10 @@ static void do_op(struct kvstore *kvstore, void *tcontext, ycsb_decompressor_t *
                 ret = kvstore->kv_get(tcontext, key, key_len, buf, &val_len);
                 assert(ret == 0);
                 __asm__ volatile("" : : "r"(val_len) : "memory");
+                break;
+
+            case OP_SCAN:
+                kvstore->kv_scan(tcontext, key, key_len, 100, values);
                 break;
 
             default:
