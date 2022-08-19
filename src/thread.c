@@ -334,11 +334,11 @@ static inline void thread_alloc_cpu(struct thread_info *ti, int node) {
 }
 
 void bonsai_self_thread_init() {
-	
 	bonsai->self = malloc(sizeof(struct thread_info));
 	bonsai->self->t_id = atomic_add_return(1, &tids);
 	bonsai->self->t_pid = gettid();
 	bonsai->self->t_state = S_RUNNING;
+    bonsai->self->t_bind = 0;
 
 	__this = bonsai->self;
 
