@@ -28,7 +28,7 @@ CFLAGS += -std=gnu99
 CXXFLAGS += $(FLAGS)
 CXXFLAGS += -std=gnu++14
 
-LDFLAGS += -lpthread -ldl -ljemalloc
+LDFLAGS += -lpthread -ldl -ljemalloc -lstdc++
 LDFLAGS += $(PCM_FLAG)
 
 all: kvstore compress
