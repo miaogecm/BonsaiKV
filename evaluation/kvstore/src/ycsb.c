@@ -13,11 +13,13 @@
 static int str_key, str_val;
 static ycsb_decompressor_t load_dec, op_dec;
 
-#define LOAD_PATH   "tools/index-microbench/workloads/96/load_str"
-#define OP_PATH     "tools/index-microbench/workloads/96/op_str"
+#define STRINGIFY(x) #x
+#define TOSTRING(x)  STRINGIFY(x)
 
-//#define VAL_LEN     16384
-#define VAL_LEN     8
+#define LOAD_PATH   "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/load_str"
+#define OP_PATH     "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/op_str"
+
+#define VAL_LEN     YCSB_VAL_LEN
 static char valbuf[VAL_LEN];
 
 static void *get_val(size_t *len) {

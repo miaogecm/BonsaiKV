@@ -4,6 +4,17 @@
 #define NUM_CPU         48
 #define NUM_THREADS     48
 
+#define YCSB_KVLIB_PATH           "../../src/libbonsai.so"
+//#define YCSB_KVLIB_PATH           "lib/listdb/cmake-build-release/liblistdb_dll.so"
+//#define YCSB_KVLIB_PATH           "lib/pactree/cmake-build-release/src/libpactree.so"
+//#define YCSB_KVLIB_PATH           "lib/fastfair/libfastfair.so"
+//#define YCSB_KVLIB_PATH           "lib/viper/cmake-build-release/libviper_dll.so"
+//#define YCSB_KVLIB_PATH           "lib/dptree/cmake-build-release/libdptree_dll.so"
+#define YCSB_WORKLOAD_NAME        "a_str"
+#define YCSB_IS_STRING_KEY        1
+#define YCSB_VAL_LEN              8
+//#define YCSB_VAL_LEN              16384
+
 #define SOCKET0_CPUSEQ      \
 	0, 8, 16, 24, 32, 40,   \
     2, 10, 18, 26, 34, 42,  \
