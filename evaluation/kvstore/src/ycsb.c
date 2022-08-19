@@ -16,8 +16,8 @@ static ycsb_decompressor_t load_dec, op_dec;
 #define STRINGIFY(x) #x
 #define TOSTRING(x)  STRINGIFY(x)
 
-#define LOAD_PATH   "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/load_str"
-#define OP_PATH     "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/op_str"
+#define LOAD_PATH   "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/load"
+#define OP_PATH     "tools/index-microbench/workloads/" YCSB_WORKLOAD_NAME "/" TOSTRING(NUM_THREADS) "/op"
 
 #define VAL_LEN     YCSB_VAL_LEN
 static char valbuf[VAL_LEN];
