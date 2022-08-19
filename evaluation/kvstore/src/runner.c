@@ -14,6 +14,7 @@
 #include "loader.h"
 #include "runner.h"
 #include "config.h"
+#include "pcm.h"
 
 static __thread struct timeval t0, t1;
 
@@ -78,6 +79,9 @@ static void* run_task(void* arg) {
     for (stage = 0; stage < task->nr_stage; stage++) {
         if (task->id == 0) {
             task->kv->kv_start_test(task->context);
+#ifdef USE_PCM
+            pcm_start();
+#endif
         }
 
         pthread_barrier_wait(task->barrier);
@@ -98,6 +102,10 @@ static void* run_task(void* arg) {
         if (task->id == 0) {
             interval = end_measure();
             printf("%s: foreground done, %.3lf seconds elapsed\n", name, interval);
+
+#ifdef USE_PCM
+            printf("%s: remote access: %lu packets\n", name, pcm_get_nr_remote_pmem_access_packet());
+#endif
 
             task->kv->kv_stop_test(task->context);
 

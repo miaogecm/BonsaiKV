@@ -25,8 +25,6 @@ extern "C" {
 
 //#define ASYNC_SMO
 
-//#define USE_PCM
-
 //#define STR_KEY
 //#define STR_VAL
 #define VAL_LEN                 16384
