@@ -30,6 +30,8 @@ void kv_stop_test(void *context) {
 }
 
 void *kv_thread_create_context(void *context, int id) {
+    MT *mt = static_cast<MT *>(context);
+    mt->thread_init(id);
     return context;
 }
 
@@ -68,7 +70,13 @@ int kv_del(void *tcontext, void *key, size_t key_len) {
 
 int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len) {
     auto *client = static_cast<MT *>(tcontext);
-    volatile void *res = client->get_value(static_cast<const char *>(key), key_len);
+    volatile const void *res;
+    client->rscan("\0", 1, false, static_cast<const char *>(key), key_len, false, {
+        [](const MT::leaf_type *leaf, uint64_t version, bool &continue_flag) {},
+        [&res](const MT::Str &key, const ValueType *val, bool &continue_flag) {
+            res = val;
+        }
+    }, 1);
     res;
     return 0;
 }
