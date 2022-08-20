@@ -134,6 +134,9 @@ static inline void configure(struct kvstore *kv, void *conf) {
     } else if (!strcmp(engine, "pacman")) {
         struct pacman_config *c = conf;
         c->num_workers = NUM_THREADS;
+    } else if (!strcmp(engine, "lbtree")) {
+        struct lbtree_config *c = conf;
+        c->nr_workers = NUM_THREADS;
     }
 }
 

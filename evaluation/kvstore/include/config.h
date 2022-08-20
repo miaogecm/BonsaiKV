@@ -48,4 +48,8 @@ struct pacman_config {
     int num_workers;
 };
 
+struct lbtree_config {
+    int nr_workers;
+};
+
 #endif //KVSTORE_CONFIG_H
