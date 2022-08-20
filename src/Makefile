@@ -24,7 +24,7 @@ CXXFLAGS += $(FLAGS)
 CXXFLAGS += -std=gnu++14
 
 LDFLAGS += -shared -lpmem -lpmemobj -lnuma -ljemalloc
-LDFLAGS += -lrt -lm -lpthread -lstdc++
+LDFLAGS += -lrt -lm -lpthread -lstdc++ -lmasstree_index
 LDFLAGS += $(SANITIZER_FLAG)
 
 C_DEPS_DIR  := $(CUR_DIR)/.c.deps
