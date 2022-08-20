@@ -1,26 +1,18 @@
-#include <algorithm>
-#include <stdexcept>
-#include <thread>
-#include <unistd.h>
+#include <stdint.h>
+#include <stdlib.h>
 
-#define GLOBAL_VALUE_DEFINE
-#include "masstree_wrapper.hpp"
-
-using ValueType = void;
-using MT = MasstreeWrapper<ValueType>;
-
-extern "C" {
+#include "masstree.h"
 
 const char *kv_engine() {
-    return "masstree-kohler";
+    return "masstree-rmind";
 }
 
 void *kv_create_context(void *config) {
-    return new MT;
+    return masstree_create(NULL);
 }
 
 void kv_destroy_context(void *context) {
-    delete static_cast<MT *>(context);
+    masstree_destroy(context);
 }
 
 void kv_start_test(void *context) {
@@ -55,26 +47,24 @@ void kv_txn_rollback(void *tcontext) {
 }
 
 int kv_put(void *tcontext, void *key, size_t key_len, void *val, size_t val_len) {
-    auto *client = static_cast<MT *>(tcontext);
-    client->insert_value(static_cast<const char *>(key), key_len, val);
+    masstree_t *mt = tcontext;
+    masstree_put(mt, key, key_len, val);
     return 0;
 }
 
 int kv_del(void *tcontext, void *key, size_t key_len) {
-    auto *client = static_cast<MT *>(tcontext);
-    client->remove_value(static_cast<const char *>(key), key_len);
+    masstree_t *mt = tcontext;
+    masstree_del(mt, key, key_len);
     return 0;
 }
 
 int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len) {
-    auto *client = static_cast<MT *>(tcontext);
-    volatile void *res = client->get_value(static_cast<const char *>(key), key_len);
+    masstree_t *mt = tcontext;
+    volatile void *res = masstree_get(mt, key, key_len, NULL);
     res;
     return 0;
 }
 
 void kv_scan(void *tcontext, void *key, size_t key_len, int range, void *values) {
     assert(0);
-}
-
 }
