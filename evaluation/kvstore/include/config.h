@@ -10,6 +10,7 @@
 //#define YCSB_KVLIB_PATH           "lib/fastfair/libfastfair.so"
 //#define YCSB_KVLIB_PATH           "lib/viper/cmake-build-release/libviper_dll.so"
 //#define YCSB_KVLIB_PATH           "lib/dptree/cmake-build-release/libdptree_dll.so"
+//#define YCSB_KVLIB_PATH           "lib/masstree-kohler/cmake-build-release/libmasstree_dll.so"
 #define YCSB_WORKLOAD_NAME        "a_str"
 #define YCSB_IS_STRING_KEY        1
 #define YCSB_VAL_LEN              8
