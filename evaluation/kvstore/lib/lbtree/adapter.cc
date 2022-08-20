@@ -5,18 +5,20 @@ struct lbtree_config {
     int nr_workers;
 };
 
+void initUseful(void);
+
+extern "C" {
+
 const char *kv_engine() {
     return "lbtree";
 }
-
-void initUseful(void);
 
 void *kv_create_context(void *config) {
     auto *cfg = static_cast<lbtree_config *>(config);
 
     printf("NON_LEAF_KEY_NUM= %d, LEAF_KEY_NUM= %d, nonleaf size= %lu, leaf size= %lu\n",
            NON_LEAF_KEY_NUM, LEAF_KEY_NUM, sizeof(bnode), sizeof(bleaf));
-    assert((sizeof(bnode) == NONLEAF_SIZE)&&(sizeof(bleaf) == LEAF_SIZE));
+    assert((sizeof(bnode) == NONLEAF_SIZE) && (sizeof(bleaf) == LEAF_SIZE));
 
     initUseful();
 
@@ -24,8 +26,8 @@ void *kv_create_context(void *config) {
     the_thread_nvmpools.init(cfg->nr_workers, "/mnt/ext4/dimm0/lbtree", 64 * 1024 * 1024 * 1024ul);
 
     // allocate a 4KB page for the tree in worker 0's pool
-    char *nvm_addr= (char *)nvmpool_alloc(4*KB);
-    the_treep= initTree(nvm_addr, false);
+    char *nvm_addr = (char *) nvmpool_alloc(4 * KB);
+    the_treep = initTree(nvm_addr, false);
 
     // log may not be necessary for some tree implementations
     // For simplicity, we just initialize logs.  This cost is low.
@@ -100,4 +102,6 @@ int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len
 
 void kv_scan(void *tcontext, void *key, size_t key_len, int range, void *values) {
     assert(0);
+}
+
 }
