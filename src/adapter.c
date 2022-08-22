@@ -21,13 +21,47 @@ struct bonsai_config {
     int stm_support;
 };
 
-void *index_init();
-void index_destory(void* index_struct);
-int index_insert(void* index_struct, const void *key, size_t len, const void *value);
-int index_update(void* index_struct, const void *key, size_t len, const void* value);
-int index_remove(void* index_struct, const void *key, size_t len);
-void* index_lowerbound(void* index_struct, const void *key, size_t len, const void *actual_key);
-int index_scan(void* index_struct, const void *min, const void *max);
+static void *index_init() {
+    return (void*) masstree_create(NULL);
+}
+
+static void index_destory(void* index_struct) {
+    masstree_t* tr = (masstree_t*) index_struct;
+    masstree_destroy(tr);
+}
+
+static int index_insert(void* index_struct, const void *key, size_t len, const void *value) {
+    masstree_t* tr = (masstree_t*) (index_struct);
+    masstree_put(tr, key, len, (void*) value);
+
+    return 0;
+}
+
+static int index_update(void* index_struct, const void *key, size_t len, const void* value) {
+    masstree_t* tr = (masstree_t*) (index_struct);
+    masstree_put(tr, key, len, (void*) value);
+    
+    return 0;
+}
+
+static int index_remove(void* index_struct, const void *key, size_t len) {
+    masstree_t* tr = (masstree_t*) (index_struct);
+    return masstree_del(tr, key, len) ? 0 : -ENOENT;
+}
+
+static void* index_lookup(void* index_struct, const void *key, size_t len, const void *actual_key) {
+    masstree_t* tr = (masstree_t*) (index_struct);
+    return masstree_get(tr, key, len, actual_key);
+}
+
+static void* index_lowerbound(void* index_struct, const void *key, size_t len, const void *actual_key) {
+    masstree_t* tr = (masstree_t*) (index_struct);
+    return masstree_get(tr, key, len, actual_key);
+}
+
+static int index_scan(void* index_struct, const void *min, const void *max) {
+    return 0;
+}
 
 extern int
 bonsai_init(char *index_name, init_func_t init, destory_func_t destory, insert_func_t insert, update_func_t update,
