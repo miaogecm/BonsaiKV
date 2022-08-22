@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(USE_NUMA_NODE 0 CACHE STRING "To use which numa node")
 option(IDX_PERSISTENT "IDX_PERSISTENT" ON)
 option(LOG_PERSISTENT "LOG_PERSISTENT" ON)
-set(INDEX_TYPE 1 CACHE STRING "Index type of DB") # 1 CCEH 2 FastFair 3 Masstree
+set(INDEX_TYPE 1 CACHE STRING "Index type of DB") # 1 CCEH 2 FastFair 3 Masstree 4 Masstree-kohler
 if (INDEX_TYPE EQUAL 3) # MASSTREE
   set(IDX_PERSISTENT OFF)
 endif()
@@ -116,6 +116,13 @@ add_library(masstree ${MASSTREE_SOURCE_FILES})
 target_compile_options(masstree PRIVATE
           $<$<COMPILE_LANGUAGE:CXX>:-include ${PROJECT_SOURCE_DIR}/db/index/masstree/config.h>)
 
+# Masstree-kohler
+aux_source_directory(${PROJECT_SOURCE_DIR}/db/index/masstree_kohler MASSTREE_KOHLER_SOURCE_FILES)
+add_library(masstree_kohler ${MASSTREE_KOHLER_SOURCE_FILES})
+# target_include_directories(masstree_kohler ${PROJECT_SOURCE_DIR}/db/index/masstree_kohler)
+target_compile_options(masstree_kohler PRIVATE
+          $<$<COMPILE_LANGUAGE:CXX>:-include ${PROJECT_SOURCE_DIR}/db/index/masstree_kohler/config.h>)
+
 add_subdirectory(example)
 
 add_library(pacman SHARED ${DB_FILES} adapter.cpp)
@@ -126,4 +133,6 @@ elseif (INDEX_TYPE EQUAL 2)
   target_link_libraries(pacman fastfair)
 elseif (INDEX_TYPE EQUAL 3)
   target_link_libraries(pacman masstree)
+elseif (INDEX_TYPE EQUAL 4)
+  target_link_libraries(pacman masstree_kohler)
 endif()

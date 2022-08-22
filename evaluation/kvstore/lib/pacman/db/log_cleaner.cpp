@@ -6,6 +6,8 @@
 #include "log_cleaner.h"
 #if INDEX_TYPE == 3
 #include "index_masstree.h"
+#elif INDEX_TYPE == 4
+#include "index_masstree_kohler.h"
 #endif
 
 void LogCleaner::CleanerEntry() {

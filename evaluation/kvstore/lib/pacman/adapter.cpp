@@ -93,7 +93,8 @@ int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len
 }
 
 void kv_scan(void *tcontext, void *key, size_t key_len, int range, void *values) {
-    assert(0);
+    auto *client = static_cast<DB::Worker *>(tcontext);
+    client->Scan(get_key(key, key_len), range);
 }
 
 }

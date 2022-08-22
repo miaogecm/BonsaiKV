@@ -3,6 +3,7 @@
 
 #define NUM_CPU         48
 #define NUM_THREADS     48
+#define INTERLEAVED_CPU_NR
 
 #define YCSB_KVLIB_PATH           "../../src/libbonsai.so"
 //#define YCSB_KVLIB_PATH           "lib/listdb/cmake-build-release/liblistdb_dll.so"
@@ -17,6 +18,8 @@
 #define YCSB_VAL_LEN              8
 //#define YCSB_VAL_LEN              16384
 
+#ifdef INTERLEAVED_CPU_NR
+
 #define SOCKET0_CPUSEQ      \
 	0, 8, 16, 24, 32, 40,   \
     2, 10, 18, 26, 34, 42,  \
@@ -28,6 +31,22 @@
     2, 3, 10, 11, 18, 19, 26, 27, 34, 35, 42, 43,   \
     4, 5, 12, 13, 20, 21, 28, 29, 36, 37, 44, 45,   \
 	6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47
+
+#else
+
+#define SOCKET0_CPUSEQ      \
+    0, 4, 8, 12, 16, 20,    \
+    1, 5, 9, 13, 17, 21,    \
+    2, 6, 10, 14, 18, 22,   \
+    3, 7, 11, 15, 19, 23
+
+#define SOCKETALL_CPUSEQ                           \
+    0, 24, 4, 28, 8, 32, 12, 36, 16, 40, 20, 44,   \
+    1, 25, 5, 29, 9, 33, 13, 37, 17, 41, 21, 45,   \
+    2, 26, 6, 30, 10, 34, 14, 38, 18, 42, 22, 46,  \
+    3, 27, 7, 31, 11, 35, 15, 39, 19, 43, 23, 47
+
+#endif
 
 #if NUM_THREADS > NUM_CPU / 2
 #define CPUSEQ SOCKETALL_CPUSEQ

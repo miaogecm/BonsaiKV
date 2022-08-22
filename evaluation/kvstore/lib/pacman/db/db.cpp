@@ -9,6 +9,8 @@
 #include "index_fastfair.h"
 #elif INDEX_TYPE == 3
 #include "index_masstree.h"
+#elif INDEX_TYPE == 4
+#include "index_masstree_kohler.h"
 #else
 static_assert(false, "error index kind");
 #endif

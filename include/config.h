@@ -34,28 +34,55 @@ extern "C" {
 //#define USE_DEVDAX
 #define PMM_PAGE_SIZE           (2 * 1024 * 1024ul)
 
+#define INTERLEAVED_CPU_NR
+//#define INTERLEAVED_DIMM_NR
+
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
+#ifdef INTERLEAVED_CPU_NR
     return NUM_SOCKET * cpu_idx + node;
+#else
+    return cpu_idx + NUM_CPU_PER_SOCKET * node;
+#endif
 }
 
 static inline int node_idx_to_dimm(int node, int dimm_idx) {
+#ifdef INTERLEAVED_DIMM_NR
+    return NUM_DIMM * dimm_idx + node;
+#else
     return dimm_idx + NUM_DIMM_PER_SOCKET * node;
+#endif
 }
 
 static inline int cpu_to_node(int cpu) {
+#ifdef INTERLEAVED_CPU_NR
     return cpu % NUM_SOCKET;
+#else
+    return cpu / NUM_CPU_PER_SOCKET;
+#endif
 }
 
 static inline int dimm_to_node(int dimm) {
+#ifdef INTERLEAVED_DIMM_NR
+    return dimm % NUM_DIMM;
+#else
     return dimm / NUM_DIMM_PER_SOCKET;
+#endif
 }
 
 static inline int cpu_to_idx(int cpu) {
+#ifdef INTERLEAVED_CPU_NR
     return cpu / NUM_SOCKET;
+#else
+    return cpu % NUM_CPU_PER_SOCKET;
+#endif
 }
 
 static inline int dimm_to_idx(int dimm) {
+#ifdef INTERLEAVED_DIMM_NR
+    return dimm / NUM_SOCKET;
+#else
     return dimm % NUM_DIMM_PER_SOCKET;
+#endif
 }
 
 #ifdef __cplusplus
