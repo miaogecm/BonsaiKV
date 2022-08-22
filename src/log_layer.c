@@ -332,15 +332,15 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
         local_desc->wb_done = 1;
     }
 
-#ifdef ENABLE_AUTO_CHKPT
     if (++last == CHECK_NLOG_INTERVAL) {
         if (atomic_add_return(CHECK_NLOG_INTERVAL, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
             !atomic_read(&layer->checkpoint)) {
+#ifdef ENABLE_AUTO_CHKPT
             wakeup_master();
+#endif
         }
         last = 0;
     }
-#endif
 
     return id.id;
 }

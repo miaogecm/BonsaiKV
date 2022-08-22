@@ -7,5 +7,5 @@ dmsetup remove interleaved-set1 -f
 
 ./pmem_setup.sh
 
-chown -R deadpool /mnt/ext4/*
-chgrp -R deadpool /mnt/ext4/*
+chown -R sdp /mnt/ext4/*
+chgrp -R sdp /mnt/ext4/*

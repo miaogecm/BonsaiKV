@@ -10,5 +10,5 @@ mkfs.ext4 /dev/mapper/numa-interleaved-set
 
 mount -t ext4 -o dax /dev/mapper/numa-interleaved-set /mnt/ext4/dimm0
 
-chown -R deadpool /mnt/ext4/*
-chgrp -R deadpool /mnt/ext4/*
+chown -R sdp /mnt/ext4/*
+chgrp -R sdp /mnt/ext4/*

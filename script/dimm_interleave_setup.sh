@@ -14,5 +14,5 @@ mkfs.ext4 /dev/mapper/interleaved-set1
 mount -t ext4 -o dax /dev/mapper/interleaved-set0 /mnt/ext4/dimm0
 mount -t ext4 -o dax /dev/mapper/interleaved-set1 /mnt/ext4/dimm1
 
-chown -R deadpool /mnt/ext4/*
-chgrp -R deadpool /mnt/ext4/*
+chown -R sdp /mnt/ext4/*
+chgrp -R sdp /mnt/ext4/*
