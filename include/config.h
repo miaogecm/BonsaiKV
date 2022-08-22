@@ -25,6 +25,9 @@ extern "C" {
 
 //#define ASYNC_SMO
 
+#define ENABLE_AUTO_CHKPT
+#define ENABLE_LOAD_BALANCE
+
 //#define STR_KEY
 //#define STR_VAL
 #define VAL_LEN                 16384

@@ -332,6 +332,7 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
         local_desc->wb_done = 1;
     }
 
+#ifdef ENABLE_AUTO_CHKPT
     if (++last == CHECK_NLOG_INTERVAL) {
         if (atomic_add_return(CHECK_NLOG_INTERVAL, &layer->nlogs[cpu].cnt) >= CHKPT_NLOG_INTERVAL / NUM_CPU &&
             !atomic_read(&layer->checkpoint)) {
@@ -339,6 +340,7 @@ logid_t oplog_insert(log_state_t *lst, pkey_t key, pval_t val, optype_t op, txop
         }
         last = 0;
     }
+#endif
 
     return id.id;
 }
@@ -1003,8 +1005,10 @@ static int load_balance_work(void *arg) {
     struct load_balance_workset *ws = desc->workset;
     int wid = desc->wid;
 
+#ifdef ENABLE_LOAD_BALANCE
     inter_socket_load_balance(ws->per_socket_loads, wid);
     //flush_load_dump(&ws->per_socket_loads[0]);
+#endif
 
     intra_socket_load_balance(ws->per_worker_loads, ws->per_socket_loads, &ws->barrier, wid);
     //flush_load_dump(&ws->per_worker_loads[0]);
