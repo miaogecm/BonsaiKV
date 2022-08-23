@@ -18,13 +18,13 @@ LATENCY = {
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    'pacman':   [43.383, 26.230, 27.081, 27.631, 28.128, 37.564, 47.226, 39.862, 46.993],
 
     # 1 worker per node (default setting)
-    'pactree':  [4.846, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    'pactree':  [4.846, 5.073, 5.251, 5.640, 6.240, 26.108, 30.642, 35.776, 37.658],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [3.174, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX]
+    'bonsai':   [3.174, 3.652, 3.859, 4.130, 4.378, 11.997, 17.085, 23.558, 28.324]
 }
 DIMMRBW = {
     # thread num: 1/6/12/18/24/30/36/42/48
@@ -50,11 +50,25 @@ THROUGHPUT = {}
 for kvstore, latencies in LATENCY.items():
     THROUGHPUT[kvstore] = list(map(lambda x: SIZE * THREADS[x[0]] / x[1] / M, enumerate(latencies)))
 
+MAPPING = {}
+HEADER = ['thread']
+for kvstore, latencies in THROUGHPUT.items():
+    HEADER.append(kvstore)
+    for thread, latency in zip(THREADS, latencies):
+        if thread not in MAPPING:
+            MAPPING[thread] = []
+        MAPPING[thread].append(latency)
+
+print(','.join(HEADER))
+for thread, latencies in MAPPING.items():
+    print(','.join(map(lambda x: str(round(x, 2)), [thread] + latencies)))
+
 xs = THREADS
 
 gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
 
 throughplt = plt.subplot(gs[0])
+throughplt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='.', markersize=8, linestyle='-', linewidth=2, label='PACMAN', color='orange')
 throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='PACTree', color='aqua')
 throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai', color='brown')
 
