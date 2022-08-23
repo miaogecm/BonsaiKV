@@ -12,31 +12,31 @@
 M = 1000000
 MAX = 240 * M
 SIZE = 0.5 * M
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
-    'dptree':   [2.818, 8.043, 20.090, 31.996, 44.304, 52.824, 65.354],
+    'dptree':   [1.914, 2.222, 2.499, 3.112, 3.903, 25.401, 31.508, 37.077, 42.786],
 
-    'fastfair': [5.083, 8.654, 10.994, 15.638, 26.681, 36.599, 46.999],
+    'fastfair': [24.754, 29.406, 28.550, 29.932, 32.693, 59.221, 90.554, 119.231, 145.943],
 
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [10.868, 13.169, 14.189, 15.201, 15.248, 33.186, 34.338, 35.470, 36.912],
 
     # 1 worker per node (default setting)
-    'pactree':  [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
+    'pactree':  [3.140, 3.473, 3.696, 3.925, 4.254, 7.595, 12.812, 16.329, 21.449],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [2.030, 2.178, 2.249, 2.469, 2.521, 5.135, 8.744, 14.289, 17.53]
 }
 DIMMRBW = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # 1 worker per node (default setting)
-    'pactree':  [2000, 2000, 2000, 2000, 2000, 2000, 2000],
+    'pactree':  [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
-    'bonsai':   [1147.85, 7524.23, 8240.46, 16094.66, 16055.59, 23135.46, 24433.48]
+    'bonsai':   [0, 0, 0, 0, 0, 0, 0, 0, 0],
 }
 
 import numpy as np
@@ -48,13 +48,29 @@ THROUGHPUT = {}
 for kvstore, latencies in LATENCY.items():
     THROUGHPUT[kvstore] = list(map(lambda x: SIZE * THREADS[x[0]] / x[1] / M, enumerate(latencies)))
 
+MAPPING = {}
+HEADER = ['thread']
+for kvstore, latencies in THROUGHPUT.items():
+    HEADER.append(kvstore)
+    for thread, latency in zip(THREADS, latencies):
+        if thread not in MAPPING:
+            MAPPING[thread] = []
+        MAPPING[thread].append(latency)
+
+print(','.join(HEADER))
+for thread, latencies in MAPPING.items():
+    print(','.join(map(lambda x: str(round(x, 2)), [thread] + latencies)))
+
 xs = THREADS
 
 gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
 
 throughplt = plt.subplot(gs[0])
-throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='PACTree', color='aqua')
-throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai', color='brown')
+throughplt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='o', markersize=12, linestyle='-', linewidth=2, label='DPTree', color='orange')
+throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='o', markersize=12, linestyle='-', linewidth=2, label='PACTree', color='aqua')
+throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=12, linestyle='-', linewidth=2, label='Bonsai', color='brown')
+throughplt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='.', markersize=12, linestyle='-', linewidth=2, label='FAST & FAIR', color='green')
+throughplt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='o', markersize=12, linestyle='-', linewidth=2, label='PACMAN', color='blue')
 
 rbwplt = plt.subplot(gs[1], sharex=throughplt)
 rbwplt.plot(xs, DIMMRBW['pactree'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='PACTree', color='aqua')
