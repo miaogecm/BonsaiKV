@@ -12,7 +12,7 @@
 
 void LogCleaner::CleanerEntry() {
   // bind_core_on_numa(log_->num_workers_ + cleaner_id_);
-#if INDEX_TYPE == 3
+#if INDEX_TYPE == 3 || INDEX_TYPE == 4
   reinterpret_cast<MasstreeIndex *>(db_->index_)
       ->MasstreeThreadInit(log_->num_workers_ + cleaner_id_);
 #endif

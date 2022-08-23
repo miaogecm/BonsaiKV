@@ -124,7 +124,7 @@ void LogCleaner::RecoveryInfo() {
 
 
 void LogCleaner::RecoveryAll() {
-#if INDEX_TYPE == 3
+#if INDEX_TYPE == 3 || INDEX_TYPE == 4
   reinterpret_cast<MasstreeIndex *>(db_->index_)
       ->MasstreeThreadInit(log_->num_workers_ + cleaner_id_);
 #endif

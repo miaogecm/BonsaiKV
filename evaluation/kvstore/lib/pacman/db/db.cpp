@@ -33,7 +33,7 @@ DB::DB(std::string db_path, size_t log_size, int num_workers, int num_cleaners)
 #elif INDEX_TYPE == 2
   index_ = new FastFairIndex();
   printf("DB index type: FastFair\n");
-#elif INDEX_TYPE == 3
+#elif INDEX_TYPE == 3 || INDEX_TYPE == 4
   index_ = new MasstreeIndex();
   printf("DB index type: Masstree\n");
 #endif
@@ -95,7 +95,7 @@ void DB::NewIndexForRecoveryTest() {
   index_ = new CCEHIndex();
 #elif INDEX_TYPE == 2
   index_ = new FastFairIndex();
-#elif INDEX_TYPE == 3
+#elif INDEX_TYPE == 3 || INDEX_TYPE == 4
   index_ = new MasstreeIndex();
 #endif
 }
@@ -105,7 +105,7 @@ void DB::NewIndexForRecoveryTest() {
 DB::Worker::Worker(DB *db) : db_(db) {
   worker_id_ = db_->cur_num_workers_.fetch_add(1);
   tmp_cleaner_garbage_bytes_.resize(db_->num_cleaners_, 0);
-#if INDEX_TYPE == 3
+#if INDEX_TYPE == 3 || INDEX_TYPE == 4
   reinterpret_cast<MasstreeIndex *>(db_->index_)
       ->MasstreeThreadInit(worker_id_);
 #endif
@@ -158,6 +158,8 @@ size_t DB::Worker::Scan(const Slice &key, int cnt) {
   for (int i = 0; i < vec.size(); i++) {
     ValueType val = vec[i];
     TaggedPointer(val).GetKVItem()->GetValue(s_value);
+    volatile std::string test = s_value;
+    test;
   }
   db_->thread_status_.rcu_exit(worker_id_);
   return vec.size();
