@@ -23,7 +23,7 @@ LATENCY = {
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # dm-stripe 2M-Interleave
     # bottleneck: bloom filter array maintenance, WAL metadata cacheline thrashing, NUMA Awareness
-    'dptree':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    'dptree':   [2.265, 2.318, 2.418, 2.629, 2.706, 3.215, 3.493, 3.782, 4.101],
 
     # dm-stripe 2M-Interleave
     # bottleneck: large SMO overhead, node metadata cacheline thrashing
