@@ -91,8 +91,8 @@ int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len
 void kv_scan(void *tcontext, void *key, size_t key_len, int range, void *values) {
     auto *db = static_cast<btree *>(tcontext);
     entry_key_t key_ = get_key(key, key_len);
-    int off;
-    db->btree_search_range(key_, INT64_MAX, static_cast<unsigned long *>(values), range, off);
+    std::vector<uint64_t> vec;
+    db->btree_search_range(key_, range, vec);
 }
 
 }

@@ -63,7 +63,7 @@ public:
   void btree_delete_internal(entry_key_t, char *, uint32_t, entry_key_t *,
                              bool *, page **);
   char *btree_search(entry_key_t);
-  void btree_search_range(entry_key_t min, entry_key_t max, unsigned long *buf, int num, int &off);
+  void btree_search_range(entry_key_t min, int range, std::vector<uint64_t> &vec);
   void printAll();
   void randScounter();
 
@@ -701,92 +701,90 @@ public:
   }
 
   // Search keys with linear search
-  void linear_search_range(uint64_t min, uint64_t max, unsigned long *buf, int num, int &off) {
-    int i;
-    uint32_t previous_switch_counter;
+  void linear_search_range(entry_key_t min, int range, unsigned long *buf) {
+    int i, off = 0;
+    uint8_t previous_switch_counter;
     page *current = this;
-    void *snapshot_n;
-    off = 0;
 
-    while(current) {
-        int old_off = off;
-        snapshot_n = D_RW(current->hdr.sibling_ptr);
+    while (current) {
+      pthread_rwlock_rdlock(current->hdr.rwlock);
+      int old_off = off;
+      do {
+        previous_switch_counter = current->hdr.switch_counter;
+        off = old_off;
 
-        do {
-            previous_switch_counter = current->hdr.switch_counter;
-            off = old_off;
+        entry_key_t tmp_key;
+        char *tmp_ptr;
 
-            uint64_t tmp_key;
-            char *tmp_ptr;
-
-            if(IS_FORWARD(previous_switch_counter)) {
-                if((tmp_key = current->records[0].key) > min) {
-                    if(tmp_key < max && off < num) {
-                        if((tmp_ptr = current->records[0].ptr) != NULL) {
-                            if(tmp_key == current->records[0].key) {
-                                if(tmp_ptr) {
-                                    buf[off++] = (unsigned long)tmp_ptr;
-                                }
-                            }
-                        }
-                    }
-                    else
-                        return;
+        if (IS_FORWARD(previous_switch_counter)) {
+          if ((tmp_key = current->records[0].key) > min) {
+            if (off < range) {
+              if ((tmp_ptr = current->records[0].ptr) != NULL) {
+                if (tmp_key == current->records[0].key) {
+                  if (tmp_ptr) {
+                    buf[off++] = (unsigned long)tmp_ptr;
+                  }
                 }
-
-                for(i=1; current->records[i].ptr != NULL; ++i) {
-                    if((tmp_key = current->records[i].key) > min) {
-                        if(tmp_key < max && off < num) {
-                            if((tmp_ptr = current->records[i].ptr) != current->records[i - 1].ptr) {
-                                if(tmp_key == current->records[i].key) {
-                                    if(tmp_ptr) {
-                                        buf[off++] = (unsigned long)tmp_ptr;
-                                    }
-                                }
-                            }
-                        }
-                        else
-                            return;
-                    }
-                }
+              }
+            } else {
+              pthread_rwlock_unlock(current->hdr.rwlock);
+              return;
             }
-            else {
-                for(i = current->count() - 1; i > 0; --i) {
-                    if((tmp_key = current->records[i].key) > min) {
-                        if(tmp_key < max && off < num) {
-                            if((tmp_ptr = current->records[i].ptr) != current->records[i - 1].ptr) {
-                                if(tmp_key == current->records[i].key) {
-                                    if(tmp_ptr) {
-                                        buf[off++] = (unsigned long)tmp_ptr;
-                                    }
-                                }
-                            }
-                        }
-                        else
-                            return;
-                    }
-                }
+          }
 
-                if((tmp_key = current->records[0].key) > min) {
-                    if(tmp_key < max && off < num) {
-                        if((tmp_ptr = current->records[0].ptr) != NULL) {
-                            if(tmp_key == current->records[0].key) {
-                                if(tmp_ptr) {
-                                    buf[off++] = (unsigned long)tmp_ptr;
-                                }
-                            }
-                        }
-                    }
-                    else
-                        return;
+          for (i = 1; current->records[i].ptr != NULL; ++i) {
+            if ((tmp_key = current->records[i].key) > min) {
+              if (off < range) {
+                if ((tmp_ptr = current->records[i].ptr) !=
+                    current->records[i - 1].ptr) {
+                  if (tmp_key == current->records[i].key) {
+                    if (tmp_ptr)
+                      buf[off++] = (unsigned long)tmp_ptr;
+                  }
                 }
+              } else {
+                pthread_rwlock_unlock(current->hdr.rwlock);
+                return;
+              }
             }
-        } while(previous_switch_counter != current->hdr.switch_counter);
+          }
+        } else {
+          for (i = current->count() - 1; i > 0; --i) {
+            if ((tmp_key = current->records[i].key) > min && off < range) {
+              if (off < range) {
+                if ((tmp_ptr = current->records[i].ptr) !=
+                    current->records[i - 1].ptr) {
+                  if (tmp_key == current->records[i].key) {
+                    if (tmp_ptr)
+                      buf[off++] = (unsigned long)tmp_ptr;
+                  }
+                }
+              } else {
+                pthread_rwlock_unlock(current->hdr.rwlock);
+                return;
+              }
+            }
+          }
 
-        if (snapshot_n == D_RW(current->hdr.sibling_ptr))
-            current = D_RW(current->hdr.sibling_ptr);
-        else
-            off = old_off;
+          if ((tmp_key = current->records[0].key) > min && off < range) {
+            if (off < range) {
+              if ((tmp_ptr = current->records[0].ptr) != NULL) {
+                if (tmp_key == current->records[0].key) {
+                  if (tmp_ptr) {
+                    buf[off++] = (unsigned long)tmp_ptr;
+                  }
+                }
+              }
+            } else {
+              pthread_rwlock_unlock(current->hdr.rwlock);
+              return;
+            }
+          }
+        }
+      } while (previous_switch_counter != current->hdr.switch_counter);
+
+      pthread_rwlock_unlock(current->hdr.rwlock);
+      current = D_RW(current->hdr.sibling_ptr);
     }
   }
 
@@ -1186,7 +1184,7 @@ void btree::btree_delete_internal(entry_key_t key, char *ptr, uint32_t level,
 }
 
 // Function to search keys from "min" to "max"
-void btree::btree_search_range(entry_key_t min, entry_key_t max, unsigned long *buf, int num, int &off) {
+void btree::btree_search_range(entry_key_t min, int range, std::vector<uint64_t> &vec) {
   TOID(page) p = root;
 
   while (p.oid.off != 0) {
@@ -1195,7 +1193,7 @@ void btree::btree_search_range(entry_key_t min, entry_key_t max, unsigned long *
       p.oid.off = (uint64_t)D_RW(p)->linear_search(min);
     } else {
       // Found a leaf
-      D_RW(p)->linear_search_range(min, max, buf, num, off);
+      D_RW(p)->linear_search_range(min, range, vec);
 
       break;
     }
