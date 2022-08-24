@@ -9,8 +9,6 @@
 # fsdax + dm-stripe (for NUMA-oblivious designs)
 # measure: throughput/PMMWBW(thread)
 
-# *** VIPER: SIGBUS ***
-
 M = 1000000
 K = 1000
 MAX = 5760 * K
@@ -30,7 +28,7 @@ LATENCY = {
     'pacman':   [0.835, 1.473, 3.210, 4.787, 6.402, 27.57, 33.30, 38.808, 44.256],
 
     # dm-stripe 2M-Interleave
-    'viper':    [1.616, 2.230, 4.979, 7.304, 9.936, MAX, MAX, MAX, MAX],
+    'viper':    [1.616, 2.230, 4.979, 7.304, 9.936, 36.781, 35.329, 55.308, 61.966],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [1.730, 1.755, 1.821, 2.540, 3.374, 2.650, 2.608, 2.990, 3.473],

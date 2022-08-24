@@ -11,8 +11,6 @@
 # Enable snoopy mode for AD
 # measure: throughput(thread)
 
-# *** VIPER: SIGBUS ***
-
 M = 1000000
 K = 1000
 MAX = 5760 * K

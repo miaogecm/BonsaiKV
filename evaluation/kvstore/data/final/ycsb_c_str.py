@@ -23,14 +23,14 @@ LATENCY = {
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [8.214, 9.193, 9.930, 10.322, 10.847, 17.666, 17.968, 21.283, 27.987],
+    'pacman':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, 33.376, MAX],
 
     # dm-stripe 4K-Interleave
     # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
     'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, 23.711]
+    'bonsai':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, 23.721, MAX]
 }
 REMOTEACCESS = {
     # thread num: 1/8/16/24/32/40/48
