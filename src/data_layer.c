@@ -717,14 +717,20 @@ void pnode_prefetch_meta(pnoid_t pnode) {
 }
 
 int pnode_lookup(pnoid_t pnode, pkey_t key, pval_t *val) {
-    cnode_t *cno = get_cnode(pnode);
     uint8_t fgprt[PNODE_FANOUT];
     unsigned long validmap;
     pentry_t ent;
     int ret = 0;
 
+#ifndef DISABLE_UPLOAD
+    cnode_t *cno = get_cnode(pnode);
     validmap = cno->validmap;
     memcpy(fgprt, cno->fgprt, PNODE_FANOUT);
+#else
+    mnode_t *mno = pnode_meta(pnode);
+    validmap = mno->validmap;
+    memcpy(fgprt, mno->fgprt, PNODE_FANOUT);
+#endif
 
     if (unlikely(pnode_find_(&ent, pnode, key, fgprt, validmap) == NOT_FOUND)) {
         ret = -ENOENT;
