@@ -2,15 +2,16 @@
 
 # Evaluate indexing technique
 # Use YCSB Workload C (Read-only), 24BK + 8KV, uniform distribution
-# threads: 1/12/24/36/48
+# threads: 1/6/12/18/24
 
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy
 
-SIZE_PER_THREAD = 10
+M = 1000000
+SIZE_PER_THREAD = 250 * M
 
-THREADS = [1, 12, 24, 36, 48]
+THREADS = [1, 6, 12, 18, 24]
 LATENCY = [
     # Bonsai-DI  +offload  +upload
     [1, 2, 3],
