@@ -22,6 +22,7 @@
 #include "arch.h"
 #include "index_layer.h"
 #include "ordo.h"
+#include "counter.h"
 
 #define INODE_FANOUT    16
 
@@ -290,6 +291,8 @@ static inline inode_t *inode_alloc() {
         get = pool->freelist;
     } while (!cmpxchg2(&pool->freelist, get, inode_id2ptr(get->next_free)));
 
+    COUNTER_INC(nr_ino);
+
     return get;
 }
 
@@ -300,6 +303,7 @@ static inline void inode_free(struct inode_recycle_chain *rec, inode_t *inode) {
     if (unlikely(!rec->tail[cpu])) {
         rec->tail[cpu] = inode;
     }
+    COUNTER_DEC(nr_ino);
 }
 
 static int shim_layer_init() {
@@ -983,4 +987,8 @@ void index_layer_deinit(struct index_layer* layer) {
 	layer->destory(layer->index_struct);
 
 	bonsai_print("index_layer_deinit\n");
+}
+
+size_t get_inode_size() {
+    return sizeof(inode_t);
 }

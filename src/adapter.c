@@ -12,6 +12,7 @@
 
 #include "bonsai.h"
 #include "masstree.h"
+#include "counter.h"
 
 #define INT2KEY(val)        (* (pkey_t *) (unsigned long []) { (val) })
 
@@ -21,8 +22,19 @@ struct bonsai_config {
     int stm_support;
 };
 
+static void *masstree_alloc(size_t size) {
+    COUNTER_ADD(index_mem, size);
+    return malloc(size);
+}
+
+static void masstree_free(void *p, size_t size) {
+    COUNTER_SUB(index_mem, size);
+    free(p);
+}
+
 static void *index_init() {
-    return (void*) masstree_create(NULL);
+    static masstree_ops_t ops = { .alloc = masstree_alloc, .free = masstree_free };
+    return (void*) masstree_create(&ops);
 }
 
 static void index_destory(void* index_struct) {
@@ -89,6 +101,8 @@ extern void bonsai_dtx_commit();
 extern int bonsai_user_thread_init();
 extern void bonsai_user_thread_exit();
 
+size_t bonsai_get_dram_usage();
+
 const char *kv_engine() {
     return "bonsai";
 }
@@ -114,6 +128,14 @@ void kv_start_test(void *context) {
 
 void kv_stop_test(void *context) {
     bonsai_barrier();
+
+    printf("===== Counters =====\n");
+    printf("index memory: %lu bytes\n", COUNTER_GET(index_mem));
+    printf("nr_ino: %d\n", COUNTER_GET(nr_ino));
+    printf("nr_pno: %d\n", COUNTER_GET(nr_pno));
+    printf("====================\n");
+
+    printf("Bonsai DRAM Usage: %lu bytes\n", bonsai_get_dram_usage());
 }
 
 void *kv_thread_create_context(void *context, int id) {

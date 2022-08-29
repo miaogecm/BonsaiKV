@@ -20,6 +20,7 @@
 #include "bonsai.h"
 #include "arch.h"
 #include "bitmap.h"
+#include "counter.h"
 
 #define PNODE_NUM_ENT_PER_BLK   (PNODE_INTERLEAVING_SIZE / sizeof(pentry_t))
 #define PNODE_NUM_ENT_BLK       (PNODE_FANOUT / PNODE_NUM_ENT_PER_BLK)
@@ -251,6 +252,8 @@ static pnoid_t alloc_pnode(int node) {
     spin_lock_init(&mno->perm_lock);
     seqcount_init(&mno->perm_seq);
 
+    COUNTER_INC(nr_pno);
+
     return id.id;
 }
 
@@ -270,6 +273,8 @@ static void delay_free_pnode(pnoid_t pnode) {
     if (head == PNOID_NULL) {
         d_layer->tofree_tail = pnode;
     }
+
+    COUNTER_DEC(nr_pno);
 }
 
 static int ent_compare(const void *p, const void *q) {
@@ -955,4 +960,8 @@ pnoid_t pnode_sentinel_init() {
     mno->lfence = MIN_KEY;
     mno->rfence = MAX_KEY;
     return pno;
+}
+
+size_t get_cnode_size() {
+    return sizeof(cnode_t);
 }

@@ -25,6 +25,7 @@
 #include "log_layer.h"
 #include "data_layer.h"
 #include "rcu.h"
+#include "counter.h"
 
 struct bonsai_info* bonsai;
 static char* bonsai_fpath = "/mnt/ext4/dimm0/bonsai";
@@ -290,4 +291,21 @@ int bonsai_init(char *index_name, init_func_t init, destory_func_t destory, inse
 
 out:
 	return error;
+}
+
+size_t get_inode_size();
+size_t get_cnode_size();
+
+size_t bonsai_get_dram_usage() {
+    int nr_ino = COUNTER_GET(nr_ino), nr_pno = COUNTER_GET(nr_pno);
+    size_t index_mem = COUNTER_GET(index_mem), mem;
+
+    mem = index_mem + nr_ino * get_inode_size();
+#ifndef DISABLE_UPLOAD
+    mem += nr_pno * get_cnode_size();
+#else
+    (void) nr_pno;
+#endif
+
+    return mem;
 }
