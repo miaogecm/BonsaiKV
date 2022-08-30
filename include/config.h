@@ -40,8 +40,8 @@ extern "C" {
 #define INTERLEAVED_CPU_NR
 //#define INTERLEAVED_DIMM_NR
 
-#define DISABLE_OFFLOAD
-#define DISABLE_UPLOAD
+//#define DISABLE_OFFLOAD
+//#define DISABLE_UPLOAD
 
 static inline int node_idx_to_cpu(int node, int cpu_idx) {
 #ifdef INTERLEAVED_CPU_NR
