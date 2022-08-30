@@ -319,7 +319,8 @@ size_t bonsai_get_dram_usage() {
     int nr_ino = COUNTER_GET(nr_ino), nr_pno = COUNTER_GET(nr_pno);
     size_t index_mem = COUNTER_GET(index_mem), mem;
 
-    mem = index_mem + nr_ino * get_inode_size();
+    //mem = index_mem + nr_ino * get_inode_size();
+    mem = index_mem;
 #ifndef DISABLE_UPLOAD
     mem += nr_pno * get_cnode_size();
 #else
