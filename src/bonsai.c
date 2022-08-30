@@ -99,6 +99,25 @@ static void check_dtx_autostart() {
     }
 }
 
+static inline int index_upsert(pkey_t key, logid_t log) {
+#ifdef DISABLE_OFFLOAD
+    struct index_layer *i_layer = INDEX(bonsai);
+    return i_layer->insert(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN, (const void *) (unsigned long) log);
+#else
+    return shim_upsert(&dtx_lst, key, log);
+#endif
+}
+
+static inline int index_lookup(pkey_t key, pval_t *val) {
+#ifdef DISABLE_OFFLOAD
+    struct index_layer *i_layer = INDEX(bonsai);
+    void *p = i_layer->lookup(i_layer->index_struct, pkey_to_str(key).key, KEY_LEN, NULL);
+    *val = oplog_get((logid_t) (unsigned long) p)->o_kv.v;
+#else
+    return shim_lookup(key, val);
+#endif
+}
+
 static int do_bonsai_insert(pkey_t key, pval_t value, txop_t txop) {
   	logid_t log;
 	int ret;
@@ -107,7 +126,7 @@ static int do_bonsai_insert(pkey_t key, pval_t value, txop_t txop) {
 
     log = oplog_insert(&dtx_lst, key, valman_make_nv(value), OP_INSERT, txop, __this->t_cpu);
 
-    ret = shim_upsert(&dtx_lst, key, log);
+    ret = index_upsert(key, log);
 
     op_count++;
     if (txop != TX_OP) {
@@ -157,7 +176,7 @@ int bonsai_lookup(pkey_t key, pval_t *val) {
 
     assert(dtx_lst.flip == OUTSIDE_DTX);
 
-    ret = shim_lookup(key, &nv_val);
+    ret = index_lookup(key, &nv_val);
 
     if (likely(!ret)) {
         *val = valman_make_v_local(nv_val);
