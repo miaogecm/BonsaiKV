@@ -21,6 +21,7 @@ static ycsb_decompressor_t load_dec, op_dec;
 
 #define VAL_LEN     YCSB_VAL_LEN
 static char valbuf[VAL_LEN];
+static __thread char valres[VAL_LEN];
 
 static void *get_val(size_t *len) {
     *len = VAL_LEN;
@@ -36,7 +37,6 @@ static void do_op(struct kvstore *kvstore, void *tcontext, ycsb_decompressor_t *
     void *key, *val;
     size_t key_len, val_len;
     uint64_t values[1024];
-    char buf[8];
 
     nr = ycsb_decompressor_get_nr(dec);
 
@@ -64,7 +64,7 @@ static void do_op(struct kvstore *kvstore, void *tcontext, ycsb_decompressor_t *
                 break;
 
             case OP_READ:
-                ret = kvstore->kv_get(tcontext, key, key_len, buf, &val_len);
+                ret = kvstore->kv_get(tcontext, key, key_len, valres, &val_len);
                 assert(ret == 0);
                 __asm__ volatile("" : : "r"(val_len) : "memory");
                 break;
