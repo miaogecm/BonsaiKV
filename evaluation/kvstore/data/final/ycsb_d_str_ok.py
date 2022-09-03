@@ -12,25 +12,25 @@
 M = 1000000
 MAX = 240 * M
 SIZE = 5.0 * M
-THREADS = [1, 8, 16, 24, 32, 40, 48]
+THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
-    # thread num: 1/8/16/24/32/40/48
+    # thread num: 1/6/12/18/24/30/36/42/48
 
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [6.159, 10.293, 11.202, 12.699, 14.107, 17.873, 20.764],
+    #'listdb':   [4.365, 6.976, 7.052, 7.605, 7.554, 9.836, MAX, MAX, MAX],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
-    'pacman':   [2.156, 4.324, 4.640, 4.969, 8.090, 22.547, 48.724],
+    'pacman':   [5.373, 6.010, 6.126, 6.843, 6.982, 11.333, 16.852, 27.485, 31.597],
 
     # dm-stripe 4K-Interleave
     # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [3.393, 5.005, 4.984, 6.044, 6.980, 7.737, 10.433],
+    'viper':    [6.787, 6.438, 7.409, 8.098, 9.332, 18.668, 27.384, 43.369, 53.127],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [1.577, 3.152, 3.597, 3.434, 3.868, 4.093, 5.669]
+    'bonsai':   [4.692, 6.339, 6.442, 6.478, 6.515, 9.484, 9.617, 11.595, 13.575]
 }
 
 import numpy as np
@@ -41,9 +41,22 @@ THROUGHPUT = {}
 for kvstore, latencies in LATENCY.items():
     THROUGHPUT[kvstore] = list(map(lambda x: SIZE * THREADS[x[0]] / x[1] / M, enumerate(latencies)))
 
+MAPPING = {}
+HEADER = ['thread']
+for kvstore, latencies in THROUGHPUT.items():
+    HEADER.append(kvstore)
+    for thread, latency in zip(THREADS, latencies):
+        if thread not in MAPPING:
+            MAPPING[thread] = []
+        MAPPING[thread].append(latency)
+
+print(','.join(HEADER))
+for thread, latencies in MAPPING.items():
+    print(','.join(map(lambda x: str(round(x, 2)), [thread] + latencies)))
+
 xs = THREADS
 
-plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
+#plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
 plt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN')
 plt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper')
 plt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai')

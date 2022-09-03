@@ -22,14 +22,14 @@ LATENCY = {
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    #'listdb':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [1.767, 2.250, 3.441, 5.159, 6.898, 23.629, 28.833, 38.268, 43.489],
 
     # dm-stripe 2M-Interleave
-    'viper':    [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    #'viper':    [3.202, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [2.421, 2.637, 3.124, 3.935, 4.895, 3.948, 4.119, 4.560, 5.122]
@@ -58,9 +58,9 @@ for thread, latencies in MAPPING.items():
 
 xs = THREADS
 
-plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
+#plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
 plt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN')
-plt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper')
+#plt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper')
 plt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai')
 
 font = {'size': '20','fontname': 'Times New Roman'}
