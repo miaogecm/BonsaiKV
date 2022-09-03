@@ -17,6 +17,11 @@ PROTOCOLS = (
 )
 
 for name, off, color, calc_local_dram, calc_remote_dram, calc_local_nvm, calc_remote_nvm in PROTOCOLS:
+    print('{}:'.format(name))
+    for p in PS:
+        print('{},{},{},{},{}'.format(p, calc_local_dram(p / 100), calc_remote_dram(p / 100), calc_local_nvm(p / 100), calc_remote_nvm(p / 100)))
+
+for name, off, color, calc_local_dram, calc_remote_dram, calc_local_nvm, calc_remote_nvm in PROTOCOLS:
     local_dram = calc_local_dram(PS / 100)
     remote_dram = calc_remote_dram(PS / 100)
     local_nvm = calc_local_nvm(PS / 100)
