@@ -16,21 +16,24 @@ THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
     # thread num: 1/6/12/18/24/30/36/42/48
 
-    # 1GB memtable, max number=4
-    # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
-    # Nbg:Nfg = 1:2, at least 1 Nbg
-    #'listdb':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    # dm-stripe 2M-Interleave
+    'fastfair': [6.235, 5.822, 6.114, 6.324, 6.774, 13.861, 23.558, 30.056, 36.503],
+
+    'dptree':   [4.876, 5.911, 6.573, 6.798, 7.008, 9.943, 11.008, 14.687, 17.267],
+
+    'pactree':  [5.104, 6.165, 7.831, 9.055, 10.296, 11.961, 12.201, 14.266, 15.476],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [5.178, 5.895, 6.396, 6.704, 7.093, 21.034, 30.193, 38.906, 48.818],
 
-    # dm-stripe 4K-Interleave
-    # bottleneck: VPage metadata cacheline thrashing, segment lock overhead, NUMA Awareness
-    'viper':    [6.235, 5.822, 6.114, 6.324, 6.774, 13.861, 23.558, 30.056, 36.503],
+    # 1GB memtable, max number=4
+    # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
+    # Nbg:Nfg = 1:2, at least 1 Nbg
+    'listdb':   [5.468, 6.324, 6.664, 7.316, 7.880, 12.831, 14.987, 19.121, 21.986],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
-    'bonsai':   [4.789, 5.734, 6.291, 6.873, 7.558, 12.831, 14.987, 19.121, 21.986]
+    'bonsai':   [4.789, 5.734, 6.291, 6.873, 7.558, 7.167, 7.272, 7.385, 8.237],
 }
 REMOTEACCESS = {
     # thread num: 1/8/16/24/32/40/48
@@ -44,8 +47,8 @@ REMOTEACCESS = {
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
-    # dm-stripe 4K-Interleave
-    'viper':    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    # dm-stripe 2M-Interleave
+    'fastfair':    [0, 0, 0, 0, 0, 0, 0, 0, 0],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     # disabled pflush workers
@@ -79,15 +82,17 @@ xs = THREADS
 gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
 
 throughplt = plt.subplot(gs[0])
-#throughplt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB', color='blue')
+throughplt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB', color='blue')
 throughplt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN', color='orange')
-throughplt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper', color='aqua')
+throughplt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='FastFair-ptr', color='aqua')
 throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai', color='brown')
+throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='PACTree-ptr', color='red')
+throughplt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='DPTree-ptr', color='green')
 
 accplt = plt.subplot(gs[1], sharex=throughplt)
 accplt.plot(xs, REMOTEACCESS['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='--', linewidth=2, label='ListDB', color='blue')
 accplt.plot(xs, REMOTEACCESS['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='--', linewidth=2, label='PACMAN', color='orange')
-accplt.plot(xs, REMOTEACCESS['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='Viper', color='aqua')
+accplt.plot(xs, REMOTEACCESS['fastfair'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='FastFair', color='aqua')
 accplt.plot(xs, REMOTEACCESS['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='--', linewidth=2, color='brown')
 
 font = {'size': '18','fontname': 'Times New Roman'}

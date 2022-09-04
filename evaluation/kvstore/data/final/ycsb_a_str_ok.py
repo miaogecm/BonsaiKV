@@ -19,17 +19,20 @@ THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
     # thread num: 1/6/12/18/24/30/36/42/48
 
+    'fastfair': [2.345, 3.135, 3.642, 4.565, 6.225, 20.523, 27.384, 43.369, 53.127],
+
+    'dptree':   [2.349, 3.232, 4.224, 4.534, 5.532, 22.419, 29.934, 44.959, 49.819],
+
+    'pactree':  [3.215, 5.384, 7.128, 11.157, 25.04, 32.85, 40.624, 47.299, 48.476],
+
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    #'listdb':   [MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
+    'listdb':   [4.385, 6.483, 7.334, 9.902, 12.348, 28.04, 30.322, 36.532, 48.339],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [1.767, 2.250, 3.441, 5.159, 6.898, 23.629, 28.833, 38.268, 43.489],
-
-    # dm-stripe 2M-Interleave
-    #'viper':    [3.202, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [2.421, 2.637, 3.124, 3.935, 4.895, 3.948, 4.119, 4.560, 5.122]
@@ -58,9 +61,11 @@ for thread, latencies in MAPPING.items():
 
 xs = THREADS
 
-#plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
+plt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB')
+plt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='DPTree')
 plt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN')
-#plt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper')
+plt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACTree')
+plt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Fast-Fair')
 plt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai')
 
 font = {'size': '20','fontname': 'Times New Roman'}
