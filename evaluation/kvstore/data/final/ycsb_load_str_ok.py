@@ -17,18 +17,26 @@ THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
     # thread num: 1/6/12/18/24/30/36/42/48
 
-    # 1GB memtable, max number=4
-    # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
-    # Nbg:Nfg = 1:2, at least 1 Nbg
-    # flush too late
-    'listdb':   [2.446, 8.288, 15.971, 23.253, 31.075, 21.984, 21.839, 24.722, 29.558],
+    # pactree and listdb are slow because fast indexing increases bandwidth contention in value persist
+
+    'fastfair': [1.848, 2.893, 5.403, 9.337, 12.384, 30.284, 34.413, 50.930, 68.038],
+
+    'dptree':   [1.849, 3.651, 7.247, 11.227, 14.083, 40.91, 49.025, 57.074, 67.752],
+
+    'pactree':  [1.3795, 8.814, 12.138, 15.42, 22.4795, 15.0495, 18.0275, 21.0235, 24.4295],
+
+    # dm-stripe 2M-Interleave
+    'viper':    [1.616, 2.230, 4.979, 7.304, 9.936, 36.781, 35.329, 55.308, 61.966],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [0.835, 1.473, 3.210, 4.787, 6.402, 27.57, 33.30, 38.808, 44.256],
 
-    # dm-stripe 2M-Interleave
-    'viper':    [1.616, 2.230, 4.979, 7.304, 9.936, 36.781, 35.329, 55.308, 61.966],
+    # 1GB memtable, max number=4
+    # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
+    # Nbg:Nfg = 1:2, at least 1 Nbg
+    # flush too late
+    'listdb':   [2.446, 8.288, 15.971, 23.253, 31.075, 21.984, 21.839, 24.722, 29.558],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [1.730, 1.755, 1.821, 2.540, 3.374, 2.650, 2.608, 2.990, 3.473],
@@ -95,6 +103,9 @@ gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
 throughplt = plt.subplot(gs[0])
 throughplt.plot(xs, THROUGHPUT['listdb'], markerfacecolor='none', marker='x', markersize=8, linestyle='-', linewidth=2, label='ListDB', color='blue')
 throughplt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACMAN', color='orange')
+throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='PACTree-ptr', color='green')
+throughplt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='DPTree-ptr', color='grey')
+throughplt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='FAST-FAIR-ptr', color='red')
 throughplt.plot(xs, THROUGHPUT['viper'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='Viper', color='aqua')
 throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai', color='brown')
 
