@@ -16,6 +16,10 @@ THREADS = [1, 6, 12, 18, 24, 30, 36, 42, 48]
 LATENCY = {
     # thread num: 1/6/12/18/24/30/36/42/48
 
+    'fastfair': [32.485, 42.950, 43.283, 43.994, 44.394, 68.389, 107.902, 147.923, 196.103],
+
+    'dptree':   [4.394, 5.747, 6.844, 8.834, 10.856, 57.87, 69.48, 82.929, 96.256],
+
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
     'pacman':   [43.383, 26.230, 27.081, 27.631, 28.128, 37.564, 47.226, 39.862, 46.993],
@@ -68,6 +72,8 @@ xs = THREADS
 gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
 
 throughplt = plt.subplot(gs[0])
+throughplt.plot(xs, THROUGHPUT['fastfair'], markerfacecolor='none', marker='.', markersize=8, linestyle='-', linewidth=2, label='FastFair-ptr', color='red')
+throughplt.plot(xs, THROUGHPUT['dptree'], markerfacecolor='none', marker='.', markersize=8, linestyle='-', linewidth=2, label='DPTree-ptr', color='blue')
 throughplt.plot(xs, THROUGHPUT['pacman'], markerfacecolor='none', marker='.', markersize=8, linestyle='-', linewidth=2, label='PACMAN', color='orange')
 throughplt.plot(xs, THROUGHPUT['pactree'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='PACTree', color='aqua')
 throughplt.plot(xs, THROUGHPUT['bonsai'], markerfacecolor='none', marker='*', markersize=8, linestyle='-', linewidth=2, label='Bonsai', color='brown')
