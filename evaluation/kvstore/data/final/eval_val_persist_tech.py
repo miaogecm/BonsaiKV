@@ -20,6 +20,7 @@ LATENCY = {
     '512B':    [2.052, 10.358, 20.311, 33.478, 59.334],
     '1024B':   [2.088, 10.170, 26.532, 50.726, 76.653],
     'wo':      [2.258, 22.857, 50.196, 81.558, 115.827],
+    'odinfs':  [3.178, 12.736, 27.356, 42.945, 63.53]
 }
 PMMWBW = {
     # thread num: 1/6/12/18/24
@@ -27,6 +28,7 @@ PMMWBW = {
     '512B':    [1872.70, 2353.37, 2332.33, 2008.32, 1606.29],
     '1024B':   [1890.77, 2337.84, 1803.92, 1400.27, 1230.34],
     'wo':      [1867.89, 1048.54, 943.43, 871.23, 803.20],
+    'odinfs':  [1532.58, 1984.57, 1783.45, 1628.34, 1448.87]
 }
 
 import numpy as np
@@ -73,12 +75,14 @@ throughplt.plot(xs, THROUGHPUT['256B'], markerfacecolor='none', marker='x', mark
 throughplt.plot(xs, THROUGHPUT['512B'], markerfacecolor='none', marker='D', markersize=8, linestyle='-', linewidth=2, label='512B', color='orange')
 throughplt.plot(xs, THROUGHPUT['1024B'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='1024B', color='aqua')
 throughplt.plot(xs, THROUGHPUT['wo'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='wo', color='green')
+throughplt.plot(xs, THROUGHPUT['odinfs'], markerfacecolor='none', marker='o', markersize=8, linestyle='-', linewidth=2, label='OdinFS', color='red')
 
 bwplt = plt.subplot(gs[1], sharex=throughplt)
 bwplt.plot(xs, PMMWBW['256B'], markerfacecolor='none', marker='x', markersize=8, linestyle='--', linewidth=2, label='256B', color='blue')
 bwplt.plot(xs, PMMWBW['512B'], markerfacecolor='none', marker='D', markersize=8, linestyle='--', linewidth=2, label='512B', color='orange')
 bwplt.plot(xs, PMMWBW['1024B'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='1024B', color='aqua')
 bwplt.plot(xs, PMMWBW['wo'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='wo', color='green')
+bwplt.plot(xs, PMMWBW['odinfs'], markerfacecolor='none', marker='o', markersize=8, linestyle='--', linewidth=2, label='OdinFS', color='red')
 
 font = {'size': '18','fontname': 'Times New Roman'}
 font2 = {'size': '15','fontname': 'Times New Roman'}
