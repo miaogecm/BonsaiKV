@@ -36,7 +36,7 @@ LATENCY = {
     'listdb':   [4.916, 7.676, 10.313, 13.569, 16.915, 21.238, 24.474, 32.453, 38.197],
 
     # 1 worker per node (default setting)
-    'pactree':  [6.622, 9.947, 10.338, 10.269, 10.717, 15.124, 20.875, 22.778, 30.781],
+    'pactree':  [6.622, 9.947, 10.338, 10.269, 10.717, 11.807, 11.061, 12.128, 13.600],
 
     # dm-stripe 2M-Interleave
     # LOG_BATCHING enabled, simulates FlatStore log batching (batch size: 512B)
