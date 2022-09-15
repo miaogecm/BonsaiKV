@@ -31,7 +31,7 @@ LATENCY = {
     # 1GB memtable, max number=4
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
-    'listdb':   [8.365, 16.976, 19.052, 20.605, 22.252, 42.342, 52.483, 64.742, 63.975],
+    'listdb':   [5.365, 7.024, 7.229, 7.323, 8.154, 14.122, 21.021, 34.045, 43.472],
 
     # Nbg:Nfg = 1:4, at least 2 Nbg
     'bonsai':   [4.692, 6.339, 6.442, 6.478, 6.515, 6.484, 6.617, 7.544, 8.313],
