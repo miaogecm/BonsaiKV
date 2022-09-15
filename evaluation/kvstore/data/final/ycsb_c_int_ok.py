@@ -33,7 +33,7 @@ LATENCY = {
     # Enabled 1GB lookup cache (979 MB hash-based, 45 MB second chance)
     # Nbg:Nfg = 1:2, at least 1 Nbg
     # bottleneck: skiplist too high (perf reports high cache-miss rate when lockfree_skiplist::find_position)
-    'listdb':   [1.694, 2.320, 3.252, 4.518, 5.693, 8.065, 8.625, 9.998, 12.361],
+    'listdb':   [1.694, 2.320, 3.252, 4.518, 5.693, 5.896, 6.452, 7.342, 8.361],
 
     # 1 worker per node (default setting)
     'pactree':  [2.715, 3.642, 3.552, 4.548, 4.726, 5.357, 5.576, 5.912, 7.408],
