@@ -11,7 +11,7 @@ extern "C" {
 #define ORDO_GREATER_THAN (1)
 #define ORDO_UNCERTAIN (0)
 
-/* ORDO boundary of our evaluation set up
+/* ORDO boundary of our test set up
  * 224-core machine: 1214 clock cycles
  * 120-core machine: 650 clock cycles
  * 56-core machine (etri nvmm): 366 clock cycles */

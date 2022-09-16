@@ -1,3 +1,0 @@
-[submodule "benchmarks/other/pmem-rocksdb"]
-	path = benchmarks/other/pmem-rocksdb
-	url = https://github.com/starkwj/pmem-rocksdb.git

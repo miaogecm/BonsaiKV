@@ -1,16 +1,12 @@
 /*
- * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
- *
- * Hohai University
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- * 		   Junru Shen, gnu_emacs@hhu.edu.cn
+ * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
  * Bonsai thread configuration:
  *
  * self | master | pflush | pflush | pflush | pflush | smo
  *                      node0              node1
  */
+
 #define _GNU_SOURCE
 #include "cpu.h"
 #include <stdlib.h>
@@ -24,7 +20,6 @@
 #include "bonsai.h"
 #include "log_layer.h"
 #include "index_layer.h"
-#include "stm.h"
 
 __thread struct thread_info* __this = NULL;
 
@@ -369,7 +364,6 @@ int bonsai_user_thread_init(pthread_t tid) {
     thread->t_cpu = get_cpu();
     thread->t_bind = 1;
     thread->t_state = S_RUNNING;
-    thread->t_stm = stm_init_thread();
 
 	spin_lock(&bonsai->list_lock);
   	list_add(&thread->list, &bonsai->thread_list);
@@ -399,8 +393,6 @@ void bonsai_user_thread_exit() {
 	spin_lock(&bonsai->list_lock);
 	list_del(&thread->list);
 	spin_unlock(&bonsai->list_lock);
-
-	stm_exit_thread(thread->t_stm);
 
 	free(thread);
 }

@@ -1,3 +1,9 @@
+/*
+ * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
+ *
+ * 4-bytes MCS Spinlock
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <numa.h>

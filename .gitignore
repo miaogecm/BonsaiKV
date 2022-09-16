@@ -16,9 +16,9 @@ perf.data*
 kv
 .idea
 btree
-evaluation/kvstore/tools/index-microbench/data/*
-evaluation/kvstore/tools/index-microbench/data_lib/*
-evaluation/kvstore/tools/index-microbench/workloads/*
+test/kvstore/tools/index-microbench/data/*
+test/kvstore/tools/index-microbench/data_lib/*
+test/kvstore/tools/index-microbench/workloads/*
 index/data/*
 cmake-build-release
 cmake-build-debug

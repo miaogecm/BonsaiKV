@@ -63,7 +63,6 @@ struct thread_info {
 	volatile int 			t_state;
 	unsigned int 			t_cpu;
     int                     t_bind;
-    struct stm_tx          *t_stm;
     struct workqueue_struct t_wq;
 	struct list_head		list;
 };

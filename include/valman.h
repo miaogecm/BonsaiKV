@@ -1,14 +1,3 @@
-/*
- * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
- *
- * Hohai University
- *
- * Value Management
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- * 		   Junru Shen, gnu_emacs@hhu.edu.cn
- */
-
 #ifndef BONSAI_VALMAN_H
 #define BONSAI_VALMAN_H
 

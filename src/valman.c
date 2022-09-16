@@ -1,13 +1,9 @@
 /*
- * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
- *
- * Hohai University
+ * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
  * Value Management
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- * 		   Junru Shen, gnu_emacs@hhu.edu.cn
  */
+
 #define _GNU_SOURCE
 
 #include <malloc.h>

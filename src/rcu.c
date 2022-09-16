@@ -1,13 +1,9 @@
 /*
- * BonsaiKV: A Fast, Scalable, Persistent Key-Value Store for DRAM-NVM Systems
- *
- * Hohai University
- *
- * Author: Miao Cai, mcai@hhu.edu.cn
- * 				 Junru Shen, gnu_emacs@hhu.edu.cn
+ * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  * 
  * A QSBR (Quiescent State Based Reclamation) based Safe Memory Reclaimation
  */
+
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
