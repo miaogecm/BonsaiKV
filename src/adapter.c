@@ -209,6 +209,14 @@ int kv_get(void *tcontext, void *key, size_t key_len, void *val, size_t *val_len
     assert(tcontext == NULL);
     ret = bonsai_lookup(pkey, &pval);
     if (likely(!ret)) {
+#ifdef STR_VAL
+        void *ptr;
+        ptr = bonsai_extract_val(val_len, pval);
+        memcpy(val, ptr, *val_len);
+#else
+        *val_len = 8;
+        *(unsigned long *) val = pval;
+#endif
         valman_free_v(pval);
     }
     return ret;
