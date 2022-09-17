@@ -126,9 +126,9 @@ static inline void bonsai_flush(void* buf, uint32_t len, int fence) {
     len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
     for (i = 0; i < len; i += CACHELINE_SIZE) {
 #ifdef ARCH_SUPPORT_CLWB
-            clwb(buf + i);
+            clwb((char *) buf + i);
 #else
-            clflush(buf + i);
+            clflush((char *) buf + i);
 #endif
     }
 

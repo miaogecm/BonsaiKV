@@ -11,16 +11,16 @@ FLAGS += -I$(INC_DIR)
 FLAGS += -march=native -mtune=native -mcmodel=medium -O3
 FLAGS += -shared -fPIC
 FLAGS += -g -ggdb3
-FLAGS += -Wall -Wextra -Wshadow -Wdeclaration-after-statement
-FLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value -Wno-strict-aliasing
-FLAGS += -Wno-unused-function
+FLAGS += -Wall -Wextra -Wshadow
+FLAGS += -Wno-attributes -Wno-unused-parameter -Wno-unused-value -Wno-strict-aliasing -Wno-zero-length-bounds
+FLAGS += -Wno-unused-function -Wno-pointer-arith -Wno-packed-not-aligned -Wno-sign-compare
 FLAGS += ${LOCAL}
 FLAGS += $(SANITIZER_FLAG)
 
-CFLAGS += $(FLAGS)
+CFLAGS += $(FLAGS) -Wdeclaration-after-statement
 CFLAGS += -std=gnu99
 
-CXXFLAGS += $(FLAGS)
+CXXFLAGS += $(FLAGS) -Wno-literal-suffix
 CXXFLAGS += -std=gnu++14
 
 LDFLAGS += -shared -lpmem -lpmemobj -lnuma -ljemalloc

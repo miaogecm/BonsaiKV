@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Data Layer
+ * Data Layer: Scalable data layout organization
  */
 
 #include <algorithm>

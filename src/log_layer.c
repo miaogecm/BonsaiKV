@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Log Layer
+ * Log Layer: Fast persistence
  */
 
 #define _GNU_SOURCE
@@ -231,7 +231,7 @@ static void write_back(int cpu, int dimm_unlock, void *wb_new_buf_in_signal) {
     struct cpu_log_region *region = local_desc->region;
     uint32_t end = local_desc->end;
     struct oplog *lcb;
-    size_t len, c, i;
+    size_t len, c;
 
     lcb = local_desc->lcb;
     len = local_desc->lcb_size;
