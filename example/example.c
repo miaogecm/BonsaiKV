@@ -48,7 +48,7 @@ int main() {
     kv_put(thread_context, "abcdefgh", 8, "hellowld", 8);
 
     ret = kv_get(thread_context, "abcdefgh", 8, value, &len);
-    printf("got: %d %s %zu\n", ret, value, len);
+    printf("got: %d %.*s %zu\n", ret, len, value, len);
 
     kv_thread_stop_test(thread_context);
     kv_stop_test(context);
