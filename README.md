@@ -96,7 +96,7 @@ Note that these scripts are only compatible with our modified YCSB in `./test/be
    + `cd ./test/benchmark_ycsb`
    + `make -j`
 
-​		Now you will find `kvstore` in `./test/benchmark_ycsb`.
+   Now you will find `kvstore` in `./test/benchmark_ycsb`.
 
 #### Run YCSB Benchmark
 
