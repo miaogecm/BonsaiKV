@@ -31,14 +31,14 @@ BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory
      + **NUM_USER_THREAD:** Number of user threads
      + **STR_KEY:** Enable string key or not
      + **STR_VAL:** Enable string value or not
-     + **VAL_LEN: ** String value length
+     + **VAL_LEN:** String value length
 
      Advanced options:
 
      + **LOG_REGION_SIZE:** Log region size (default: 68GB)
      + **DATA_REGION_SIZE:** Data region size (default: 51GB)
-     + **CPU_VAL_POOL_SIZE: ** Number of string value slots for each CPU.
-     + **ENABLE_PNODE_REPLICA: ** Enable NUMA-Aware data migration. Recommend to enable this option for skewed workloads.
+     + **CPU_VAL_POOL_SIZE:** Number of string value slots for each CPU.
+     + **ENABLE_PNODE_REPLICA:** Enable NUMA-Aware data migration. Recommend to enable this option for skewed workloads.
 
 3. Build BonsaiKV
 
@@ -81,11 +81,11 @@ Note that these scripts are only compatible with our modified YCSB in `./test/be
 
 1. Modify `./test/benchmark_ycsb/include/config.h` to change hardware configurations and benchmark options. Important options:
    + **NUM_CPU:** CPU core number
-   + **NUM_THREADS: ** Worker thread number
-   + **YCSB_KVLIB_PATH: ** Key-value store library path
-   + **YCSB_WORKLOAD_NAME: ** The workload to run (see all workloads in `./test/benchmark_ycsb/workloads`)
-   + **YCSB_IS_STRING_KEY: ** Use string key or not.
-   + **YCSB_VAL_LEN: ** Value length.
+   + **NUM_THREADS:** Worker thread number
+   + **YCSB_KVLIB_PATH:** Key-value store library path
+   + **YCSB_WORKLOAD_NAME:** The workload to run (see all workloads in `./test/benchmark_ycsb/workloads`)
+   + **YCSB_IS_STRING_KEY:** Use string key or not.
+   + **YCSB_VAL_LEN:** Value length.
 2. Build the Benchmark Driver
    + `cd ./test/benchmark_ycsb`
    + `make -j`
