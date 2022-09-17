@@ -12,7 +12,11 @@ BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory
 
 **Hardware requirements:** Intel Optane DC Persistent Memory in **Non-Interleaved AppDirect** Mode
 
-**OS requirements:** Ubuntu 18.04+
+**OS version:** Ubuntu 18.04
+
+**Kernel version:** Linux Kernel 5.4.0-125-generic
+
+**Libraries:** libpmemobj, libnuma, libjemalloc
 
 ### Configuring and Building BonsaiKV
 
@@ -24,7 +28,7 @@ BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory
    + Modify `./include/config.h` to change hardware configurations and BonsaiKV functionalities. Important options:
 
      + **NUM_CPU:** CPU core number
-     + **NUM_DIMM:** Number of DIMMs installed on the server
+     + **NUM_DIMM:** Number of NVDIMMs installed on the server
      + **NUM_SOCKET:** NUMA node number
      + **NUM_USER_THREAD:** Number of user threads
      + **STR_KEY:** Enable string key or not
