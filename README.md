@@ -1,57 +1,98 @@
 # BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
 
-## Introduction
+This directory and its sub-directories contain the source code, setup utilities, and test scripts of *BonsaiKV*, a fast, scalable, and persistent key-value store library. A toy example is also included to demonstrate the usage of BonsaiKV library.
 
+## Overview
 
+Welcome to BonsaiKV!
 
-## Build BonsaiKV
+BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory system that fulfills efficient indexing, fast persistence, and high scalability simultaneously.
+
+## Getting Started with BonsaiKV
 
 ### Prerequisites
 
-+ *Intel Optane DCPMM* in **Non-interleaved** AppDirect mode. *Fsdax/devdax* namespaces.
+**Hardware requirements:** Intel Optane DC Persistent Memory in **Non-Interleaved AppDirect** Mode
 
-### Configuration
+**OS requirements:** Ubuntu 18.04+
 
-+ Modify `./include/config.h` to change platform-dependent parameters and BonsaiKV functionalities.
-+ Modify `./src/region.c` to setup per-NVDIMM regions for logs, pnodes, and string values.
+### Configuring and Building BonsaiKV
 
-### Build
+1. Checkout BonsaiKV
+   + `git clone https://github.com/xxxxxx/BonsaiKV.git`
 
-```
-cd src
-make -j
-```
+2. Configure BonsaiKV
 
-Now you can see `libbonsai.so` under `./src` directory.
+   + Modify `./include/config.h` to change hardware configurations and BonsaiKV functionalities. Important options:
 
-### Change Index
+     + **NUM_CPU:** CPU core number
+     + **NUM_DIMM:** Number of DIMMs installed on the server
+     + **NUM_SOCKET:** NUMA node number
+     + **NUM_USER_THREAD:** Number of user threads
+     + **STR_KEY:** Enable string key or not
+     + **STR_VAL:** Enable string value or not
+     + **VAL_LEN: ** String value length
 
+     Advanced options:
 
+     + **LOG_REGION_SIZE:** Log region size (default: 68GB)
+     + **DATA_REGION_SIZE:** Data region size (default: 51GB)
+     + **CPU_VAL_POOL_SIZE: ** Number of string value slots for each CPU.
+     + **ENABLE_PNODE_REPLICA: ** Enable NUMA-Aware data migration. Recommend to enable this option for skewed workloads.
 
-## Benchmark KVStores
+3. Build BonsaiKV
 
-We implement a generic KVStore benchmarking framework under `./evaluation/kvstore`. You can use it to benchmark BonsaiKV or other KVStores under `./evaluation/kvstore/lib`.
+   + `cd ./src`
+   + `make -j`
 
-### Generate YCSB workloads
+   Now you will find `libbonsai.so` in `./src`.
 
-+ Modify `./evaluation/kvstore/tools/index-microbench/gen_ycsb.sh` to change workload settings.
-+ Run `./evaluation/kvstore/tools/index-microbench/gen_ycsb.sh`. Workloads are generated under `workloads` directory.
+### (Optional) Changing Index for BonsaiKV
 
-### Configuration
+BonsaiKV uses Masstree as its index by default. But you can plug other indexes as you desire as long as they have `init`/`destroy`/`put`/`del`/`lower_bound` interfaces.
 
-+ Modify `./evaluation/include/config.h` to change core number, thread number, KVStore library path, and benchmark settings.
+1. Modify `./src/Makefile` to link to your desired index library, or just copy its source code to `src` and `include` directly.
+2. Modify `index_init`, `index_destroy`, `index_insert`, `index_remove`, `index_lowerbound` in `src/adapter.c`. You can call interfaces of your desired index directly in these functions.
+3. Rebuild BonsaiKV.
 
-### Build
+### Run the Toy Example
 
-```
-cd evaluation/kvstore
-make -j
-```
+The `example` directory contains a toy example which demonstrates the usage of BonsaiKV library. To run it:
 
-### Run
+1. `cd ./example`
+2. `make -j`
+3. `./example`
 
-```
-cd evaluation/kvstore
-./kvstore
-```
+## Testing BonsaiKV
+
+### YCSB Benchmark
+
+#### Generating Workloads
+
+You can generate YCSB workloads as follows:
+
+1. `cd ./test/benchmark_ycsb/tools/index-microbench`
+2. Modify `gen_ycsb.sh` to change workload settings.
+3. `./gen_ycsb.sh`
+
+Note that these scripts are only compatible with our modified YCSB in `./test/benchmark_ycsb/tools/index-microbench`. We remove some outputs and add multi-thread support to speed up benchmark generation.
+
+#### Configuring and Building the Benchmark Driver
+
+1. Modify `./test/benchmark_ycsb/include/config.h` to change hardware configurations and benchmark options. Important options:
+   + **NUM_CPU:** CPU core number
+   + **NUM_THREADS: ** Worker thread number
+   + **YCSB_KVLIB_PATH: ** Key-value store library path
+   + **YCSB_WORKLOAD_NAME: ** The workload to run (see all workloads in `./test/benchmark_ycsb/workloads`)
+   + **YCSB_IS_STRING_KEY: ** Use string key or not.
+   + **YCSB_VAL_LEN: ** Value length.
+2. Build the Benchmark Driver
+   + `cd ./test/benchmark_ycsb`
+   + `make -j`
+
+​		Now you will find `kvstore` in `./test/benchmark_ycsb`.
+
+#### Run YCSB Benchmark
+
+You just need to run `./kvstore` in `./test/benchmark_ycsb`.
 
