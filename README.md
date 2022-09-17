@@ -2,7 +2,7 @@
 
 ### 1. Overview
 
-This repository contains the source code, setup utilities, and test scripts of *BonsaiKV*: a fast, scalable, and persistent key-value store on heterogeneous memory system. 
+This repository contains the source code, setup utilities, and test scripts of BonsaiKV: a fast, scalable, and persistent key-value store on heterogeneous memory system. 
 
 ### 2. Getting Started
 
