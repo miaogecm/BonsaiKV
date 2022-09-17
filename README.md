@@ -60,15 +60,11 @@ BonsaiKV uses Masstree as its index by default. But you can plug other indexes a
 The `example` directory contains a toy example which demonstrates the usage of BonsaiKV library. To run it:
 
 1. Setup the environment
-
    + `cd ./scripts`
-
    + `./setup.sh`
 
 2. Build the toy example
-
    + `cd ./example`
-
    + `make -j`
 
 3. Run the toy example: `./example`
@@ -105,15 +101,9 @@ Note that these scripts are only compatible with our modified YCSB in `./test/be
 #### Run YCSB Benchmark
 
 1. Setup the environment
-
    + `cd ./scripts`
-
    + `./setup.sh`
 
-2. Run the YCSB Benchmark: 
-
+2. Run the YCSB Benchmark:
    + `cd ./test/benchmark/ycsb`
    + `./kvstore
-
-
-
