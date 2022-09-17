@@ -18,7 +18,7 @@ BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory
 
 **Kernel version:** Linux Kernel 5.4.0-125-generic
 
-**Libraries: ** libpmemobj, libnuma, libjemalloc
+**Libraries:** libpmemobj, libnuma, libjemalloc
 
 ### Configuring and Building BonsaiKV
 
