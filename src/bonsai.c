@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Bonsai
+ * Contains main interfaces of BonsaiKV
  */
 
 #define _GNU_SOURCE
@@ -324,6 +324,9 @@ size_t bonsai_get_dram_usage() {
 #else
     (void) nr_pno;
 #endif
+
+    (void) nr_ino;
+    (void) nr_pno;
 
     return mem;
 }

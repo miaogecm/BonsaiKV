@@ -4,6 +4,7 @@
  * Recovery
  */
 
+#define _GNU_SOURCE
 #include "bonsai.h"
 
 void bonsai_recover() {

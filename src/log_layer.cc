@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Log Layer
+ * Log Layer: Fast persistence
  */
 
 #include <algorithm>

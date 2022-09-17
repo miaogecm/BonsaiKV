@@ -4,6 +4,7 @@
  * Statistics counters
  */
 
+#define _GNU_SOURCE
 #include "bonsai.h"
 #include "counter.h"
 #include "config.h"

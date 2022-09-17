@@ -1680,6 +1680,8 @@ masstree_destroy(masstree_t *tree)
 	ASSERT(PERM_NKEYS(root->permutation) == 0);
 	ASSERT(tree->gc_nodes == NULL);
 
+    (void) root;
+
 	/* Finally, free Masstree. */
 	// if (&tree->initleaf != root) {
 	// 	ops->free(root, sizeof(mtree_leaf_t));

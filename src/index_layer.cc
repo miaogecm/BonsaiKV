@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Index Layer
+ * Index Layer: Efficient indexing with low DRAM space consumption
  */
 
 #include <algorithm>

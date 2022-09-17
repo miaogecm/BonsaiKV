@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Data Layer
+ * Data Layer: Scalable data layout organization
  */
 
 #define _GNU_SOURCE
@@ -201,6 +201,15 @@ static pentry_t *pnode_ent(pnoid_t pno, unsigned i, int replica) {
     unsigned epoch, *e, old_e;
     pentry_t *local, *ent;
 
+    (void) d_layer;
+    (void) my;
+    (void) node;
+    (void) pnoid;
+    (void) local;
+    (void) e;
+    (void) old_e;
+    (void) epoch;
+
     ent = (pentry_t *) pnode_dimm_addr(pno, dimm_idx) + blkoff;
 
     if (!replica) {
@@ -348,7 +357,7 @@ static void pnode_verify(pnoid_t pnode) {
     unsigned pos;
     for_each_set_bit(pos, &vmp, PNODE_FANOUT) {
         ent = pnode_ent(pnode, pos, 0);
-        bonsai_print("gotcha %lx %u %lu\n", ent, pnode, *(unsigned long *) ent->k.key);
+        bonsai_print("gotcha %lx %u %lu\n", (unsigned long) ent, pnode, *(unsigned long *) ent->k.key);
         assert(pkey_compare(ent->k, mno->lfence) >= 0);
         assert(pkey_compare(ent->k, mno->rfence) < 0);
     }
@@ -911,6 +920,10 @@ int data_layer_init(struct data_layer *layer) {
     size_t size = (DATA_REGION_SIZE / sizeof(pentry_t)) * sizeof(unsigned);
     int numa_node, ret;
     unsigned *tab;
+
+    (void) size;
+    (void) numa_node;
+    (void) tab;
 
     ret = data_region_init(layer);
     if (unlikely(ret)) {

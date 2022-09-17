@@ -1,7 +1,7 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Regions
+ * Log/PNode/Value Region Management
  */
 
 #define _GNU_SOURCE
@@ -258,6 +258,7 @@ int data_region_init(struct data_layer *layer) {
         goto out;
     }
 #endif
+    (void) pval_region_fpath;
 
 out:
     return err;

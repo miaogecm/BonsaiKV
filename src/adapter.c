@@ -1,8 +1,9 @@
 /*
  * BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
  *
- * Adapter
+ * A wrapper for BonsaiKV
  */
+#define _GNU_SOURCE
 
 #include <stdlib.h>
 #include <errno.h>
