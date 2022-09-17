@@ -1,10 +1,8 @@
-# BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
+## BonsaiKV: Towards Fast, Scalable, and Persistent Key-Value Stores with Tiered, Heterogeneous Memory System
 
-This directory and its sub-directories contain the source code, setup utilities, and test scripts of *BonsaiKV*, a fast, scalable, and persistent key-value store library. A toy example is also included to demonstrate the usage of BonsaiKV library.
+This repository contains the source code, setup utilities, and test scripts of *BonsaiKV*: a fast, scalable, and persistent key-value store on heterogeneous memory system. 
 
 ## Overview
-
-Welcome to BonsaiKV!
 
 BonsaiKV is a *versatile* key-value store built for tiered, heterogeneous memory system that fulfills efficient indexing, fast persistence, and high scalability simultaneously.
 
