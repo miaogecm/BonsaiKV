@@ -106,4 +106,4 @@ Note that these scripts are only compatible with our modified YCSB in `./test/be
 
 2. Run the YCSB Benchmark:
    + `cd ./test/benchmark/ycsb`
-   + `./kvstore
+   + `./kvstore`
