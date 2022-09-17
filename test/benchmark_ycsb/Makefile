@@ -3,7 +3,7 @@ CXX = g++
 AR = ar
 RM = rm
 
-PCM_FLAG = -lpcm -DUSE_PCM
+#PCM_FLAG = -lpcm -DUSE_PCM
 
 PROJ_DIR 	:= $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 INC_DIR 	:= $(PROJ_DIR)/include
