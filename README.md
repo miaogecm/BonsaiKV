@@ -62,11 +62,10 @@ The `example` directory contains a toy example which demonstrates how to run Bon
 1. Setup the environment
    + `cd ./scripts`
    + `./setup.sh`
-
+2. Build BonsaiKV first
 2. Build the toy example
    + `cd ./example`
    + `make -j`
-
 3. Run the toy example: `./example`
 
 ### 4. Testing BonsaiKV with YCSB
