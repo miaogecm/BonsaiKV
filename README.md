@@ -19,7 +19,7 @@ This repository contains the source code, setup utilities, and test scripts of B
 #### 2.2 Configure and Build BonsaiKV
 
 1. Clone BonsaiKV Repo:
-   + `git clone https://github.com/xxxxxx/BonsaiKV.git`
+   + `git clone git@github.com:miaogecm/BonsaiKV.git`
 
 2. Configure BonsaiKV:
 
